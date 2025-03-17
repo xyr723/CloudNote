@@ -7,19 +7,18 @@ import {
   SafeAreaView,
   StatusBar,
   ScrollView,
-  Switch,
-  Platform,
   Modal,
 } from 'react-native';
+import { generateThemeColors } from '../theme/colors';
 
 interface ProfilePageProps {
   username: string;
   notesCount: number;
   onLogout: () => void;
   onClose: () => void;
-  isDarkMode?: boolean;
-  onToggleDarkMode?: (value: boolean) => void;
+  onOpenSettings: () => void;
   visible: boolean;
+  theme: ReturnType<typeof generateThemeColors>;
 }
 
 const ProfilePage: React.FC<ProfilePageProps> = ({
@@ -27,69 +26,71 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
   notesCount,
   onLogout,
   onClose,
-  isDarkMode = false,
-  onToggleDarkMode,
+  onOpenSettings,
   visible,
+  theme,
 }) => {
   return (
     <Modal
       visible={visible}
       animationType="slide"
       onRequestClose={onClose}>
-      <SafeAreaView style={styles.container}>
-        <StatusBar backgroundColor="#C5A3E6" barStyle="light-content" />
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
+        <View style={[styles.header, { backgroundColor: theme.primary }]}>
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Text style={styles.closeButtonText}>×</Text>
+            <Text style={[styles.closeButtonText, { color: theme.surface }]}>×</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>个人中心</Text>
+          <Text style={[styles.headerTitle, { color: theme.surface }]}>个人中心</Text>
           <View style={styles.placeholder} />
         </View>
 
         <ScrollView style={styles.content}>
-          <View style={styles.profileSection}>
-            <View style={styles.avatarContainer}>
-              <Text style={styles.avatarText}>{username[0].toUpperCase()}</Text>
+          <View style={[styles.profileSection, { backgroundColor: theme.surface }]}>
+            <View style={[styles.avatarContainer, { backgroundColor: theme.primary }]}>
+              <Text style={[styles.avatarText, { color: theme.surface }]}>
+                {username[0].toUpperCase()}
+              </Text>
             </View>
-            <Text style={styles.username}>{username}</Text>
+            <Text style={[styles.username, { color: theme.textDark }]}>{username}</Text>
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
-                <Text style={styles.statNumber}>{notesCount}</Text>
-                <Text style={styles.statLabel}>笔记数量</Text>
+                <Text style={[styles.statNumber, { color: theme.primary }]}>{notesCount}</Text>
+                <Text style={[styles.statLabel, { color: theme.primaryLight }]}>笔记数量</Text>
               </View>
             </View>
           </View>
 
-          <View style={styles.menuSection}>
-            <TouchableOpacity style={styles.menuItem}>
-              <Text style={styles.menuIcon}>🔒</Text>
-              <Text style={styles.menuText}>修改密码</Text>
-              <Text style={styles.menuArrow}>›</Text>
+          <View style={[styles.menuSection, { backgroundColor: theme.surface }]}>
+            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={onOpenSettings}>
+              <Text style={styles.menuIcon}>⚙️</Text>
+              <Text style={[styles.menuText, { color: theme.text }]}>设置</Text>
+              <Text style={[styles.menuArrow, { color: theme.primary }]}>›</Text>
             </TouchableOpacity>
 
-            <View style={styles.menuItem}>
-              <Text style={styles.menuIcon}>🌙</Text>
-              <Text style={styles.menuText}>深色模式</Text>
-              <Switch
-                value={isDarkMode}
-                onValueChange={onToggleDarkMode}
-                trackColor={{false: '#E0D1F0', true: '#C5A3E6'}}
-                thumbColor={isDarkMode ? '#FFFFFF' : '#FFFFFF'}
-              />
-            </View>
+            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]}>
+              <Text style={styles.menuIcon}>🔒</Text>
+              <Text style={[styles.menuText, { color: theme.text }]}>修改密码</Text>
+              <Text style={[styles.menuArrow, { color: theme.primary }]}>›</Text>
+            </TouchableOpacity>
 
-            <TouchableOpacity style={styles.menuItem}>
+            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]}>
               <Text style={styles.menuIcon}>ℹ️</Text>
-              <Text style={styles.menuText}>关于云笔记</Text>
-              <Text style={styles.menuArrow}>›</Text>
+              <Text style={[styles.menuText, { color: theme.text }]}>关于云笔记</Text>
+              <Text style={[styles.menuArrow, { color: theme.primary }]}>›</Text>
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
-            <Text style={styles.logoutButtonText}>退出登录</Text>
+          <TouchableOpacity 
+            style={[styles.logoutButton, { 
+              backgroundColor: theme.surface,
+              borderColor: theme.error 
+            }]} 
+            onPress={onLogout}>
+            <Text style={[styles.logoutButtonText, { color: theme.error }]}>退出登录</Text>
           </TouchableOpacity>
 
-          <Text style={styles.version}>版本 1.0.0</Text>
+          <Text style={[styles.version, { color: theme.textLight }]}>版本 1.0.0</Text>
         </ScrollView>
       </SafeAreaView>
     </Modal>
@@ -99,7 +100,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FDFAFF',
   },
   header: {
     flexDirection: 'row',
@@ -107,9 +107,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     height: 56,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#EFE6F7',
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   closeButton: {
     width: 40,
@@ -119,13 +126,11 @@ const styles = StyleSheet.create({
   },
   closeButtonText: {
     fontSize: 28,
-    color: '#A98DB8',
     fontWeight: '300',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#A98DB8',
   },
   placeholder: {
     width: 40,
@@ -136,7 +141,6 @@ const styles = StyleSheet.create({
   profileSection: {
     alignItems: 'center',
     paddingVertical: 32,
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
     borderBottomColor: '#EFE6F7',
   },
@@ -144,7 +148,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#C5A3E6',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -159,13 +162,11 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontSize: 32,
-    color: '#FFFFFF',
     fontWeight: 'bold',
   },
   username: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#666666',
     marginBottom: 16,
   },
   statsContainer: {
@@ -179,15 +180,12 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#A98DB8',
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 14,
-    color: '#B088C9',
   },
   menuSection: {
-    backgroundColor: '#FFFFFF',
     marginTop: 12,
     borderTopWidth: 1,
     borderBottomWidth: 1,
@@ -199,7 +197,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#EFE6F7',
   },
   menuIcon: {
     fontSize: 20,
@@ -208,25 +205,20 @@ const styles = StyleSheet.create({
   menuText: {
     flex: 1,
     fontSize: 16,
-    color: '#666666',
   },
   menuArrow: {
     fontSize: 20,
-    color: '#B088C9',
   },
   logoutButton: {
     marginTop: 24,
     marginHorizontal: 20,
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     height: 50,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E5A4C4',
   },
   logoutButtonText: {
-    color: '#E5A4C4',
     fontSize: 16,
     fontWeight: '500',
   },
@@ -234,7 +226,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 16,
     marginBottom: 32,
-    color: '#B088C9',
     fontSize: 12,
   },
 });
