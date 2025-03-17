@@ -118,7 +118,7 @@ function App(): React.JSX.Element {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#FFB6C1" />
+      <StatusBar barStyle="light-content" backgroundColor="#C5A3E6" />
       <View style={styles.header}>
         <Text style={styles.headerTitle}>我的云笔记</Text>
       </View>
@@ -130,6 +130,9 @@ function App(): React.JSX.Element {
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
+        <View style={styles.tipContainer}>
+          <Text style={styles.tipText}>💡 小贴士：长按笔记可以删除哦 (◕‿◕✿)</Text>
+        </View>
       </View>
 
       <FlatList
@@ -227,17 +230,23 @@ function App(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#FDFAFF',  // 更淡的背景色
   },
   header: {
-    backgroundColor: '#7FB3D5',
+    backgroundColor: '#C5A3E6',  // 更柔和的紫色
     padding: 20,
     elevation: 2,
+    borderBottomLeftRadius: 25,
+    borderBottomRightRadius: 25,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: {width: 1, height: 1},
+    textShadowRadius: 3,
   },
   noteList: {
     flex: 1,
@@ -246,65 +255,106 @@ const styles = StyleSheet.create({
   noteItem: {
     backgroundColor: '#FFFFFF',
     margin: 10,
+    marginTop: 6,
+    marginBottom: 8,
     padding: 15,
-    borderRadius: 12,
-    elevation: 1,
+    borderRadius: 16,
+    elevation: 2,
     borderWidth: 1,
-    borderColor: '#E8EEF2',
+    borderColor: '#EFE6F7',  // 更淡的紫色边框
   },
   noteTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#2C3E50',
+    color: '#A98DB8',  // 更柔和的深紫色
     marginBottom: 8,
   },
   noteContent: {
     fontSize: 14,
-    color: '#34495E',
+    color: '#666666',
     marginBottom: 8,
     lineHeight: 20,
   },
   noteTime: {
     fontSize: 12,
-    color: '#95A5A6',
+    color: '#E5A4C4',  // 更柔和的粉色
+    fontStyle: 'italic',
   },
   addButton: {
     position: 'absolute',
     right: 30,
     bottom: 30,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#7FB3D5',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#E5A4C4',  // 更柔和的粉色
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 3,
+    elevation: 4,
   },
   addButtonText: {
-    fontSize: 28,
+    fontSize: 32,
     color: 'white',
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: {width: 1, height: 1},
+    textShadowRadius: 2,
+  },
+  searchContainer: {
+    padding: 15,
+    paddingBottom: 2,
+  },
+  searchInput: {
+    borderWidth: 1.5,
+    borderColor: '#C5A3E6',  // 更柔和的紫色边框
+    borderRadius: 20,
+    padding: 12,
+    paddingLeft: 20,
+    fontSize: 15,
+    color: '#666666',
+    backgroundColor: '#FFFFFF',
+  },
+  tipContainer: {
+    padding: 8,
+    paddingTop: 5,
+    paddingLeft: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tipText: {
+    fontSize: 13,
+    color: '#E5A4C4',  // 更柔和的粉色
+    fontStyle: 'italic',
+    textAlign: 'center',
+    backgroundColor: '#FDFAFF',  // 更淡的背景色
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#F7E6EF',  // 更淡的粉色边框
   },
   modalContainer: {
     flex: 1,
     justifyContent: 'center',
-    backgroundColor: 'rgba(44, 62, 80, 0.4)',
+    backgroundColor: 'rgba(197, 163, 230, 0.25)',  // 更淡的半透明紫色
   },
   modalContent: {
     backgroundColor: 'white',
     margin: 20,
-    padding: 20,
-    borderRadius: 12,
-    elevation: 4,
+    padding: 25,
+    borderRadius: 20,
+    elevation: 5,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#E8EEF2',
-    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#C5A3E6',  // 更柔和的紫色边框
+    borderRadius: 15,
     padding: 12,
-    marginBottom: 12,
+    marginBottom: 15,
     fontSize: 15,
-    color: '#2C3E50',
-    backgroundColor: '#F8F9FA',
+    color: '#666666',
+    backgroundColor: '#FDFAFF',  // 更淡的背景色
   },
   contentInput: {
     height: 150,
@@ -314,50 +364,42 @@ const styles = StyleSheet.create({
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: 15,
+    marginTop: 20,
   },
   button: {
     padding: 12,
-    borderRadius: 8,
+    borderRadius: 15,
     marginLeft: 12,
-    minWidth: 80,
+    minWidth: 90,
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#BDC3C7',
+    backgroundColor: '#E5A4C4',  // 更柔和的粉色
+    opacity: 0.8,
   },
   saveButton: {
-    backgroundColor: '#7FB3D5',
+    backgroundColor: '#C5A3E6',  // 更柔和的紫色
   },
   buttonText: {
     color: 'white',
     fontWeight: '600',
     fontSize: 15,
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: {width: 0.5, height: 0.5},
+    textShadowRadius: 1,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
-    color: '#2C3E50',
-    marginBottom: 15,
+    color: '#A98DB8',  // 更柔和的深紫色
+    marginBottom: 20,
     textAlign: 'center',
-  },
-  searchContainer: {
-    padding: 10,
-  },
-  searchInput: {
-    borderWidth: 1,
-    borderColor: '#E8EEF2',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 15,
-    color: '#2C3E50',
-    backgroundColor: '#F8F9FA',
   },
   deleteModalContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(44, 62, 80, 0.5)',
+    backgroundColor: 'rgba(197, 163, 230, 0.25)',  // 更淡的半透明紫色
   },
   deleteModalContent: {
     backgroundColor: 'white',
@@ -371,7 +413,7 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: '#FFE5E5',
+    backgroundColor: '#FDFAFF',  // 更淡的背景色
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 15,
@@ -382,18 +424,18 @@ const styles = StyleSheet.create({
   deleteTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#2C3E50',
+    color: '#A98DB8',  // 更柔和的深紫色
     marginBottom: 10,
   },
   deleteMessage: {
     fontSize: 16,
-    color: '#34495E',
+    color: '#666666',
     marginBottom: 8,
     textAlign: 'center',
   },
   deleteSubMessage: {
     fontSize: 14,
-    color: '#95A5A6',
+    color: '#E5A4C4',  // 更柔和的粉色
     marginBottom: 20,
     textAlign: 'center',
   },
@@ -411,15 +453,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelDeleteButton: {
-    backgroundColor: '#F8F9FA',
+    backgroundColor: '#FDFAFF',  // 更淡的背景色
     borderWidth: 1,
-    borderColor: '#E8EEF2',
+    borderColor: '#C5A3E6',  // 更柔和的紫色边框
   },
   confirmDeleteButton: {
-    backgroundColor: '#FF9B9B',
+    backgroundColor: '#E5A4C4',  // 更柔和的粉色
   },
   cancelDeleteButtonText: {
-    color: '#7FB3D5',
+    color: '#A98DB8',  // 更柔和的深紫色
     fontWeight: '600',
     fontSize: 15,
   },
