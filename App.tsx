@@ -16,7 +16,6 @@ import {
   TextInput,
   Modal,
   StatusBar,
-  Alert,
 } from 'react-native';
 
 interface Note {
@@ -42,6 +41,8 @@ function App(): React.JSX.Element {
   });
   const [isEditing, setIsEditing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
 
   const filteredNotes = notes.filter(note =>
     note.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -87,25 +88,17 @@ function App(): React.JSX.Element {
   };
 
   const handleDeleteNote = useCallback((noteId: string) => {
-    Alert.alert(
-      '删除笔记',
-      '确定要删除这条笔记吗？',
-      [
-        {
-          text: '取消',
-          style: 'cancel',
-        },
-        {
-          text: '删除',
-          onPress: () => {
-            setNotes(notes.filter(note => note.id !== noteId));
-          },
-          style: 'destructive',
-        },
-      ],
-      {cancelable: true},
-    );
-  }, [notes]);
+    setNoteToDelete(noteId);
+    setDeleteModalVisible(true);
+  }, []);
+
+  const confirmDelete = () => {
+    if (noteToDelete) {
+      setNotes(notes.filter(note => note.id !== noteToDelete));
+      setDeleteModalVisible(false);
+      setNoteToDelete(null);
+    }
+  };
 
   const renderNoteItem = ({item}: {item: Note}) => (
     <TouchableOpacity 
@@ -125,7 +118,7 @@ function App(): React.JSX.Element {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#7FB3D5" />
+      <StatusBar barStyle="light-content" backgroundColor="#FFB6C1" />
       <View style={styles.header}>
         <Text style={styles.headerTitle}>我的云笔记</Text>
       </View>
@@ -193,6 +186,35 @@ function App(): React.JSX.Element {
                 style={[styles.button, styles.saveButton]}
                 onPress={handleSave}>
                 <Text style={styles.buttonText}>保存</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={deleteModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setDeleteModalVisible(false)}>
+        <View style={styles.deleteModalContainer}>
+          <View style={styles.deleteModalContent}>
+            <View style={styles.deleteIconContainer}>
+              <Text style={styles.deleteIcon}>🗑️</Text>
+            </View>
+            <Text style={styles.deleteTitle}>删除笔记</Text>
+            <Text style={styles.deleteMessage}>确定要删除这条笔记吗？</Text>
+            <Text style={styles.deleteSubMessage}>删除后将无法恢复哦 (｡•́︿•̀｡)</Text>
+            <View style={styles.deleteButtons}>
+              <TouchableOpacity
+                style={[styles.deleteButton, styles.cancelDeleteButton]}
+                onPress={() => setDeleteModalVisible(false)}>
+                <Text style={styles.cancelDeleteButtonText}>再想想</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deleteButton, styles.confirmDeleteButton]}
+                onPress={confirmDelete}>
+                <Text style={styles.confirmDeleteButtonText}>删除</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -330,6 +352,81 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#2C3E50',
     backgroundColor: '#F8F9FA',
+  },
+  deleteModalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(44, 62, 80, 0.5)',
+  },
+  deleteModalContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 25,
+    alignItems: 'center',
+    width: '80%',
+    elevation: 5,
+  },
+  deleteIconContainer: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#FFE5E5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  deleteIcon: {
+    fontSize: 32,
+  },
+  deleteTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+    marginBottom: 10,
+  },
+  deleteMessage: {
+    fontSize: 16,
+    color: '#34495E',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  deleteSubMessage: {
+    fontSize: 14,
+    color: '#95A5A6',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  deleteButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  deleteButton: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    marginHorizontal: 8,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  cancelDeleteButton: {
+    backgroundColor: '#F8F9FA',
+    borderWidth: 1,
+    borderColor: '#E8EEF2',
+  },
+  confirmDeleteButton: {
+    backgroundColor: '#FF9B9B',
+  },
+  cancelDeleteButtonText: {
+    color: '#7FB3D5',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  confirmDeleteButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 15,
   },
 });
 
