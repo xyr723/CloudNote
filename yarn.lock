@@ -5069,6 +5069,11 @@ metro-file-map@0.81.3:
     nullthrows "^1.1.1"
     walker "^1.0.7"
 
+metro-minify-esbuild@^0.2.0:
+  version "0.2.0"
+  resolved "https://registry.npmmirror.com/metro-minify-esbuild/-/metro-minify-esbuild-0.2.0.tgz#7340208c24ea408d0974557b6faa7ad87af49a8d"
+  integrity sha512-62LsNflqB2/ClEq/iQm6n8etr4tHLPNNubbQPlISgkAqsz7EUmsY+jSuul6h53Htgdahs7nvqZwIsoEj4uQgUg==
+
 metro-minify-terser@0.81.3:
   version "0.81.3"
   resolved "https://registry.npmmirror.com/metro-minify-terser/-/metro-minify-terser-0.81.3.tgz#68e15ffbcaa21d7daa01840405168704cd9b5b67"
