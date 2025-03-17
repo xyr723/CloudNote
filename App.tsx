@@ -5,7 +5,7 @@
  * @format
  */
 
-import React, {useState, useCallback} from 'react';
+import React, {useState, useCallback, useMemo} from 'react';
 import {
   SafeAreaView,
   StyleSheet,
@@ -21,6 +21,8 @@ import EditNotePage from './app/components/EditNotePage';
 import ProfilePage from './app/components/ProfilePage';
 import LoginPage from './app/components/LoginPage';
 import RegisterPage from './app/components/RegisterPage';
+import SettingsPage from './app/components/SettingsPage';
+import { generateThemeColors } from './app/theme/colors';
 
 interface Note {
   id: string;
@@ -49,10 +51,15 @@ function App(): React.JSX.Element {
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
   const [showProfile, setShowProfile] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [themeColor, setThemeColor] = useState('#C5A3E6');
   const [user, setUser] = useState<{username: string; isLoggedIn: boolean}>({
     username: '云笔记',
     isLoggedIn: false,
   });
+
+  const theme = useMemo(() => generateThemeColors(themeColor), [themeColor]);
 
   const filteredNotes = notes.filter(note =>
     note.title.toLowerCase().includes(searchQuery.toLowerCase())
@@ -125,17 +132,29 @@ function App(): React.JSX.Element {
     }
   };
 
+  const handleOpenSettings = () => {
+    setShowSettings(true);
+  };
+
+  const handleCloseSettings = () => {
+    setShowSettings(false);
+  };
+
+  const handleThemeColorChange = (color: string) => {
+    setThemeColor(color);
+  };
+
   const renderNoteItem = ({item}: {item: Note}) => (
     <TouchableOpacity 
-      style={styles.noteItem}
+      style={[styles.noteItem, { borderColor: theme.border }]}
       onPress={() => handleEditNote(item)}
       onLongPress={() => handleDeleteNote(item.id)}
     >
-      <Text style={styles.noteTitle}>{item.title}</Text>
-      <Text style={styles.noteContent} numberOfLines={2}>
+      <Text style={[styles.noteTitle, { color: theme.primaryDark }]}>{item.title}</Text>
+      <Text style={[styles.noteContent, { color: theme.text }]} numberOfLines={2}>
         {item.content}
       </Text>
-      <Text style={styles.noteTime}>
+      <Text style={[styles.noteTime, { color: theme.accent }]}>
         {item.timestamp.toLocaleString('zh-CN', {
           year: 'numeric',
           month: '2-digit',
@@ -166,14 +185,14 @@ function App(): React.JSX.Element {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor="#C5A3E6" barStyle="light-content" />
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
+      <View style={[styles.header, { backgroundColor: theme.primary }]}>
         <Text style={styles.title}>云笔记</Text>
         <TouchableOpacity 
-          style={styles.profileButton} 
+          style={[styles.profileButton, { backgroundColor: theme.surface }]} 
           onPress={() => setShowProfile(true)}>
-          <Text style={styles.profileButtonText}>
+          <Text style={[styles.profileButtonText, { color: theme.primary }]}>
             {user.username[0].toUpperCase()}
           </Text>
         </TouchableOpacity>
@@ -181,13 +200,20 @@ function App(): React.JSX.Element {
 
       <View style={styles.searchContainer}>
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { 
+            borderColor: theme.primary,
+            backgroundColor: theme.surface,
+            color: theme.text
+          }]}
           placeholder="搜索笔记..."
+          placeholderTextColor={theme.textLight}
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
         <View style={styles.tipContainer}>
-          <Text style={styles.tipText}>💡 小贴士：长按笔记可以删除哦 (◕‿◕✿)</Text>
+          <Text style={styles.tipText}>
+            💡 小贴士：长按笔记可以删除哦 (◕‿◕✿)
+          </Text>
         </View>
       </View>
 
@@ -199,7 +225,7 @@ function App(): React.JSX.Element {
       />
 
       <TouchableOpacity
-        style={styles.addButton}
+        style={[styles.addButton, { backgroundColor: theme.accent }]}
         onPress={() => {
           setCurrentNote({title: '', content: ''});
           setIsEditing(false);
@@ -244,6 +270,20 @@ function App(): React.JSX.Element {
           notesCount={notes.length}
           onLogout={handleLogout}
           onClose={() => setShowProfile(false)}
+          onOpenSettings={handleOpenSettings}
+          theme={theme}
+        />
+      )}
+
+      {showSettings && (
+        <SettingsPage
+          visible={showSettings}
+          onClose={handleCloseSettings}
+          isDarkMode={isDarkMode}
+          onToggleDarkMode={setIsDarkMode}
+          themeColor={themeColor}
+          onThemeColorChange={handleThemeColorChange}
+          theme={theme}
         />
       )}
 
@@ -256,6 +296,7 @@ function App(): React.JSX.Element {
           onClose={handleCloseModal}
           onChangeTitle={(text) => setCurrentNote({...currentNote, title: text})}
           onChangeContent={(text) => setCurrentNote({...currentNote, content: text})}
+          theme={theme}
         />
       )}
     </SafeAreaView>
@@ -265,14 +306,12 @@ function App(): React.JSX.Element {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FDFAFF',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
-    backgroundColor: '#C5A3E6',
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
     elevation: 4,
@@ -293,7 +332,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 2,
@@ -308,14 +346,12 @@ const styles = StyleSheet.create({
   profileButtonText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#C5A3E6',
   },
   noteList: {
     flex: 1,
     paddingTop: 8,
   },
   noteItem: {
-    backgroundColor: '#FFFFFF',
     margin: 10,
     marginTop: 6,
     marginBottom: 8,
@@ -323,23 +359,20 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     elevation: 2,
     borderWidth: 1,
-    borderColor: '#EFE6F7',  // 更淡的紫色边框
+    backgroundColor: '#FFFFFF',
   },
   noteTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#A98DB8',  // 更柔和的深紫色
     marginBottom: 8,
   },
   noteContent: {
     fontSize: 14,
-    color: '#666666',
     marginBottom: 8,
     lineHeight: 20,
   },
   noteTime: {
     fontSize: 12,
-    color: '#E5A4C4',  // 更柔和的粉色
     fontStyle: 'italic',
   },
   addButton: {
@@ -349,7 +382,6 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#E5A4C4',  // 更柔和的粉色
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 4,
@@ -363,38 +395,32 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     padding: 15,
-    paddingBottom: 2,
+    paddingBottom: 8,
   },
   searchInput: {
     borderWidth: 1.5,
-    borderColor: '#C5A3E6',  // 更柔和的紫色边框
     borderRadius: 20,
     padding: 12,
     paddingLeft: 20,
     fontSize: 15,
-    color: '#666666',
-    backgroundColor: '#FFFFFF',
   },
   tipContainer: {
-    padding: 8,
-    paddingTop: 5,
-    paddingLeft: 15,
+    padding: 6,
+    paddingTop: 4,
+    paddingLeft: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 4,
+    alignSelf: 'center',
+    width: '90%',
   },
   tipText: {
-    fontSize: 13,
-    color: '#E5A4C4',  // 更柔和的粉色
+    fontSize: 12,
     fontStyle: 'italic',
     textAlign: 'center',
-    backgroundColor: '#FDFAFF',  // 更淡的背景色
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 15,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#F7E6EF',  // 更淡的粉色边框
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
   deleteModalContainer: {
     flex: 1,
