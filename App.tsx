@@ -18,6 +18,9 @@ import {
   StatusBar,
 } from 'react-native';
 import EditNotePage from './app/components/EditNotePage';
+import ProfilePage from './app/components/ProfilePage';
+import LoginPage from './app/components/LoginPage';
+import RegisterPage from './app/components/RegisterPage';
 
 interface Note {
   id: string;
@@ -44,10 +47,31 @@ function App(): React.JSX.Element {
   const [searchQuery, setSearchQuery] = useState('');
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
+  const [user, setUser] = useState<{username: string; isLoggedIn: boolean}>({
+    username: '云笔记',
+    isLoggedIn: false,
+  });
 
   const filteredNotes = notes.filter(note =>
     note.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleLogin = (username: string, _password: string) => {
+    // 这里暂时直接登录成功，后续添加实际的登录验证
+    setUser({username, isLoggedIn: true});
+  };
+
+  const handleRegister = (_username: string, _password: string) => {
+    // 这里暂时直接注册成功，后续添加实际的注册逻辑
+    setShowRegister(false);
+  };
+
+  const handleLogout = () => {
+    setUser({username: '', isLoggedIn: false});
+    setShowProfile(false);
+  };
 
   const handleSave = () => {
     if (currentNote.title.trim() || currentNote.content.trim()) {
@@ -112,115 +136,179 @@ function App(): React.JSX.Element {
         {item.content}
       </Text>
       <Text style={styles.noteTime}>
-        {new Date(item.timestamp).toLocaleString()}
+        {item.timestamp.toLocaleString('zh-CN', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        })}
       </Text>
     </TouchableOpacity>
   );
 
-  return (
-    <View style={styles.appContainer}>
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#C5A3E6" />
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>我的云笔记</Text>
-        </View>
-
-        <View style={styles.searchContainer}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="搜索笔记..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-          />
-          <View style={styles.tipContainer}>
-            <Text style={styles.tipText}>💡 小贴士：长按笔记可以删除哦 (◕‿◕✿)</Text>
-          </View>
-        </View>
-
-        <FlatList
-          data={filteredNotes}
-          renderItem={renderNoteItem}
-          keyExtractor={item => item.id}
-          style={styles.noteList}
+  if (!user.isLoggedIn) {
+    if (showRegister) {
+      return (
+        <RegisterPage
+          onRegister={handleRegister}
+          onBack={() => setShowRegister(false)}
         />
+      );
+    }
+    return (
+      <LoginPage
+        onLogin={handleLogin}
+        onRegister={() => setShowRegister(true)}
+      />
+    );
+  }
 
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => {
-            setCurrentNote({title: '', content: ''});
-            setIsEditing(false);
-            setModalVisible(true);
-          }}>
-          <Text style={styles.addButtonText}>+</Text>
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar backgroundColor="#C5A3E6" barStyle="light-content" />
+      <View style={styles.header}>
+        <Text style={styles.title}>云笔记</Text>
+        <TouchableOpacity 
+          style={styles.profileButton} 
+          onPress={() => setShowProfile(true)}>
+          <Text style={styles.profileButtonText}>
+            {user.username[0].toUpperCase()}
+          </Text>
         </TouchableOpacity>
+      </View>
 
-        <Modal
-          visible={deleteModalVisible}
-          transparent={true}
-          animationType="fade"
-          onRequestClose={() => setDeleteModalVisible(false)}>
-          <View style={styles.deleteModalContainer}>
-            <View style={styles.deleteModalContent}>
-              <View style={styles.deleteIconContainer}>
-                <Text style={styles.deleteIcon}>🗑️</Text>
-              </View>
-              <Text style={styles.deleteTitle}>删除笔记</Text>
-              <Text style={styles.deleteMessage}>确定要删除这条笔记吗？</Text>
-              <Text style={styles.deleteSubMessage}>删除后将无法恢复哦 (｡•́︿•̀｡)</Text>
-              <View style={styles.deleteButtons}>
-                <TouchableOpacity
-                  style={[styles.deleteButton, styles.cancelDeleteButton]}
-                  onPress={() => setDeleteModalVisible(false)}>
-                  <Text style={styles.cancelDeleteButtonText}>再想想</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.deleteButton, styles.confirmDeleteButton]}
-                  onPress={confirmDelete}>
-                  <Text style={styles.confirmDeleteButtonText}>删除</Text>
-                </TouchableOpacity>
-              </View>
+      <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="搜索笔记..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+        />
+        <View style={styles.tipContainer}>
+          <Text style={styles.tipText}>💡 小贴士：长按笔记可以删除哦 (◕‿◕✿)</Text>
+        </View>
+      </View>
+
+      <FlatList
+        data={filteredNotes}
+        renderItem={renderNoteItem}
+        keyExtractor={item => item.id}
+        style={styles.noteList}
+      />
+
+      <TouchableOpacity
+        style={styles.addButton}
+        onPress={() => {
+          setCurrentNote({title: '', content: ''});
+          setIsEditing(false);
+          setModalVisible(true);
+        }}>
+        <Text style={styles.addButtonText}>+</Text>
+      </TouchableOpacity>
+
+      <Modal
+        visible={deleteModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setDeleteModalVisible(false)}>
+        <View style={styles.deleteModalContainer}>
+          <View style={styles.deleteModalContent}>
+            <View style={styles.deleteIconContainer}>
+              <Text style={styles.deleteIcon}>🗑️</Text>
+            </View>
+            <Text style={styles.deleteTitle}>删除笔记</Text>
+            <Text style={styles.deleteMessage}>确定要删除这条笔记吗？</Text>
+            <Text style={styles.deleteSubMessage}>删除后将无法恢复哦 (｡•́︿•̀｡)</Text>
+            <View style={styles.deleteButtons}>
+              <TouchableOpacity
+                style={[styles.deleteButton, styles.cancelDeleteButton]}
+                onPress={() => setDeleteModalVisible(false)}>
+                <Text style={styles.cancelDeleteButtonText}>再想想</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deleteButton, styles.confirmDeleteButton]}
+                onPress={confirmDelete}>
+                <Text style={styles.confirmDeleteButtonText}>删除</Text>
+              </TouchableOpacity>
             </View>
           </View>
-        </Modal>
-      </SafeAreaView>
+        </View>
+      </Modal>
 
-      <EditNotePage
-        isEditing={isEditing}
-        note={currentNote}
-        onSave={handleSave}
-        onClose={handleCloseModal}
-        onChangeTitle={(text) => setCurrentNote({...currentNote, title: text})}
-        onChangeContent={(text) => setCurrentNote({...currentNote, content: text})}
-        visible={modalVisible}
-      />
-    </View>
+      {showProfile && (
+        <ProfilePage
+          visible={showProfile}
+          username={user.username}
+          notesCount={notes.length}
+          onLogout={handleLogout}
+          onClose={() => setShowProfile(false)}
+        />
+      )}
+
+      {modalVisible && (
+        <EditNotePage
+          visible={modalVisible}
+          isEditing={isEditing}
+          note={currentNote}
+          onSave={handleSave}
+          onClose={handleCloseModal}
+          onChangeTitle={(text) => setCurrentNote({...currentNote, title: text})}
+          onChangeContent={(text) => setCurrentNote({...currentNote, content: text})}
+        />
+      )}
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  appContainer: {
-    flex: 1,
-    position: 'relative',
-  },
   container: {
     flex: 1,
     backgroundColor: '#FDFAFF',
   },
   header: {
-    backgroundColor: '#C5A3E6',  // 更柔和的紫色
-    padding: 20,
-    elevation: 2,
-    borderBottomLeftRadius: 25,
-    borderBottomRightRadius: 25,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: '#C5A3E6',
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  headerTitle: {
-    fontSize: 24,
+  title: {
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#FFFFFF',
-    textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: {width: 1, height: 1},
-    textShadowRadius: 3,
+  },
+  profileButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 1.41,
+  },
+  profileButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#C5A3E6',
   },
   noteList: {
     flex: 1,
