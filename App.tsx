@@ -17,6 +17,7 @@ import {
   Modal,
   StatusBar,
 } from 'react-native';
+import EditNotePage from './app/components/EditNotePage';
 
 interface Note {
   id: string;
@@ -117,120 +118,93 @@ function App(): React.JSX.Element {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#C5A3E6" />
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>我的云笔记</Text>
-      </View>
+    <View style={styles.appContainer}>
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#C5A3E6" />
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>我的云笔记</Text>
+        </View>
 
-      <View style={styles.searchContainer}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="搜索笔记..."
-          value={searchQuery}
-          onChangeText={setSearchQuery}
+        <View style={styles.searchContainer}>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="搜索笔记..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+          <View style={styles.tipContainer}>
+            <Text style={styles.tipText}>💡 小贴士：长按笔记可以删除哦 (◕‿◕✿)</Text>
+          </View>
+        </View>
+
+        <FlatList
+          data={filteredNotes}
+          renderItem={renderNoteItem}
+          keyExtractor={item => item.id}
+          style={styles.noteList}
         />
-        <View style={styles.tipContainer}>
-          <Text style={styles.tipText}>💡 小贴士：长按笔记可以删除哦 (◕‿◕✿)</Text>
-        </View>
-      </View>
 
-      <FlatList
-        data={filteredNotes}
-        renderItem={renderNoteItem}
-        keyExtractor={item => item.id}
-        style={styles.noteList}
-      />
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => {
+            setCurrentNote({title: '', content: ''});
+            setIsEditing(false);
+            setModalVisible(true);
+          }}>
+          <Text style={styles.addButtonText}>+</Text>
+        </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.addButton}
-        onPress={() => {
-          setCurrentNote({title: '', content: ''});
-          setIsEditing(false);
-          setModalVisible(true);
-        }}>
-        <Text style={styles.addButtonText}>+</Text>
-      </TouchableOpacity>
+        <Modal
+          visible={deleteModalVisible}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setDeleteModalVisible(false)}>
+          <View style={styles.deleteModalContainer}>
+            <View style={styles.deleteModalContent}>
+              <View style={styles.deleteIconContainer}>
+                <Text style={styles.deleteIcon}>🗑️</Text>
+              </View>
+              <Text style={styles.deleteTitle}>删除笔记</Text>
+              <Text style={styles.deleteMessage}>确定要删除这条笔记吗？</Text>
+              <Text style={styles.deleteSubMessage}>删除后将无法恢复哦 (｡•́︿•̀｡)</Text>
+              <View style={styles.deleteButtons}>
+                <TouchableOpacity
+                  style={[styles.deleteButton, styles.cancelDeleteButton]}
+                  onPress={() => setDeleteModalVisible(false)}>
+                  <Text style={styles.cancelDeleteButtonText}>再想想</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.deleteButton, styles.confirmDeleteButton]}
+                  onPress={confirmDelete}>
+                  <Text style={styles.confirmDeleteButtonText}>删除</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </SafeAreaView>
 
-      <Modal
+      <EditNotePage
+        isEditing={isEditing}
+        note={currentNote}
+        onSave={handleSave}
+        onClose={handleCloseModal}
+        onChangeTitle={(text) => setCurrentNote({...currentNote, title: text})}
+        onChangeContent={(text) => setCurrentNote({...currentNote, content: text})}
         visible={modalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={handleCloseModal}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {isEditing ? '编辑笔记' : '新建笔记'}
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder="标题"
-              value={currentNote.title}
-              onChangeText={text =>
-                setCurrentNote({...currentNote, title: text})
-              }
-            />
-            <TextInput
-              style={[styles.input, styles.contentInput]}
-              placeholder="开始写笔记..."
-              multiline
-              value={currentNote.content}
-              onChangeText={text =>
-                setCurrentNote({...currentNote, content: text})
-              }
-            />
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.button, styles.cancelButton]}
-                onPress={handleCloseModal}>
-                <Text style={styles.buttonText}>取消</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.button, styles.saveButton]}
-                onPress={handleSave}>
-                <Text style={styles.buttonText}>保存</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={deleteModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setDeleteModalVisible(false)}>
-        <View style={styles.deleteModalContainer}>
-          <View style={styles.deleteModalContent}>
-            <View style={styles.deleteIconContainer}>
-              <Text style={styles.deleteIcon}>🗑️</Text>
-            </View>
-            <Text style={styles.deleteTitle}>删除笔记</Text>
-            <Text style={styles.deleteMessage}>确定要删除这条笔记吗？</Text>
-            <Text style={styles.deleteSubMessage}>删除后将无法恢复哦 (｡•́︿•̀｡)</Text>
-            <View style={styles.deleteButtons}>
-              <TouchableOpacity
-                style={[styles.deleteButton, styles.cancelDeleteButton]}
-                onPress={() => setDeleteModalVisible(false)}>
-                <Text style={styles.cancelDeleteButtonText}>再想想</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.deleteButton, styles.confirmDeleteButton]}
-                onPress={confirmDelete}>
-                <Text style={styles.confirmDeleteButtonText}>删除</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  appContainer: {
+    flex: 1,
+    position: 'relative',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#FDFAFF',  // 更淡的背景色
+    backgroundColor: '#FDFAFF',
   },
   header: {
     backgroundColor: '#C5A3E6',  // 更柔和的紫色
@@ -333,67 +307,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#F7E6EF',  // 更淡的粉色边框
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    backgroundColor: 'rgba(197, 163, 230, 0.25)',  // 更淡的半透明紫色
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    margin: 20,
-    padding: 25,
-    borderRadius: 20,
-    elevation: 5,
-  },
-  input: {
-    borderWidth: 1.5,
-    borderColor: '#C5A3E6',  // 更柔和的紫色边框
-    borderRadius: 15,
-    padding: 12,
-    marginBottom: 15,
-    fontSize: 15,
-    color: '#666666',
-    backgroundColor: '#FDFAFF',  // 更淡的背景色
-  },
-  contentInput: {
-    height: 150,
-    textAlignVertical: 'top',
-    lineHeight: 20,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 20,
-  },
-  button: {
-    padding: 12,
-    borderRadius: 15,
-    marginLeft: 12,
-    minWidth: 90,
-    alignItems: 'center',
-  },
-  cancelButton: {
-    backgroundColor: '#E5A4C4',  // 更柔和的粉色
-    opacity: 0.8,
-  },
-  saveButton: {
-    backgroundColor: '#C5A3E6',  // 更柔和的紫色
-  },
-  buttonText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 15,
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: {width: 0.5, height: 0.5},
-    textShadowRadius: 1,
-  },
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#A98DB8',  // 更柔和的深紫色
-    marginBottom: 20,
-    textAlign: 'center',
   },
   deleteModalContainer: {
     flex: 1,
