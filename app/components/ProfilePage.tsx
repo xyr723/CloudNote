@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -8,28 +8,71 @@ import {
   StatusBar,
   ScrollView,
   Modal,
+  Image,
+  Alert,
 } from 'react-native';
 import { generateThemeColors } from '../theme/colors';
+import * as ImagePicker from 'react-native-image-picker';
 
 interface ProfilePageProps {
   username: string;
+  avatar?: string;
   notesCount: number;
   onLogout: () => void;
   onClose: () => void;
   onOpenSettings: () => void;
+  onUpdateAvatar: (avatarUri: string) => void;
   visible: boolean;
   theme: ReturnType<typeof generateThemeColors>;
 }
 
 const ProfilePage: React.FC<ProfilePageProps> = ({
   username,
+  avatar,
   notesCount,
   onLogout,
   onClose,
   onOpenSettings,
+  onUpdateAvatar,
   visible,
   theme,
 }) => {
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+  const handleImagePicker = () => {
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmImagePicker = () => {
+    setShowConfirmModal(false);
+    ImagePicker.launchImageLibrary({
+      mediaType: 'photo',
+      includeBase64: true,
+    }, (response) => {
+      if (response.didCancel) {
+        return;
+      }
+      if (response.errorCode) {
+        Alert.alert(
+          '错误',
+          '选择图片时发生错误',
+          [
+            {
+              text: '确定',
+              style: 'default',
+              onPress: () => {},
+            },
+          ],
+          { cancelable: true }
+        );
+        return;
+      }
+      if (response.assets && response.assets[0].uri) {
+        onUpdateAvatar(response.assets[0].uri);
+      }
+    });
+  };
+
   return (
     <Modal
       visible={visible}
@@ -47,11 +90,21 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
 
         <ScrollView style={styles.content}>
           <View style={[styles.profileSection, { backgroundColor: theme.surface }]}>
-            <View style={[styles.avatarContainer, { backgroundColor: theme.primary }]}>
-              <Text style={[styles.avatarText, { color: theme.surface }]}>
-                {username[0].toUpperCase()}
-              </Text>
-            </View>
+            <TouchableOpacity 
+              style={[styles.avatarContainer, { backgroundColor: theme.primary }]}
+              onPress={handleImagePicker}
+            >
+              {avatar ? (
+                <Image
+                  source={{ uri: avatar }}
+                  style={styles.avatarImage}
+                />
+              ) : (
+                <Text style={[styles.avatarText, { color: theme.surface }]}>
+                  {username[0].toUpperCase()}
+                </Text>
+              )}
+            </TouchableOpacity>
             <Text style={[styles.username, { color: theme.textDark }]}>{username}</Text>
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
@@ -93,6 +146,34 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
           <Text style={[styles.version, { color: theme.textLight }]}>版本 1.0.0</Text>
         </ScrollView>
       </SafeAreaView>
+
+      <Modal
+        visible={showConfirmModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowConfirmModal(false)}>
+        <View style={[styles.deleteModalContainer, { backgroundColor: theme.primaryTransparent }]}>
+          <View style={[styles.deleteModalContent, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.deleteTitle, { color: theme.primaryDark }]}>选择头像</Text>
+            <Text style={[styles.deleteMessage, { color: theme.text }]}>即将打开相册选择图片，是否继续？</Text>
+            <View style={styles.deleteButtons}>
+              <TouchableOpacity
+                style={[styles.deleteButton, styles.cancelDeleteButton, { 
+                  backgroundColor: theme.surface,
+                  borderColor: theme.primary 
+                }]}
+                onPress={() => setShowConfirmModal(false)}>
+                <Text style={[styles.cancelDeleteButtonText, { color: theme.primary }]}>取消</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deleteButton, styles.confirmDeleteButton, { backgroundColor: theme.primary }]}
+                onPress={handleConfirmImagePicker}>
+                <Text style={[styles.confirmDeleteButtonText, { color: theme.surface }]}>确定</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 };
@@ -246,6 +327,61 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 32,
     fontSize: 12,
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 40,
+  },
+  deleteModalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteModalContent: {
+    borderRadius: 20,
+    padding: 25,
+    alignItems: 'center',
+    width: '80%',
+    elevation: 5,
+  },
+  deleteTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  deleteMessage: {
+    fontSize: 16,
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  deleteButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  deleteButton: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    marginHorizontal: 8,
+    minWidth: 100,
+    alignItems: 'center',
+  },
+  cancelDeleteButton: {
+    borderWidth: 1,
+  },
+  confirmDeleteButton: {
+    backgroundColor: '#E5A4C4',
+  },
+  cancelDeleteButtonText: {
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  confirmDeleteButtonText: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 15,
   },
 });
 
