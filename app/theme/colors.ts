@@ -23,7 +23,7 @@ type ThemePresets = {
 export const themePresets: ThemePresets = {
   '葡萄冰萃': {
     primary: '#DCC6EA',
-    primaryLight: '#FDE9E7',
+    primaryLight: '#C4A7D6',
     primaryDark: '#B094C9',
     primaryTransparent: '#DCC6EA40',
     text: '#666666',
