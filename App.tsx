@@ -56,7 +56,7 @@ function App(): React.JSX.Element {
   const [showRegister, setShowRegister] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [themeColor, setThemeColor] = useState('葡萄冰萃');
+  const [themeColor, setThemeColor] = useState('薄荷生巧');
   const [user, setUser] = useState<{username: string; isLoggedIn: boolean}>({
     username: '云笔记',
     isLoggedIn: false,
@@ -70,7 +70,7 @@ function App(): React.JSX.Element {
       return generateThemeColors(themeColor);
     } catch (error) {
       console.error('Theme generation error:', error);
-      return generateThemeColors('葡萄冰萃'); // 使用默认主题
+      return generateThemeColors('薄荷生巧'); // 使用默认主题
     }
   }, [themeColor]);
 
@@ -180,7 +180,7 @@ function App(): React.JSX.Element {
       '#BBE1E4': '薄荷生巧',
       '#FBD7D7': '桃桃乌龙',
     };
-    setThemeColor(themeMap[color] || '葡萄冰萃');
+    setThemeColor(themeMap[color] || '薄荷生巧');
   };
 
   const renderNoteItem = ({item}: {item: Note}) => (

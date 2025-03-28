@@ -110,5 +110,5 @@ export const themePresets: ThemePresets = {
 };
 
 export const generateThemeColors = (themeName: string) => {
-  return themePresets[themeName] || themePresets['葡萄冰萃']; // 默认使用葡萄冰萃主题
+  return themePresets[themeName] || themePresets['薄荷生巧']; // 默认使用葡萄冰萃主题
 }; 
