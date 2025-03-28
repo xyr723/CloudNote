@@ -16,6 +16,7 @@ import {
   TextInput,
   Modal,
   StatusBar,
+  Image,
 } from 'react-native';
 import EditNotePage from './app/components/EditNotePage';
 import ProfilePage from './app/components/ProfilePage';
@@ -29,6 +30,7 @@ interface Note {
   title: string;
   content: string;
   timestamp: Date;
+  images?: string[];
 }
 
 type SortType = 'editDate' | 'createDate' | 'title';
@@ -44,7 +46,7 @@ function App(): React.JSX.Element {
     },
   ]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [currentNote, setCurrentNote] = useState<{id?: string; title: string; content: string}>({
+  const [currentNote, setCurrentNote] = useState<{id?: string; title: string; content: string; images?: string[]}>({
     title: '',
     content: '',
   });
@@ -117,7 +119,7 @@ function App(): React.JSX.Element {
         // 更新现有笔记
         setNotes(notes.map(note => 
           note.id === currentNote.id 
-            ? {...note, title: currentNote.title, content: currentNote.content, timestamp: new Date()}
+            ? {...note, title: currentNote.title, content: currentNote.content, timestamp: new Date(), images: currentNote.images}
             : note
         ));
       } else {
@@ -127,6 +129,7 @@ function App(): React.JSX.Element {
           title: currentNote.title,
           content: currentNote.content,
           timestamp: new Date(),
+          images: currentNote.images,
         };
         setNotes([newNote, ...notes]);
       }
@@ -145,6 +148,7 @@ function App(): React.JSX.Element {
       id: note.id,
       title: note.title,
       content: note.content,
+      images: note.images,
     });
     setIsEditing(true);
     setModalVisible(true);
@@ -183,28 +187,45 @@ function App(): React.JSX.Element {
     setThemeColor(themeMap[color] || '薄荷生巧');
   };
 
-  const renderNoteItem = ({item}: {item: Note}) => (
-    <TouchableOpacity 
-      style={[styles.noteItem, { borderColor: theme.border }]}
-      onPress={() => handleEditNote(item)}
-      onLongPress={() => handleDeleteNote(item.id)}
-    >
-      <Text style={[styles.noteTitle, { color: theme.primaryDark }]}>{item.title}</Text>
-      <Text style={[styles.noteContent, { color: theme.text }]} numberOfLines={2}>
-        {item.content}
-      </Text>
-      <Text style={[styles.noteTime, { color: theme.accent }]}>
-        {item.timestamp.toLocaleString('zh-CN', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false
-        })}
-      </Text>
-    </TouchableOpacity>
-  );
+  const renderNoteItem = ({item}: {item: Note}) => {
+    // 提取第一张图片（如果有）
+    const firstImageMatch = item.content.match(/\[图片(\d+)\]/);
+    const firstImageIndex = firstImageMatch ? parseInt(firstImageMatch[1]) : -1;
+    const firstImage = firstImageIndex >= 0 && item.images ? item.images[firstImageIndex] : null;
+
+    // 处理内容显示，移除图片标记
+    const displayContent = item.content.replace(/\[图片\d+\]/g, '').trim();
+
+    return (
+      <TouchableOpacity 
+        style={[styles.noteItem, { borderColor: theme.border }]}
+        onPress={() => handleEditNote(item)}
+        onLongPress={() => handleDeleteNote(item.id)}
+      >
+        <Text style={[styles.noteTitle, { color: theme.primaryDark }]}>{item.title}</Text>
+        {firstImage && (
+          <Image
+            source={{ uri: firstImage }}
+            style={styles.notePreviewImage}
+            resizeMode="cover"
+          />
+        )}
+        <Text style={[styles.noteContent, { color: theme.text }]} numberOfLines={2}>
+          {displayContent}
+        </Text>
+        <Text style={[styles.noteTime, { color: theme.accent }]}>
+          {item.timestamp.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+          })}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   if (!user.isLoggedIn) {
     if (showRegister) {
@@ -430,6 +451,7 @@ function App(): React.JSX.Element {
           onClose={handleCloseModal}
           onChangeTitle={(text) => setCurrentNote({...currentNote, title: text})}
           onChangeContent={(text) => setCurrentNote({...currentNote, content: text})}
+          onChangeImages={(images) => setCurrentNote({...currentNote, images})}
           theme={theme}
         />
       )}
@@ -694,6 +716,12 @@ const styles = StyleSheet.create({
   },
   sortMenuItemText: {
     fontSize: 14,
+  },
+  notePreviewImage: {
+    width: '100%',
+    height: 120,
+    borderRadius: 8,
+    marginVertical: 8,
   },
 });
 

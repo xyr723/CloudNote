@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -30,6 +30,7 @@ interface EditNotePageProps {
   onClose: () => void;
   onChangeTitle: (text: string) => void;
   onChangeContent: (text: string) => void;
+  onChangeImages?: (images: string[]) => void;
   theme: ReturnType<typeof generateThemeColors>;
 }
 
@@ -40,6 +41,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   onClose,
   onChangeTitle,
   onChangeContent,
+  onChangeImages,
   visible,
   theme,
 }) => {
@@ -48,6 +50,14 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   const [isItalic, setIsItalic] = useState(false);
   const [images, setImages] = useState<string[]>(note.images || []);
   const [content, setContent] = useState(note.content);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [cursorPosition, setCursorPosition] = useState(0);
+
+  // 当note改变时更新状态
+  useEffect(() => {
+    setImages(note.images || []);
+    setContent(note.content);
+  }, [note]);
 
   const handleImagePicker = () => {
     ImagePicker.launchImageLibrary({
@@ -63,10 +73,11 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
       }
       if (response.assets && response.assets[0].uri) {
         const newImage = response.assets[0].uri;
-        setImages([...images, newImage]);
-        // 在光标位置插入图片标记
-        const cursorPosition = content.length;
-        const newContent = content.slice(0, cursorPosition) + `[图片${images.length + 1}]` + content.slice(cursorPosition);
+        const newImages = [...images, newImage];
+        setImages(newImages);
+        onChangeImages?.(newImages);
+        // 在光标位置插入图片
+        const newContent = content.slice(0, cursorPosition) + `\n[图片${newImages.length - 1}]\n` + content.slice(cursorPosition);
         setContent(newContent);
         onChangeContent(newContent);
       }
@@ -87,35 +98,35 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
       }
       if (response.assets && response.assets[0].uri) {
         const newImage = response.assets[0].uri;
-        setImages([...images, newImage]);
-        // 在光标位置插入图片标记
-        const cursorPosition = content.length;
-        const newContent = content.slice(0, cursorPosition) + `[图片${images.length + 1}]` + content.slice(cursorPosition);
+        const newImages = [...images, newImage];
+        setImages(newImages);
+        onChangeImages?.(newImages);
+        // 在光标位置插入图片
+        const newContent = content.slice(0, cursorPosition) + `\n[图片${newImages.length - 1}]\n` + content.slice(cursorPosition);
         setContent(newContent);
         onChangeContent(newContent);
       }
     });
   };
 
-  const showImageOptions = () => {
-    Alert.alert(
-      '添加图片',
-      '请选择图片来源',
-      [
-        {
-          text: '从相册选择',
-          onPress: handleImagePicker,
-        },
-        {
-          text: '拍照',
-          onPress: handleCamera,
-        },
-        {
-          text: '取消',
-          style: 'cancel',
-        },
-      ]
-    );
+  const handleDeleteImage = (imageIndex: number) => {
+    const newImages = images.filter((_, i) => i !== imageIndex);
+    setImages(newImages);
+    onChangeImages?.(newImages);
+    
+    // 更新内容中的图片标记
+    let newContent = content;
+    const imagePattern = new RegExp(`\\[图片${imageIndex}\\]`, 'g');
+    newContent = newContent.replace(imagePattern, '');
+    
+    // 重新编号剩余的图片标记
+    for (let i = imageIndex + 1; i < images.length; i++) {
+      const oldPattern = new RegExp(`\\[图片${i}\\]`, 'g');
+      newContent = newContent.replace(oldPattern, `[图片${i - 1}]`);
+    }
+    
+    setContent(newContent);
+    onChangeContent(newContent);
   };
 
   const renderContent = () => {
@@ -123,7 +134,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
     return parts.map((part, index) => {
       const imageMatch = part.match(/\[图片(\d+)\]/);
       if (imageMatch) {
-        const imageIndex = parseInt(imageMatch[1]) - 1;
+        const imageIndex = parseInt(imageMatch[1]);
         if (images[imageIndex]) {
           return (
             <View key={index} style={styles.imageContainer}>
@@ -133,14 +144,9 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
                 resizeMode="contain"
               />
               <TouchableOpacity
-                style={styles.deleteImageButton}
-                onPress={() => {
-                  const newImages = images.filter((_, i) => i !== imageIndex);
-                  setImages(newImages);
-                  const newContent = content.replace(part, '');
-                  setContent(newContent);
-                  onChangeContent(newContent);
-                }}
+                style={[styles.deleteImageButton, { zIndex: 3 }]}
+                onPress={() => handleDeleteImage(imageIndex)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Text style={styles.deleteImageText}>×</Text>
               </TouchableOpacity>
@@ -148,13 +154,38 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
           );
         }
       }
-      return <Text key={index} style={[styles.textContent, {
-        fontSize,
-        fontWeight: isBold ? 'bold' : 'normal',
-        fontStyle: isItalic ? 'italic' : 'normal',
-        color: theme.text,
-      }]}>{part}</Text>;
+      return (
+        <TextInput
+          key={index}
+          style={[styles.textContent, {
+            fontSize,
+            fontWeight: isBold ? 'bold' : 'normal',
+            fontStyle: isItalic ? 'italic' : 'normal',
+            color: theme.text,
+            padding: 0,
+            margin: 0,
+            flex: 1,
+          }]}
+          value={part}
+          onChangeText={(text) => {
+            const newParts = [...parts];
+            newParts[index] = text;
+            const newContent = newParts.join('');
+            setContent(newContent);
+            onChangeContent(newContent);
+          }}
+          onSelectionChange={(event) => {
+            const { selection } = event.nativeEvent;
+            setCursorPosition(selection.start);
+          }}
+          multiline
+        />
+      );
     });
+  };
+
+  const showImageOptions = () => {
+    setShowImageModal(true);
   };
 
   return (
@@ -200,30 +231,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
                   backgroundColor: theme.surface,
                   borderColor: theme.border,
                 }]}>
-                  <TextInput
-                    style={[styles.contentInput, { 
-                      color: theme.text,
-                      fontSize,
-                      fontWeight: isBold ? 'bold' : 'normal',
-                      fontStyle: isItalic ? 'italic' : 'normal',
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      opacity: 0,
-                      zIndex: 1,
-                    }]}
-                    placeholder="开始输入内容..."
-                    placeholderTextColor={theme.textLight}
-                    value={content}
-                    onChangeText={(text) => {
-                      setContent(text);
-                      onChangeContent(text);
-                    }}
-                    multiline
-                  />
-                  <View style={styles.contentDisplay}>
+                  <View style={styles.contentWrapper}>
                     {renderContent()}
                   </View>
                 </View>
@@ -270,6 +278,65 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
           </KeyboardAvoidingView>
         </SafeAreaView>
       </View>
+
+      <Modal
+        visible={showImageModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowImageModal(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setShowImageModal(false)}
+        >
+          <View style={[styles.imageOptionsModal, { backgroundColor: theme.surface }]}>
+            <View style={[styles.imageOptionsHeader, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.imageOptionsTitle, { color: theme.text }]}>添加图片</Text>
+              <TouchableOpacity 
+                style={styles.closeModalButton}
+                onPress={() => setShowImageModal(false)}
+              >
+                <Text style={[styles.closeModalText, { color: theme.text }]}>×</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.imageOptionsContent}>
+              <TouchableOpacity 
+                style={[styles.imageOptionButton, { backgroundColor: theme.primary }]}
+                onPress={() => {
+                  setShowImageModal(false);
+                  handleImagePicker();
+                }}
+              >
+                <View style={[styles.imageOptionIcon, { backgroundColor: theme.surface }]}>
+                  <View style={[styles.galleryIcon, { backgroundColor: theme.primary }]}>
+                    <View style={[styles.galleryIconInner, { backgroundColor: theme.primary }]} />
+                    <View style={[styles.galleryIconInner, { backgroundColor: theme.primary }]} />
+                  </View>
+                </View>
+                <Text style={[styles.imageOptionText, { color: theme.surface }]}>从相册选择</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.imageOptionButton, { backgroundColor: theme.primary }]}
+                onPress={() => {
+                  setShowImageModal(false);
+                  handleCamera();
+                }}
+              >
+                <View style={[styles.imageOptionIcon, { backgroundColor: theme.surface }]}>
+                  <View style={[styles.cameraIcon, { borderColor: theme.primary }]}>
+                    <View style={[styles.cameraLensIcon, { backgroundColor: theme.primary }]} />
+                    <View style={[styles.cameraFlashIcon, { backgroundColor: theme.primary }]} />
+                  </View>
+                </View>
+                <Text style={[styles.imageOptionText, { color: theme.surface }]}>拍照</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </Modal>
   );
 };
@@ -420,25 +487,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     overflow: 'hidden',
-    position: 'relative',
   },
-  contentInput: {
-    fontSize: 16,
-    lineHeight: 24,
-    padding: 16,
-    textAlignVertical: 'top',
-    minHeight: 200,
-  },
-  contentDisplay: {
+  contentWrapper: {
     padding: 16,
   },
   textContent: {
     fontSize: 16,
     lineHeight: 24,
+    minHeight: 24,
   },
   imageContainer: {
     position: 'relative',
     marginVertical: 8,
+    zIndex: 2,
   },
   noteImage: {
     width: '100%',
@@ -455,11 +516,115 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 3,
   },
   deleteImageText: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageOptionsModal: {
+    width: '80%',
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+  },
+  imageOptionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+  },
+  imageOptionsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  closeModalButton: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeModalText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  imageOptionsContent: {
+    padding: 16,
+    gap: 12,
+  },
+  imageOptionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 12,
+    gap: 12,
+  },
+  imageOptionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+  },
+  imageOptionIconText: {
+    fontSize: 24,
+  },
+  imageOptionText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  galleryIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 4,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  galleryIconInner: {
+    position: 'absolute',
+    width: 8,
+    height: 8,
+    borderRadius: 2,
+  },
+  cameraIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    position: 'relative',
+  },
+  cameraLensIcon: {
+    position: 'absolute',
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -4 }, { translateY: -4 }],
+  },
+  cameraFlashIcon: {
+    position: 'absolute',
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    top: 2,
+    right: 2,
   },
 });
 
