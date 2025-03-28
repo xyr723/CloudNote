@@ -137,12 +137,23 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    paddingTop: 12,
   },
   profileSection: {
+    marginTop: 12,
+    marginHorizontal: 16,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
     alignItems: 'center',
-    paddingVertical: 32,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EFE6F7',
   },
   avatarContainer: {
     width: 80,
@@ -168,6 +179,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 16,
+    textAlign: 'center',
   },
   statsContainer: {
     flexDirection: 'row',
@@ -187,9 +199,16 @@ const styles = StyleSheet.create({
   },
   menuSection: {
     marginTop: 12,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#EFE6F7',
+    marginHorizontal: 16,
+    borderRadius: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   menuItem: {
     flexDirection: 'row',
