@@ -36,7 +36,7 @@ export const themePresets: ThemePresets = {
     shadow: '#DCC6EA20',
     accent: '#B29EA1',
     accentLight: '#F0D1CF',
-    error: '#E57373',
+    error: '#B29EA1',
   },
   '清冽冰川': {
     primary: '#B7CCDF',
@@ -53,7 +53,7 @@ export const themePresets: ThemePresets = {
     shadow: '#B7CCDF20',
     accent: '#9BB4D3',
     accentLight: '#D1EAEC',
-    error: '#E57373',
+    error: '#9BB4D3',
   },
   '流金岁月': {
     primary: '#938368',
@@ -70,7 +70,7 @@ export const themePresets: ThemePresets = {
     shadow: '#93836820',
     accent: '#202C26',
     accentLight: '#E8DBEF',
-    error: '#E57373',
+    error: '#202C26',
   },
   '薄荷生巧': {
     primary: '#BBE1E4',
@@ -87,7 +87,7 @@ export const themePresets: ThemePresets = {
     shadow: '#BBE1E420',
     accent: '#58433A',
     accentLight: '#F0D1CF',
-    error: '#E57373',
+    error: '#58433A',
   },
   '桃桃乌龙': {
     primary: '#FBD7D7',
@@ -110,5 +110,5 @@ export const themePresets: ThemePresets = {
 };
 
 export const generateThemeColors = (themeName: string) => {
-  return themePresets[themeName] || themePresets['薄荷生巧']; // 默认使用葡萄冰萃主题
-}; 
+  return themePresets[themeName] || themePresets['薄荷生巧'];
+};

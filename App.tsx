@@ -59,7 +59,7 @@ function App(): React.JSX.Element {
   const [showSettings, setShowSettings] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [themeColor, setThemeColor] = useState('薄荷生巧');
-  const [user, setUser] = useState<{username: string; isLoggedIn: boolean}>({
+  const [user, setUser] = useState<{username: string; isLoggedIn: boolean; avatar?: string}>({
     username: '云笔记',
     isLoggedIn: false,
   });
@@ -187,6 +187,10 @@ function App(): React.JSX.Element {
     setThemeColor(themeMap[color] || '薄荷生巧');
   };
 
+  const handleUpdateAvatar = (avatarUri: string) => {
+    setUser(prev => ({...prev, avatar: avatarUri}));
+  };
+
   const renderNoteItem = ({item}: {item: Note}) => {
     // 提取第一张图片（如果有）
     const firstImageMatch = item.content.match(/\[图片(\d+)\]/);
@@ -254,9 +258,16 @@ function App(): React.JSX.Element {
         <TouchableOpacity 
           style={[styles.profileButton, { backgroundColor: theme.surface }]} 
           onPress={() => setShowProfile(true)}>
-          <Text style={[styles.profileButtonText, { color: theme.primary }]}>
-            {user.username[0].toUpperCase()}
-          </Text>
+          {user.avatar ? (
+            <Image
+              source={{ uri: user.avatar }}
+              style={styles.profileImage}
+            />
+          ) : (
+            <Text style={[styles.profileButtonText, { color: theme.primary }]}>
+              {user.username[0].toUpperCase()}
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -391,27 +402,30 @@ function App(): React.JSX.Element {
 
       <Modal
         visible={deleteModalVisible}
-        transparent={true}
+        transparent
         animationType="fade"
         onRequestClose={() => setDeleteModalVisible(false)}>
-        <View style={styles.deleteModalContainer}>
-          <View style={styles.deleteModalContent}>
-            <View style={styles.deleteIconContainer}>
+        <View style={[styles.deleteModalContainer, { backgroundColor: theme.primaryTransparent }]}>
+          <View style={[styles.deleteModalContent, { backgroundColor: theme.surface }]}>
+            <View style={[styles.deleteIconContainer, { backgroundColor: theme.primaryLight }]}>
               <Text style={styles.deleteIcon}>🗑️</Text>
             </View>
-            <Text style={styles.deleteTitle}>删除笔记</Text>
-            <Text style={styles.deleteMessage}>确定要删除这条笔记吗？</Text>
-            <Text style={styles.deleteSubMessage}>删除后将无法恢复哦 (｡•́︿•̀｡)</Text>
+            <Text style={[styles.deleteTitle, { color: theme.primaryDark }]}>删除笔记</Text>
+            <Text style={[styles.deleteMessage, { color: theme.text }]}>确定要删除这条笔记吗？</Text>
+            <Text style={[styles.deleteSubMessage, { color: theme.accent }]}>删除后将无法恢复哦 (｡•́︿•̀｡)</Text>
             <View style={styles.deleteButtons}>
               <TouchableOpacity
-                style={[styles.deleteButton, styles.cancelDeleteButton]}
+                style={[styles.deleteButton, styles.cancelDeleteButton, { 
+                  backgroundColor: theme.surface,
+                  borderColor: theme.primary 
+                }]}
                 onPress={() => setDeleteModalVisible(false)}>
-                <Text style={styles.cancelDeleteButtonText}>再想想</Text>
+                <Text style={[styles.cancelDeleteButtonText, { color: theme.primary }]}>再想想</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.deleteButton, styles.confirmDeleteButton]}
+                style={[styles.deleteButton, styles.confirmDeleteButton, { backgroundColor: theme.error }]}
                 onPress={confirmDelete}>
-                <Text style={styles.confirmDeleteButtonText}>删除</Text>
+                <Text style={[styles.confirmDeleteButtonText, { color: theme.surface }]}>删除</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -422,10 +436,12 @@ function App(): React.JSX.Element {
         <ProfilePage
           visible={showProfile}
           username={user.username}
+          avatar={user.avatar}
           notesCount={notes.length}
           onLogout={handleLogout}
           onClose={() => setShowProfile(false)}
           onOpenSettings={handleOpenSettings}
+          onUpdateAvatar={handleUpdateAvatar}
           theme={theme}
         />
       )}
@@ -582,7 +598,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(197, 163, 230, 0.25)',  // 更淡的半透明紫色
   },
   deleteModalContent: {
     backgroundColor: 'white',
@@ -596,7 +611,7 @@ const styles = StyleSheet.create({
     width: 70,
     height: 70,
     borderRadius: 35,
-    backgroundColor: '#FDFAFF',  // 更淡的背景色
+    backgroundColor: '#FDFAFF',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 15,
@@ -607,7 +622,7 @@ const styles = StyleSheet.create({
   deleteTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#A98DB8',  // 更柔和的深紫色
+    color: '#A98DB8',
     marginBottom: 10,
   },
   deleteMessage: {
@@ -618,7 +633,7 @@ const styles = StyleSheet.create({
   },
   deleteSubMessage: {
     fontSize: 14,
-    color: '#E5A4C4',  // 更柔和的粉色
+    color: '#E5A4C4',
     marginBottom: 20,
     textAlign: 'center',
   },
@@ -636,15 +651,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelDeleteButton: {
-    backgroundColor: '#FDFAFF',  // 更淡的背景色
+    backgroundColor: '#FDFAFF',
     borderWidth: 1,
-    borderColor: '#C5A3E6',  // 更柔和的紫色边框
+    borderColor: '#C5A3E6',
   },
   confirmDeleteButton: {
-    backgroundColor: '#E5A4C4', 
+    backgroundColor: '#E5A4C4',
   },
   cancelDeleteButtonText: {
-    color: '#A98DB8',  // 更柔和的深紫色
+    color: '#A98DB8',
     fontWeight: '600',
     fontSize: 15,
   },
@@ -722,6 +737,11 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 8,
     marginVertical: 8,
+  },
+  profileImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 18,
   },
 });
 

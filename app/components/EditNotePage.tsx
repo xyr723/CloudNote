@@ -131,6 +131,33 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
 
   const renderContent = () => {
     const parts = content.split(/(\[图片\d+\])/);
+    if (parts.length === 1 && !parts[0].trim()) {
+      return (
+        <TextInput
+          style={[styles.textContent, {
+            fontSize,
+            fontWeight: isBold ? 'bold' : 'normal',
+            fontStyle: isItalic ? 'italic' : 'normal',
+            color: theme.textLight,
+            padding: 0,
+            margin: 0,
+            flex: 1,
+          }]}
+          placeholder="开始记录你的想法..."
+          placeholderTextColor={theme.textLight}
+          value={content}
+          onChangeText={(text) => {
+            setContent(text);
+            onChangeContent(text);
+          }}
+          onSelectionChange={(event) => {
+            const { selection } = event.nativeEvent;
+            setCursorPosition(selection.start);
+          }}
+          multiline
+        />
+      );
+    }
     return parts.map((part, index) => {
       const imageMatch = part.match(/\[图片(\d+)\]/);
       if (imageMatch) {
@@ -487,14 +514,19 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
     overflow: 'hidden',
+    minHeight: 570,
+    flex: 1,
   },
   contentWrapper: {
     padding: 16,
+    flex: 1,
   },
   textContent: {
     fontSize: 16,
-    lineHeight: 24,
-    minHeight: 24,
+    padding: 0,
+    margin: 0,
+    textAlignVertical: 'top',
+    flex: 1,
   },
   imageContainer: {
     position: 'relative',
