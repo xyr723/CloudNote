@@ -11,13 +11,15 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import { generateThemeColors } from '../theme/colors';
 
 interface RegisterPageProps {
   onRegister: (username: string, password: string) => void;
   onBack: () => void;
+  theme: ReturnType<typeof generateThemeColors>;
 }
 
-const RegisterPage: React.FC<RegisterPageProps> = ({onRegister, onBack}) => {
+const RegisterPage: React.FC<RegisterPageProps> = ({onRegister, onBack, theme}) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -42,80 +44,90 @@ const RegisterPage: React.FC<RegisterPageProps> = ({onRegister, onBack}) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor="#C5A3E6" barStyle="light-content" />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoidingView}>
         <View style={styles.content}>
           <TouchableOpacity style={styles.backButton} onPress={onBack}>
-            <Text style={styles.backButtonText}>← 返回登录</Text>
+            <Text style={[styles.backButtonText, { color: theme.primaryDark }]}>← 返回登录</Text>
           </TouchableOpacity>
 
           <View style={styles.headerContainer}>
-            <Text style={styles.headerTitle}>创建账号</Text>
-            <Text style={styles.headerSubtitle}>开始你的云笔记之旅</Text>
+            <Text style={[styles.headerTitle, { color: theme.primaryDark }]}>创建账号</Text>
+            <Text style={[styles.headerSubtitle, { color: theme.primaryLight }]}>开始你的云笔记之旅</Text>
           </View>
 
           <View style={styles.inputContainer}>
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, { 
+              backgroundColor: theme.surface,
+              borderColor: theme.border 
+            }]}>
               <Text style={styles.inputIcon}>👤</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: theme.text }]}
                 placeholder="设置用户名"
                 value={username}
                 onChangeText={setUsername}
-                placeholderTextColor="#A98DB8"
+                placeholderTextColor={theme.textLight}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
             </View>
 
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, { 
+              backgroundColor: theme.surface,
+              borderColor: theme.border 
+            }]}>
               <Text style={styles.inputIcon}>🔒</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: theme.text }]}
                 placeholder="设置密码"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
-                placeholderTextColor="#A98DB8"
+                placeholderTextColor={theme.textLight}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
             </View>
 
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, { 
+              backgroundColor: theme.surface,
+              borderColor: theme.border 
+            }]}>
               <Text style={styles.inputIcon}>🔒</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: theme.text }]}
                 placeholder="确认密码"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry
-                placeholderTextColor="#A98DB8"
+                placeholderTextColor={theme.textLight}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
             </View>
 
-            <Text style={styles.passwordTip}>
+            <Text style={[styles.passwordTip, { color: theme.primaryLight }]}>
               密码长度至少为6位，建议使用字母、数字和符号的组合
             </Text>
 
             <TouchableOpacity
               style={[
                 styles.registerButton,
+                { backgroundColor: theme.primary },
                 (!username.trim() ||
                   !password.trim() ||
                   !confirmPassword.trim()) &&
-                  styles.registerButtonDisabled,
+                  { backgroundColor: theme.primaryLight }
               ]}
               onPress={handleRegister}
               disabled={
                 !username.trim() || !password.trim() || !confirmPassword.trim()
               }>
-              <Text style={styles.registerButtonText}>注 册</Text>
+              <Text style={[styles.registerButtonText, { color: theme.surface }]}>注 册</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -127,7 +139,6 @@ const RegisterPage: React.FC<RegisterPageProps> = ({onRegister, onBack}) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FDFAFF',
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -142,7 +153,6 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   backButtonText: {
-    color: '#A98DB8',
     fontSize: 16,
     fontWeight: '500',
   },
@@ -152,12 +162,10 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#A98DB8',
     marginBottom: 8,
   },
   headerSubtitle: {
     fontSize: 16,
-    color: '#B088C9',
   },
   inputContainer: {
     width: '100%',
@@ -165,12 +173,10 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     marginBottom: 16,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: '#EFE6F7',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: {
@@ -188,17 +194,14 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 50,
     fontSize: 16,
-    color: '#666666',
   },
   passwordTip: {
-    color: '#B088C9',
     fontSize: 12,
     marginTop: -8,
     marginBottom: 24,
     marginLeft: 4,
   },
   registerButton: {
-    backgroundColor: '#C5A3E6',
     borderRadius: 12,
     height: 50,
     justifyContent: 'center',
@@ -212,11 +215,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
-  registerButtonDisabled: {
-    backgroundColor: '#E0D1F0',
-  },
   registerButtonText: {
-    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: 'bold',
   },

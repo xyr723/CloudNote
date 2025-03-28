@@ -11,13 +11,15 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import { generateThemeColors } from '../theme/colors';
 
 interface LoginPageProps {
   onLogin: (username: string, password: string) => void;
   onRegister: () => void;
+  theme: ReturnType<typeof generateThemeColors>;
 }
 
-const LoginPage: React.FC<LoginPageProps> = ({onLogin, onRegister}) => {
+const LoginPage: React.FC<LoginPageProps> = ({onLogin, onRegister, theme}) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
@@ -30,63 +32,73 @@ const LoginPage: React.FC<LoginPageProps> = ({onLogin, onRegister}) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar backgroundColor="#C5A3E6" barStyle="light-content" />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoidingView}>
         <View style={styles.content}>
           <View style={styles.logoContainer}>
-            <View style={styles.logoBackground}>
-              <Text style={styles.logoText}>✎</Text>
+            <View style={[styles.logoBackground, { backgroundColor: theme.primary }]}>
+              <Text style={[styles.logoText, { color: theme.surface }]}>✎</Text>
             </View>
-            <Text style={styles.appName}>云笔记</Text>
-            <Text style={styles.welcomeText}>欢迎回来</Text>
+            <Text style={[styles.appName, { color: theme.primaryDark }]}>云笔记</Text>
+            <Text style={[styles.welcomeText, { color: theme.primaryLight }]}>欢迎回来</Text>
           </View>
 
           <View style={styles.inputContainer}>
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, { 
+              backgroundColor: theme.surface,
+              borderColor: theme.border 
+            }]}>
               <Text style={styles.inputIcon}>👤</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: theme.text }]}
                 placeholder="用户名"
                 value={username}
                 onChangeText={setUsername}
-                placeholderTextColor="#A98DB8"
+                placeholderTextColor={theme.textLight}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
             </View>
 
-            <View style={styles.inputWrapper}>
+            <View style={[styles.inputWrapper, { 
+              backgroundColor: theme.surface,
+              borderColor: theme.border 
+            }]}>
               <Text style={styles.inputIcon}>🔒</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { color: theme.text }]}
                 placeholder="密码"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry
-                placeholderTextColor="#A98DB8"
+                placeholderTextColor={theme.textLight}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
             </View>
 
             <TouchableOpacity style={styles.forgotPassword}>
-              <Text style={styles.forgotPasswordText}>忘记密码？</Text>
+              <Text style={[styles.forgotPasswordText, { color: theme.primaryDark }]}>忘记密码？</Text>
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={[styles.loginButton, (!username.trim() || !password.trim()) && styles.loginButtonDisabled]} 
+              style={[
+                styles.loginButton, 
+                { backgroundColor: theme.primary },
+                (!username.trim() || !password.trim()) && { backgroundColor: theme.primaryLight }
+              ]} 
               onPress={handleLogin}
               disabled={!username.trim() || !password.trim()}>
-              <Text style={styles.loginButtonText}>登 录</Text>
+              <Text style={[styles.loginButtonText, { color: theme.surface }]}>登 录</Text>
             </TouchableOpacity>
 
             <View style={styles.registerContainer}>
-              <Text style={styles.registerText}>还没有账号？</Text>
+              <Text style={[styles.registerText, { color: theme.text }]}>还没有账号？</Text>
               <TouchableOpacity onPress={onRegister}>
-                <Text style={styles.registerLink}>立即注册</Text>
+                <Text style={[styles.registerLink, { color: theme.primary }]}>立即注册</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -99,7 +111,6 @@ const LoginPage: React.FC<LoginPageProps> = ({onLogin, onRegister}) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FDFAFF',
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -117,7 +128,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#C5A3E6',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -132,17 +142,14 @@ const styles = StyleSheet.create({
   },
   logoText: {
     fontSize: 40,
-    color: '#FFFFFF',
   },
   appName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#A98DB8',
     marginBottom: 8,
   },
   welcomeText: {
     fontSize: 16,
-    color: '#B088C9',
   },
   inputContainer: {
     width: '100%',
@@ -151,12 +158,10 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     marginBottom: 16,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: '#EFE6F7',
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: {
@@ -174,18 +179,15 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 50,
     fontSize: 16,
-    color: '#666666',
   },
   forgotPassword: {
     alignSelf: 'flex-end',
     marginBottom: 24,
   },
   forgotPasswordText: {
-    color: '#A98DB8',
     fontSize: 14,
   },
   loginButton: {
-    backgroundColor: '#C5A3E6',
     borderRadius: 12,
     height: 50,
     justifyContent: 'center',
@@ -199,11 +201,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
-  loginButtonDisabled: {
-    backgroundColor: '#E0D1F0',
-  },
   loginButtonText: {
-    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: 'bold',
   },
@@ -213,11 +211,9 @@ const styles = StyleSheet.create({
     marginTop: 20,
   },
   registerText: {
-    color: '#666666',
     fontSize: 14,
   },
   registerLink: {
-    color: '#C5A3E6',
     fontSize: 14,
     marginLeft: 4,
     fontWeight: '500',

@@ -65,7 +65,14 @@ function App(): React.JSX.Element {
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [showSortMenu, setShowSortMenu] = useState(false);
 
-  const theme = useMemo(() => generateThemeColors(themeColor), [themeColor]);
+  const theme = useMemo(() => {
+    try {
+      return generateThemeColors(themeColor);
+    } catch (error) {
+      console.error('Theme generation error:', error);
+      return generateThemeColors('葡萄冰萃'); // 使用默认主题
+    }
+  }, [themeColor]);
 
   const sortedNotes = useMemo(() => {
     return [...notes].sort((a, b) => {
@@ -205,6 +212,7 @@ function App(): React.JSX.Element {
         <RegisterPage
           onRegister={handleRegister}
           onBack={() => setShowRegister(false)}
+          theme={theme}
         />
       );
     }
@@ -212,6 +220,7 @@ function App(): React.JSX.Element {
       <LoginPage
         onLogin={handleLogin}
         onRegister={() => setShowRegister(true)}
+        theme={theme}
       />
     );
   }
