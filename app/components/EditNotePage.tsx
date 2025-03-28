@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  Image,
+  ScrollView,
+  Alert,
 } from 'react-native';
 import { generateThemeColors } from '../theme/colors';
+import * as ImagePicker from 'react-native-image-picker';
 
 interface EditNotePageProps {
   visible: boolean;
@@ -20,6 +24,7 @@ interface EditNotePageProps {
     id?: string;
     title: string;
     content: string;
+    images?: string[];
   };
   onSave: () => void;
   onClose: () => void;
@@ -38,6 +43,120 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   visible,
   theme,
 }) => {
+  const [fontSize, setFontSize] = useState(16);
+  const [isBold, setIsBold] = useState(false);
+  const [isItalic, setIsItalic] = useState(false);
+  const [images, setImages] = useState<string[]>(note.images || []);
+  const [content, setContent] = useState(note.content);
+
+  const handleImagePicker = () => {
+    ImagePicker.launchImageLibrary({
+      mediaType: 'photo',
+      includeBase64: true,
+    }, (response) => {
+      if (response.didCancel) {
+        return;
+      }
+      if (response.errorCode) {
+        Alert.alert('错误', '选择图片时发生错误');
+        return;
+      }
+      if (response.assets && response.assets[0].uri) {
+        const newImage = response.assets[0].uri;
+        setImages([...images, newImage]);
+        // 在光标位置插入图片标记
+        const cursorPosition = content.length;
+        const newContent = content.slice(0, cursorPosition) + `[图片${images.length + 1}]` + content.slice(cursorPosition);
+        setContent(newContent);
+        onChangeContent(newContent);
+      }
+    });
+  };
+
+  const handleCamera = () => {
+    ImagePicker.launchCamera({
+      mediaType: 'photo',
+      includeBase64: true,
+    }, (response) => {
+      if (response.didCancel) {
+        return;
+      }
+      if (response.errorCode) {
+        Alert.alert('错误', '拍照时发生错误');
+        return;
+      }
+      if (response.assets && response.assets[0].uri) {
+        const newImage = response.assets[0].uri;
+        setImages([...images, newImage]);
+        // 在光标位置插入图片标记
+        const cursorPosition = content.length;
+        const newContent = content.slice(0, cursorPosition) + `[图片${images.length + 1}]` + content.slice(cursorPosition);
+        setContent(newContent);
+        onChangeContent(newContent);
+      }
+    });
+  };
+
+  const showImageOptions = () => {
+    Alert.alert(
+      '添加图片',
+      '请选择图片来源',
+      [
+        {
+          text: '从相册选择',
+          onPress: handleImagePicker,
+        },
+        {
+          text: '拍照',
+          onPress: handleCamera,
+        },
+        {
+          text: '取消',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const renderContent = () => {
+    const parts = content.split(/(\[图片\d+\])/);
+    return parts.map((part, index) => {
+      const imageMatch = part.match(/\[图片(\d+)\]/);
+      if (imageMatch) {
+        const imageIndex = parseInt(imageMatch[1]) - 1;
+        if (images[imageIndex]) {
+          return (
+            <View key={index} style={styles.imageContainer}>
+              <Image
+                source={{ uri: images[imageIndex] }}
+                style={styles.noteImage}
+                resizeMode="contain"
+              />
+              <TouchableOpacity
+                style={styles.deleteImageButton}
+                onPress={() => {
+                  const newImages = images.filter((_, i) => i !== imageIndex);
+                  setImages(newImages);
+                  const newContent = content.replace(part, '');
+                  setContent(newContent);
+                  onChangeContent(newContent);
+                }}
+              >
+                <Text style={styles.deleteImageText}>×</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        }
+      }
+      return <Text key={index} style={[styles.textContent, {
+        fontSize,
+        fontWeight: isBold ? 'bold' : 'normal',
+        fontStyle: isItalic ? 'italic' : 'normal',
+        color: theme.text,
+      }]}>{part}</Text>;
+    });
+  };
+
   return (
     <Modal
       visible={visible}
@@ -75,18 +194,78 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
                 value={note.title}
                 onChangeText={onChangeTitle}
               />
-              <TextInput
-                style={[styles.contentInput, { 
-                  color: theme.text,
+
+              <ScrollView style={styles.contentScroll}>
+                <View style={[styles.contentContainer, { 
+                  backgroundColor: theme.surface,
                   borderColor: theme.border,
-                  backgroundColor: theme.surface
-                }]}
-                placeholder="开始输入内容..."
-                placeholderTextColor={theme.textLight}
-                value={note.content}
-                onChangeText={onChangeContent}
-                multiline
-              />
+                }]}>
+                  <TextInput
+                    style={[styles.contentInput, { 
+                      color: theme.text,
+                      fontSize,
+                      fontWeight: isBold ? 'bold' : 'normal',
+                      fontStyle: isItalic ? 'italic' : 'normal',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      opacity: 0,
+                      zIndex: 1,
+                    }]}
+                    placeholder="开始输入内容..."
+                    placeholderTextColor={theme.textLight}
+                    value={content}
+                    onChangeText={(text) => {
+                      setContent(text);
+                      onChangeContent(text);
+                    }}
+                    multiline
+                  />
+                  <View style={styles.contentDisplay}>
+                    {renderContent()}
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View style={[styles.toolbar, { backgroundColor: theme.surface }]}>
+                <View style={styles.toolbarRow}>
+                  <TouchableOpacity 
+                    style={[styles.toolbarButton, isBold && styles.toolbarButtonActive]}
+                    onPress={() => setIsBold(!isBold)}
+                  >
+                    <Text style={[styles.toolbarButtonText, { color: isBold ? theme.primary : theme.text }]}>𝐁</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.toolbarButton, isItalic && styles.toolbarButtonActive]}
+                    onPress={() => setIsItalic(!isItalic)}
+                  >
+                    <Text style={[styles.toolbarButtonText, { color: isItalic ? theme.primary : theme.text }]}>𝐼</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.toolbarButton}
+                    onPress={() => setFontSize(fontSize + 2)}
+                  >
+                    <Text style={[styles.toolbarButtonText, { color: theme.text }]}>𝐀+</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.toolbarButton}
+                    onPress={() => setFontSize(fontSize - 2)}
+                  >
+                    <Text style={[styles.toolbarButtonText, { color: theme.text }]}>𝐀-</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.toolbarButton, styles.cameraButton]}
+                    onPress={showImageOptions}
+                  >
+                    <View style={styles.cameraIconContainer}>
+                      <View style={[styles.cameraLens, { backgroundColor: theme.text }]} />
+                      <View style={[styles.cameraFlash, { backgroundColor: theme.text }]} />
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -166,11 +345,70 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
-  contentInput: {
+  contentScroll: {
     flex: 1,
-    fontSize: 16,
-    lineHeight: 24,
-    padding: 16,
+    marginBottom: 16,
+  },
+  toolbar: {
+    padding: 12,
+    borderRadius: 16,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  toolbarRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+  },
+  toolbarButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+  },
+  toolbarButtonActive: {
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
+  toolbarButtonText: {
+    fontSize: 20,
+    fontWeight: '500',
+  },
+  cameraButton: {
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
+  cameraIconContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(0,0,0,0.3)',
+    position: 'relative',
+  },
+  cameraLens: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -4 }, { translateY: -4 }],
+  },
+  cameraFlash: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    position: 'absolute',
+    top: 2,
+    right: 2,
+  },
+  contentContainer: {
     borderRadius: 12,
     borderWidth: 1,
     elevation: 2,
@@ -181,7 +419,47 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  contentInput: {
+    fontSize: 16,
+    lineHeight: 24,
+    padding: 16,
     textAlignVertical: 'top',
+    minHeight: 200,
+  },
+  contentDisplay: {
+    padding: 16,
+  },
+  textContent: {
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  imageContainer: {
+    position: 'relative',
+    marginVertical: 8,
+  },
+  noteImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+  },
+  deleteImageButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteImageText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });
 
