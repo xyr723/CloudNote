@@ -31,6 +31,9 @@ interface Note {
   timestamp: Date;
 }
 
+type SortType = 'editDate' | 'createDate' | 'title';
+type SortOrder = 'asc' | 'desc';
+
 function App(): React.JSX.Element {
   const [notes, setNotes] = useState<Note[]>([
     {
@@ -58,10 +61,31 @@ function App(): React.JSX.Element {
     username: '云笔记',
     isLoggedIn: false,
   });
+  const [sortType, setSortType] = useState<SortType>('editDate');
+  const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [showSortMenu, setShowSortMenu] = useState(false);
 
   const theme = useMemo(() => generateThemeColors(themeColor), [themeColor]);
 
-  const filteredNotes = notes.filter(note =>
+  const sortedNotes = useMemo(() => {
+    return [...notes].sort((a, b) => {
+      let comparison = 0;
+      switch (sortType) {
+        case 'editDate':
+          comparison = a.timestamp.getTime() - b.timestamp.getTime();
+          break;
+        case 'createDate':
+          comparison = a.timestamp.getTime() - b.timestamp.getTime();
+          break;
+        case 'title':
+          comparison = a.title.localeCompare(b.title);
+          break;
+      }
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+  }, [notes, sortType, sortOrder]);
+
+  const filteredNotes = sortedNotes.filter(note =>
     note.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -222,6 +246,99 @@ function App(): React.JSX.Element {
           <Text style={styles.tipText}>
             💡 小贴士：长按笔记可以删除哦 (◕‿◕✿)
           </Text>
+        </View>
+        <View style={styles.sortMenu}>
+          <TouchableOpacity 
+            style={[styles.sortMenuButton, { backgroundColor: theme.primaryLight }]}
+            onPress={() => setShowSortMenu(!showSortMenu)}>
+            <Text style={[styles.sortMenuButtonText, { color: theme.text }]}>
+              {sortType === 'editDate' ? '编辑日期' : 
+               sortType === 'createDate' ? '创建日期' : '标题'}
+            </Text>
+            <Text style={[styles.sortMenuArrow, { color: theme.text }]}>
+              {showSortMenu ? '▼' : '▶'}
+            </Text>
+          </TouchableOpacity>
+          {showSortMenu && (
+            <View style={[styles.sortMenuContent, { backgroundColor: theme.surface }]}>
+              <View style={styles.sortMenuSection}>
+                <Text style={[styles.sortMenuTitle, { color: theme.textLight }]}>排序方式</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.sortMenuItem,
+                    sortType === 'editDate' && { backgroundColor: theme.primaryLight }
+                  ]}
+                  onPress={() => {
+                    setSortType('editDate');
+                    setShowSortMenu(false);
+                  }}>
+                  <Text style={[
+                    styles.sortMenuItemText,
+                    { color: theme.text }
+                  ]}>编辑日期</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.sortMenuItem,
+                    sortType === 'createDate' && { backgroundColor: theme.primaryLight }
+                  ]}
+                  onPress={() => {
+                    setSortType('createDate');
+                    setShowSortMenu(false);
+                  }}>
+                  <Text style={[
+                    styles.sortMenuItemText,
+                    { color: theme.text }
+                  ]}>创建日期</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.sortMenuItem,
+                    sortType === 'title' && { backgroundColor: theme.primaryLight }
+                  ]}
+                  onPress={() => {
+                    setSortType('title');
+                    setShowSortMenu(false);
+                  }}>
+                  <Text style={[
+                    styles.sortMenuItemText,
+                    { color: theme.text }
+                  ]}>标题</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.sortMenuSection}>
+                <Text style={[styles.sortMenuTitle, { color: theme.textLight }]}>排序顺序</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.sortMenuItem,
+                    sortOrder === 'desc' && { backgroundColor: theme.primaryLight }
+                  ]}
+                  onPress={() => {
+                    setSortOrder('desc');
+                    setShowSortMenu(false);
+                  }}>
+                  <Text style={[
+                    styles.sortMenuItemText,
+                    { color: theme.text }
+                  ]}>降序</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.sortMenuItem,
+                    sortOrder === 'asc' && { backgroundColor: theme.primaryLight }
+                  ]}
+                  onPress={() => {
+                    setSortOrder('asc');
+                    setShowSortMenu(false);
+                  }}>
+                  <Text style={[
+                    styles.sortMenuItemText,
+                    { color: theme.text }
+                  ]}>升序</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
       </View>
 
@@ -504,6 +621,70 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '600',
     fontSize: 15,
+  },
+  sortMenu: {
+    marginTop: 8,
+    position: 'relative',
+    alignSelf: 'flex-end',
+    marginRight: 4,
+  },
+  sortMenuButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  sortMenuButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginRight: 8,
+  },
+  sortMenuArrow: {
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  sortMenuContent: {
+    position: 'absolute',
+    top: '100%',
+    right: 0,
+    marginTop: 4,
+    borderRadius: 12,
+    padding: 12,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    zIndex: 1000,
+    minWidth: 160,
+  },
+  sortMenuSection: {
+    marginBottom: 8,
+  },
+  sortMenuTitle: {
+    fontSize: 12,
+    marginBottom: 4,
+    paddingHorizontal: 8,
+  },
+  sortMenuItem: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  sortMenuItemText: {
+    fontSize: 14,
   },
 });
 

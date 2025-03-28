@@ -23,7 +23,7 @@ type ThemePresets = {
 export const themePresets: ThemePresets = {
   '葡萄冰萃': {
     primary: '#DCC6EA',
-    primaryLight: '#E8DBEF',
+    primaryLight: '#FDE9E7',
     primaryDark: '#B094C9',
     primaryTransparent: '#DCC6EA40',
     text: '#666666',
@@ -40,7 +40,7 @@ export const themePresets: ThemePresets = {
   },
   '清冽冰川': {
     primary: '#B7CCDF',
-    primaryLight: '#D1DDE9',
+    primaryLight: '#A5B8C6',
     primaryDark: '#8BA7C4',
     primaryTransparent: '#B7CCDF40',
     text: '#666666',
@@ -57,7 +57,7 @@ export const themePresets: ThemePresets = {
   },
   '流金岁月': {
     primary: '#938368',
-    primaryLight: '#F0D1CF',
+    primaryLight: '#FBE6A9',
     primaryDark: '#AB833C',
     primaryTransparent: '#93836840',
     text: '#666666',
@@ -74,7 +74,7 @@ export const themePresets: ThemePresets = {
   },
   '薄荷生巧': {
     primary: '#BBE1E4',
-    primaryLight: '#D1EAEC',
+    primaryLight: '#C2DCC7',
     primaryDark: '#A3D1D5',
     primaryTransparent: '#BBE1E440',
     text: '#666666',
@@ -91,7 +91,7 @@ export const themePresets: ThemePresets = {
   },
   '桃桃乌龙': {
     primary: '#FBD7D7',
-    primaryLight: '#FDE3E3',
+    primaryLight: '#FCBEC3',
     primaryDark: '#F8C5C5',
     primaryTransparent: '#FBD7D740',
     text: '#666666',
