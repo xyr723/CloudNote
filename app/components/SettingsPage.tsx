@@ -23,11 +23,11 @@ interface SettingsPageProps {
 }
 
 const themeColors = [
-  { name: '淡雅紫', value: '#B39DFF', textColor: '#6A4C93' },
-  { name: '静谧蓝', value: '#90CAF9', textColor: '#4B6CB7' },
-  { name: '暖杏色', value: '#FFCCBC', textColor: '#B76E79' },
-  { name: '薄荷绿', value: '#A5D6A7', textColor: '#4A7B4A' },
-  { name: '温柔粉', value: '#F8BBD0', textColor: '#B76E79' },
+  { name: '葡萄冰萃', value: '#DCC6EA', textColor: '#6A4C93' },
+  { name: '清冽冰川', value: '#B7CCDF', textColor: '#4B6CB7' },
+  { name: '流金岁月', value: '#938368', textColor: '#E5D6A4' },
+  { name: '薄荷生巧', value: '#BBE1E4', textColor: '#4A7B4A' },
+  { name: '桃桃乌龙', value: '#FBD7D7', textColor: '#B76E79' },
 ];
 
 const SettingsPage: React.FC<SettingsPageProps> = ({
@@ -77,10 +77,10 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                     key={color.value}
                     style={[
                       styles.colorOption,
-                      { backgroundColor: color.value },
                       themeColor === color.value && styles.selectedColor,
                     ]}
                     onPress={() => onThemeColorChange(color.value)}>
+                    <View style={[styles.colorBackground, { backgroundColor: color.value }]} />
                     <Text style={[styles.colorName, { color: color.textColor }]}>{color.name}</Text>
                   </TouchableOpacity>
                 ))}
@@ -155,14 +155,22 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    paddingTop: 12,
   },
   section: {
     marginTop: 12,
+    marginHorizontal: 16,
     paddingHorizontal: 20,
     paddingVertical: 16,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#EFE6F7',
+    borderRadius: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
   },
   sectionTitle: {
     fontSize: 16,
@@ -213,6 +221,14 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.2,
     shadowRadius: 1.41,
+    overflow: 'hidden',
+  },
+  colorBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   selectedColor: {
     borderWidth: 3,

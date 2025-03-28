@@ -1,58 +1,114 @@
-export const generateThemeColors = (primaryColor: string) => {
-  // 使用 HSL 颜色空间来生成和谐的配色
-  const hslToHex = (h: number, s: number, l: number) => {
-    l /= 100;
-    const a = s * Math.min(l, 1 - l) / 100;
-    const f = (n: number) => {
-      const k = (n + h / 30) % 12;
-      const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-      return Math.round(255 * color).toString(16).padStart(2, '0');
-    };
-    return `#${f(0)}${f(8)}${f(4)}`;
-  };
+type ThemeColors = {
+  primary: string;
+  primaryLight: string;
+  primaryDark: string;
+  primaryTransparent: string;
+  text: string;
+  textLight: string;
+  textDark: string;
+  background: string;
+  surface: string;
+  border: string;
+  borderLight: string;
+  shadow: string;
+  accent: string;
+  accentLight: string;
+  error: string;
+};
 
-  // 从主色调生成不同亮度和饱和度的变体
-  const getHSL = (hex: string) => {
-    const r = parseInt(hex.slice(1, 3), 16) / 255;
-    const g = parseInt(hex.slice(3, 5), 16) / 255;
-    const b = parseInt(hex.slice(5, 7), 16) / 255;
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    let h = 0, s = 0, l = (max + min) / 2;
-    
-    if (max !== min) {
-      const d = max - min;
-      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-      switch (max) {
-        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-        case g: h = (b - r) / d + 2; break;
-        case b: h = (r - g) / d + 4; break;
-      }
-      h /= 6;
-    }
-    
-    return [h * 360, s * 100, l * 100];
-  };
+type ThemePresets = {
+  [key: string]: ThemeColors;
+};
 
-  const [h, s, l] = getHSL(primaryColor);
-
-  return {
-    primary: primaryColor,
-    primaryLight: hslToHex(h, s * 0.8, l * 1.2),
-    primaryDark: hslToHex(h, s * 1.2, l * 0.8),
-    primaryTransparent: `${primaryColor}40`,
+export const themePresets: ThemePresets = {
+  '葡萄冰萃': {
+    primary: '#DCC6EA',
+    primaryLight: '#E8DBEF',
+    primaryDark: '#B094C9',
+    primaryTransparent: '#DCC6EA40',
     text: '#666666',
     textLight: '#999999',
     textDark: '#333333',
     background: '#FDFAFF',
     surface: '#FFFFFF',
-    border: hslToHex(h, s * 0.3, l * 0.9),
-    borderLight: hslToHex(h, s * 0.2, l * 0.95),
-    shadow: `${primaryColor}20`,
-    accent: hslToHex((h + 60) % 360, s * 0.8, l * 0.8),
-    accentLight: hslToHex((h + 60) % 360, s * 0.6, l * 0.9),
+    border: '#E8E2EF',
+    borderLight: '#F5F1F9',
+    shadow: '#DCC6EA20',
+    accent: '#B29EA1',
+    accentLight: '#F0D1CF',
     error: '#E57373',
-    success: '#81C784',
-    warning: '#FFB74D',
-  };
+  },
+  '清冽冰川': {
+    primary: '#B7CCDF',
+    primaryLight: '#D1DDE9',
+    primaryDark: '#8BA7C4',
+    primaryTransparent: '#B7CCDF40',
+    text: '#666666',
+    textLight: '#999999',
+    textDark: '#333333',
+    background: '#E1EFFA90',
+    surface: '#FFFFFF',
+    border: '#E2E8EF',
+    borderLight: '#F1F5F9',
+    shadow: '#B7CCDF20',
+    accent: '#9BB4D3',
+    accentLight: '#D1EAEC',
+    error: '#E57373',
+  },
+  '流金岁月': {
+    primary: '#938368',
+    primaryLight: '#F0D1CF',
+    primaryDark: '#AB833C',
+    primaryTransparent: '#93836840',
+    text: '#666666',
+    textLight: '#999999',
+    textDark: '#333333',
+    background: '#F2EBB270',
+    surface: '#FFFFFF',
+    border: '#EFE6E5',
+    borderLight: '#F9F5F4',
+    shadow: '#93836820',
+    accent: '#202C26',
+    accentLight: '#E8DBEF',
+    error: '#E57373',
+  },
+  '薄荷生巧': {
+    primary: '#BBE1E4',
+    primaryLight: '#D1EAEC',
+    primaryDark: '#A3D1D5',
+    primaryTransparent: '#BBE1E440',
+    text: '#666666',
+    textLight: '#999999',
+    textDark: '#333333',
+    background: '#ECDBC170',
+    surface: '#FFFFFF',
+    border: '#E5EFEF',
+    borderLight: '#F4F9F9',
+    shadow: '#BBE1E420',
+    accent: '#58433A',
+    accentLight: '#F0D1CF',
+    error: '#E57373',
+  },
+  '桃桃乌龙': {
+    primary: '#FBD7D7',
+    primaryLight: '#FDE3E3',
+    primaryDark: '#F8C5C5',
+    primaryTransparent: '#FBD7D740',
+    text: '#666666',
+    textLight: '#999999',
+    textDark: '#333333',
+    background: '#F2B3AF35',
+    surface: '#FFFFFF',
+    border: '#F5E6E6',
+    borderLight: '#FAF2F2',
+    shadow: '#FBD7D720',
+    accent: '#F2B3AF',
+    accentLight: '#D1EAEC',
+    error: '#E57373',
+  },
+  // ... 可以继续添加更多预设主题
+};
+
+export const generateThemeColors = (themeName: string) => {
+  return themePresets[themeName] || themePresets['葡萄冰萃']; // 默认使用葡萄冰萃主题
 }; 

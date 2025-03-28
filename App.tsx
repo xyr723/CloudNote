@@ -53,7 +53,7 @@ function App(): React.JSX.Element {
   const [showRegister, setShowRegister] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [themeColor, setThemeColor] = useState('#C5A3E6');
+  const [themeColor, setThemeColor] = useState('葡萄冰萃');
   const [user, setUser] = useState<{username: string; isLoggedIn: boolean}>({
     username: '云笔记',
     isLoggedIn: false,
@@ -141,7 +141,15 @@ function App(): React.JSX.Element {
   };
 
   const handleThemeColorChange = (color: string) => {
-    setThemeColor(color);
+    // 根据颜色值找到对应的主题名称
+    const themeMap: { [key: string]: string } = {
+      '#DCC6EA': '葡萄冰萃',
+      '#B7CCDF': '清冽冰川',
+      '#938368': '流金岁月',
+      '#BBE1E4': '薄荷生巧',
+      '#FBD7D7': '桃桃乌龙',
+    };
+    setThemeColor(themeMap[color] || '葡萄冰萃');
   };
 
   const renderNoteItem = ({item}: {item: Note}) => (
@@ -485,7 +493,7 @@ const styles = StyleSheet.create({
     borderColor: '#C5A3E6',  // 更柔和的紫色边框
   },
   confirmDeleteButton: {
-    backgroundColor: '#E5A4C4',  // 更柔和的粉色
+    backgroundColor: '#E5A4C4', 
   },
   cancelDeleteButtonText: {
     color: '#A98DB8',  // 更柔和的深紫色
