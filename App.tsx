@@ -71,12 +71,12 @@ function App(): React.JSX.Element {
 
   const theme = useMemo(() => {
     try {
-      return generateThemeColors(themeColor);
+      return generateThemeColors(themeColor, isDarkMode);
     } catch (error) {
       console.error('Theme generation error:', error);
-      return generateThemeColors('薄荷生巧'); // 使用默认主题
+      return generateThemeColors('薄荷生巧', isDarkMode); // 使用默认主题
     }
-  }, [themeColor]);
+  }, [themeColor, isDarkMode]);
 
   const sortedNotes = useMemo(() => {
     return [...notes].sort((a, b) => {
