@@ -14,13 +14,8 @@ import {
   ScrollView,
   Alert,
 } from 'react-native';
+import ImagePicker from 'react-native-image-picker';
 import { generateThemeColors } from '../theme/colors';
-import * as ImagePicker from 'react-native-image-picker';
-
-interface TextSegment {
-  text: string;
-  fontSize: number;
-}
 
 interface EditNotePageProps {
   visible: boolean;
@@ -31,19 +26,18 @@ interface EditNotePageProps {
     content: string;
     images?: string[];
     fontSize?: number;
-    textSegments?: TextSegment[];
   };
   onSave: () => void;
   onClose: () => void;
   onChangeTitle: (text: string) => void;
   onChangeContent: (text: string) => void;
-  onChangeImages?: (images: string[]) => void;
-  onChangeFontSize?: (size: number) => void;
-  onChangeTextSegments?: (segments: TextSegment[]) => void;
+  onChangeImages: (images: string[]) => void;
+  onChangeFontSize: (size: number) => void;
   theme: ReturnType<typeof generateThemeColors>;
 }
 
 const EditNotePage: React.FC<EditNotePageProps> = ({
+  visible,
   isEditing,
   note,
   onSave,
@@ -52,70 +46,27 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   onChangeContent,
   onChangeImages,
   onChangeFontSize,
-  onChangeTextSegments,
-  visible,
   theme,
 }) => {
-  const [fontSize, setFontSize] = useState(note.fontSize || 16);
-  const [isBold, setIsBold] = useState(false);
-  const [isItalic, setIsItalic] = useState(false);
+  const [content, setContent] = useState(note.content || '');
   const [images, setImages] = useState<string[]>(note.images || []);
-  const [content, setContent] = useState(note.content);
-  const [textSegments, setTextSegments] = useState<TextSegment[]>(
-    note.textSegments || [{ text: note.content, fontSize: note.fontSize || 16 }]
-  );
+  const [fontSize, setFontSize] = useState(note.fontSize || 16);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [showFontSizeModal, setShowFontSizeModal] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
-  const [selection, setSelection] = useState<{start: number; end: number} | null>(null);
 
-  // 当note改变时更新状态
   useEffect(() => {
-    setImages(note.images || []);
     setContent(note.content);
     setFontSize(note.fontSize || 16);
-    setTextSegments(note.textSegments || [{ text: note.content, fontSize: note.fontSize || 16 }]);
   }, [note]);
 
-  const handleFontSizeChange = (newSize: number) => {
-    if (selection && selection.start !== selection.end) {
-      // 如果有选中文本，只修改选中部分的字号
-      const selectedText = content.slice(selection.start, selection.end);
-      const beforeText = content.slice(0, selection.start);
-      const afterText = content.slice(selection.end);
-
-      // 创建新的文本段落
-      const newSegments: TextSegment[] = [];
-      if (beforeText) {
-        newSegments.push({ text: beforeText, fontSize });
-      }
-      newSegments.push({ text: selectedText, fontSize: newSize });
-      if (afterText) {
-        newSegments.push({ text: afterText, fontSize });
-      }
-
-      setTextSegments(newSegments);
-      onChangeTextSegments?.(newSegments);
-
-      // 更新内容，但不包含字号标记
-      const newContent = newSegments.map(segment => segment.text).join('');
-      setContent(newContent);
-      onChangeContent(newContent);
-    } else {
-      // 如果没有选中文本，则修改全局字号
-      setFontSize(newSize);
-      onChangeFontSize?.(newSize);
-      
-      // 更新所有段落的字号
-      const newSegments = textSegments.map(segment => ({
-        ...segment,
-        fontSize: newSize
-      }));
-      setTextSegments(newSegments);
-      onChangeTextSegments?.(newSegments);
-    }
+  const handleDeleteImage = (imageIndex: number) => {
+    const newImages = images.filter((_, index) => index !== imageIndex);
+    setImages(newImages);
+    onChangeImages(newImages);
   };
 
-  const handleImagePicker = () => {
+  const handleImagePicker = (_source: 'camera' | 'gallery') => {
     ImagePicker.launchImageLibrary({
       mediaType: 'photo',
       includeBase64: true,
@@ -131,136 +82,52 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
         const newImage = response.assets[0].uri;
         const newImages = [...images, newImage];
         setImages(newImages);
-        onChangeImages?.(newImages);
+        onChangeImages(newImages);
         // 在光标位置插入图片
         const newContent = content.slice(0, cursorPosition) + `\n[图片${newImages.length - 1}]\n` + content.slice(cursorPosition);
         setContent(newContent);
         onChangeContent(newContent);
       }
-    });
-  };
-
-  const handleCamera = () => {
-    ImagePicker.launchCamera({
-      mediaType: 'photo',
-      includeBase64: true,
-    }, (response) => {
-      if (response.didCancel) {
-        return;
-      }
-      if (response.errorCode) {
-        Alert.alert('错误', '拍照时发生错误');
-        return;
-      }
-      if (response.assets && response.assets[0].uri) {
-        const newImage = response.assets[0].uri;
-        const newImages = [...images, newImage];
-        setImages(newImages);
-        onChangeImages?.(newImages);
-        // 在光标位置插入图片
-        const newContent = content.slice(0, cursorPosition) + `\n[图片${newImages.length - 1}]\n` + content.slice(cursorPosition);
-        setContent(newContent);
-        onChangeContent(newContent);
-      }
-    });
-  };
-
-  const handleDeleteImage = (imageIndex: number) => {
-    const newImages = images.filter((_, i) => i !== imageIndex);
-    setImages(newImages);
-    onChangeImages?.(newImages);
-    
-    // 更新内容中的图片标记
-    let newContent = content;
-    const imagePattern = new RegExp(`\\[图片${imageIndex}\\]`, 'g');
-    newContent = newContent.replace(imagePattern, '');
-    
-    // 重新编号剩余的图片标记
-    for (let i = imageIndex + 1; i < images.length; i++) {
-      const oldPattern = new RegExp(`\\[图片${i}\\]`, 'g');
-      newContent = newContent.replace(oldPattern, `[图片${i - 1}]`);
-    }
-    
-    setContent(newContent);
-    onChangeContent(newContent);
-  };
-
-  const renderImages = () => {
-    const imageMatches = content.match(/\[图片(\d+)\]/g) || [];
-    return imageMatches.map((match, index) => {
-      const matchResult = match.match(/\d+/);
-      if (!matchResult) return null;
-      const imageIndex = parseInt(matchResult[0]);
-      if (images[imageIndex]) {
-        return (
-          <View key={index} style={styles.imageContainer}>
-            <Image
-              source={{ uri: images[imageIndex] }}
-              style={styles.noteImage}
-              resizeMode="contain"
-            />
-            <TouchableOpacity
-              style={[styles.deleteImageButton, { zIndex: 3 }]}
-              onPress={() => handleDeleteImage(imageIndex)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Text style={styles.deleteImageText}>×</Text>
-            </TouchableOpacity>
-          </View>
-        );
-      }
-      return null;
     });
   };
 
   const renderContent = () => {
     return (
-      <View style={styles.contentWrapper}>
-        {textSegments.map((segment, index) => (
-          <TextInput
-            key={index}
-            style={[styles.textContent, {
-              fontSize: segment.fontSize,
-              fontWeight: isBold ? 'bold' : 'normal',
-              fontStyle: isItalic ? 'italic' : 'normal',
-              color: theme.text,
-              padding: 0,
-              margin: 0,
-              minHeight: segment.fontSize * 1.5,
-            }]}
-            value={segment.text}
-            onChangeText={(text) => {
-              const newSegments = [...textSegments];
-              newSegments[index] = { ...segment, text };
-              setTextSegments(newSegments);
-              onChangeTextSegments?.(newSegments);
-              
-              // 更新内容
-              const newContent = newSegments.map(s => s.text).join('');
-              setContent(newContent);
-              onChangeContent(newContent);
-            }}
-            onSelectionChange={(event) => {
-              const { selection: sel } = event.nativeEvent;
-              // 计算实际的选择范围
-              let start = sel.start;
-              let end = sel.end;
-              for (let i = 0; i < index; i++) {
-                start += textSegments[i].text.length;
-                end += textSegments[i].text.length;
-              }
-              setCursorPosition(start);
-              setSelection({ start, end });
-            }}
-            multiline
-          />
-        ))}
-      </View>
+      <TextInput
+        style={[styles.textContent, { 
+          color: theme.text,
+          fontSize: fontSize
+        }]}
+        multiline
+        value={content}
+        onChangeText={(text) => {
+          setContent(text);
+          onChangeContent(text);
+        }}
+        onSelectionChange={(event) => {
+          setCursorPosition(event.nativeEvent.selection.start);
+        }}
+        placeholder="开始记录你的想法..."
+        placeholderTextColor={theme.textLight}
+      />
     );
   };
 
-  const showImageOptions = () => {
-    setShowImageModal(true);
+  const renderImages = () => {
+    return images.map((image, index) => (
+      <View key={index} style={styles.imageContainer}>
+        <Image
+          source={{ uri: image }}
+          style={styles.image}
+          resizeMode="cover"
+        />
+        <TouchableOpacity
+          style={[styles.deleteImageButton, { backgroundColor: theme.error }]}
+          onPress={() => handleDeleteImage(index)}>
+          <Text style={styles.deleteImageText}>×</Text>
+        </TouchableOpacity>
+      </View>
+    ));
   };
 
   return (
@@ -313,42 +180,20 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
                 </View>
               </ScrollView>
 
-              <View style={[styles.toolbar, { backgroundColor: theme.surface }]}>
-                <View style={styles.toolbarRow}>
-                  <TouchableOpacity 
-                    style={[styles.toolbarButton, isBold && styles.toolbarButtonActive]}
-                    onPress={() => setIsBold(!isBold)}
-                  >
-                    <Text style={[styles.toolbarButtonText, { color: isBold ? theme.primary : theme.text }]}>𝐁</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.toolbarButton, isItalic && styles.toolbarButtonActive]}
-                    onPress={() => setIsItalic(!isItalic)}
-                  >
-                    <Text style={[styles.toolbarButtonText, { color: isItalic ? theme.primary : theme.text }]}>𝐼</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.toolbarButton}
-                    onPress={() => handleFontSizeChange(fontSize + 2)}
-                  >
-                    <Text style={[styles.toolbarButtonText, { color: theme.text }]}>𝐀+</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.toolbarButton}
-                    onPress={() => handleFontSizeChange(fontSize - 2)}
-                  >
-                    <Text style={[styles.toolbarButtonText, { color: theme.text }]}>𝐀-</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.toolbarButton, styles.cameraButton]}
-                    onPress={showImageOptions}
-                  >
-                    <View style={styles.cameraIconContainer}>
-                      <View style={[styles.cameraLens, { backgroundColor: theme.text }]} />
-                      <View style={[styles.cameraFlash, { backgroundColor: theme.text }]} />
-                    </View>
-                  </TouchableOpacity>
-                </View>
+              <View style={[styles.toolbar, { 
+                backgroundColor: theme.surface,
+                borderColor: theme.border 
+              }]}>
+                <TouchableOpacity 
+                  style={[styles.toolbarButton, { borderColor: theme.border }]}
+                  onPress={() => setShowImageModal(true)}>
+                  <Text style={[styles.toolbarButtonText, { color: theme.text }]}>添加图片</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.toolbarButton, { borderColor: theme.border }]}
+                  onPress={() => setShowFontSizeModal(true)}>
+                  <Text style={[styles.toolbarButtonText, { color: theme.text }]}>调整字体</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </KeyboardAvoidingView>
@@ -376,38 +221,73 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
                 <Text style={[styles.closeModalText, { color: theme.text }]}>×</Text>
               </TouchableOpacity>
             </View>
-            
             <View style={styles.imageOptionsContent}>
               <TouchableOpacity 
-                style={[styles.imageOptionButton, { backgroundColor: theme.primary }]}
+                style={[styles.imageOption, { borderColor: theme.border }]}
                 onPress={() => {
                   setShowImageModal(false);
-                  handleImagePicker();
-                }}
-              >
-                <View style={[styles.imageOptionIcon, { backgroundColor: theme.surface }]}>
-                  <View style={[styles.galleryIcon, { backgroundColor: theme.primary }]}>
-                    <View style={[styles.galleryIconInner, { backgroundColor: theme.primary }]} />
-                    <View style={[styles.galleryIconInner, { backgroundColor: theme.primary }]} />
-                  </View>
-                </View>
-                <Text style={[styles.imageOptionText, { color: theme.surface }]}>从相册选择</Text>
+                  handleImagePicker('camera');
+                }}>
+                <Text style={[styles.imageOptionText, { color: theme.text }]}>拍照</Text>
               </TouchableOpacity>
-
               <TouchableOpacity 
-                style={[styles.imageOptionButton, { backgroundColor: theme.primary }]}
+                style={[styles.imageOption, { borderColor: theme.border }]}
                 onPress={() => {
                   setShowImageModal(false);
-                  handleCamera();
-                }}
+                  handleImagePicker('gallery');
+                }}>
+                <Text style={[styles.imageOptionText, { color: theme.text }]}>从相册选择</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal
+        visible={showFontSizeModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowFontSizeModal(false)}
+      >
+        <TouchableOpacity 
+          style={styles.modalOverlay} 
+          activeOpacity={1} 
+          onPress={() => setShowFontSizeModal(false)}
+        >
+          <View style={[styles.fontSizeModal, { backgroundColor: theme.surface }]}>
+            <View style={[styles.fontSizeHeader, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.fontSizeTitle, { color: theme.text }]}>调整字体大小</Text>
+              <TouchableOpacity 
+                style={styles.closeModalButton}
+                onPress={() => setShowFontSizeModal(false)}
               >
-                <View style={[styles.imageOptionIcon, { backgroundColor: theme.surface }]}>
-                  <View style={[styles.cameraIcon, { borderColor: theme.primary }]}>
-                    <View style={[styles.cameraLensIcon, { backgroundColor: theme.primary }]} />
-                    <View style={[styles.cameraFlashIcon, { backgroundColor: theme.primary }]} />
-                  </View>
-                </View>
-                <Text style={[styles.imageOptionText, { color: theme.surface }]}>拍照</Text>
+                <Text style={[styles.closeModalText, { color: theme.text }]}>×</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.fontSizeContent}>
+              <TouchableOpacity 
+                style={[styles.fontSizeOption, { borderColor: theme.border }]}
+                onPress={() => {
+                  onChangeFontSize(16);
+                  setShowFontSizeModal(false);
+                }}>
+                <Text style={[styles.fontSizeOptionText, { color: theme.text }]}>小</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.fontSizeOption, { borderColor: theme.border }]}
+                onPress={() => {
+                  onChangeFontSize(18);
+                  setShowFontSizeModal(false);
+                }}>
+                <Text style={[styles.fontSizeOptionText, { color: theme.text }]}>中</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.fontSizeOption, { borderColor: theme.border }]}
+                onPress={() => {
+                  onChangeFontSize(20);
+                  setShowFontSizeModal(false);
+                }}>
+                <Text style={[styles.fontSizeOptionText, { color: theme.text }]}>大</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -445,10 +325,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   closeButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 8,
   },
   closeButtonText: {
     fontSize: 16,
@@ -459,10 +336,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   saveButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
+    padding: 8,
   },
   saveButtonText: {
     fontSize: 16,
@@ -473,116 +347,117 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   titleInput: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
     borderWidth: 1,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 18,
+    marginBottom: 16,
   },
   contentScroll: {
     flex: 1,
-    marginBottom: 16,
-  },
-  toolbar: {
-    padding: 12,
-    borderRadius: 16,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  toolbarRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  toolbarButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
-  },
-  toolbarButtonActive: {
-    backgroundColor: 'rgba(0,0,0,0.05)',
-  },
-  toolbarButtonText: {
-    fontSize: 20,
-    fontWeight: '500',
-  },
-  cameraButton: {
-    backgroundColor: 'rgba(0,0,0,0.05)',
-  },
-  cameraIconContainer: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: 'rgba(0,0,0,0.3)',
-    position: 'relative',
-  },
-  cameraLens: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: [{ translateX: -4 }, { translateY: -4 }],
-  },
-  cameraFlash: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    position: 'absolute',
-    top: 2,
-    right: 2,
   },
   contentContainer: {
-    borderRadius: 12,
-    borderWidth: 1,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    overflow: 'hidden',
-    minHeight: 570,
     flex: 1,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
   },
   contentWrapper: {
-    padding: 16,
     flex: 1,
   },
-  textContent: {
-    fontSize: 16,
-    padding: 0,
-    margin: 0,
-    textAlignVertical: 'top',
+  toolbar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    padding: 12,
+    borderTopWidth: 1,
+    marginTop: 16,
+  },
+  toolbarButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  toolbarButtonText: {
+    fontSize: 14,
+  },
+  modalOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageOptionsModal: {
+    width: '80%',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  imageOptionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+  },
+  imageOptionsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  closeModalButton: {
+    padding: 8,
+  },
+  closeModalText: {
+    fontSize: 24,
+    fontWeight: '300',
+  },
+  imageOptionsContent: {
+    padding: 16,
+  },
+  imageOption: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  imageOptionText: {
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  fontSizeModal: {
+    width: '80%',
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  fontSizeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderBottomWidth: 1,
+  },
+  fontSizeTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  fontSizeContent: {
+    padding: 16,
+  },
+  fontSizeOption: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  fontSizeOptionText: {
+    fontSize: 16,
+    textAlign: 'center',
   },
   imageContainer: {
     position: 'relative',
     marginVertical: 8,
     zIndex: 2,
   },
-  noteImage: {
+  image: {
     width: '100%',
     height: 200,
     borderRadius: 8,
@@ -604,108 +479,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  imageOptionsModal: {
-    width: '80%',
-    borderRadius: 16,
-    overflow: 'hidden',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-  },
-  imageOptionsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-  },
-  imageOptionsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  closeModalButton: {
-    width: 24,
-    height: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  closeModalText: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  imageOptionsContent: {
-    padding: 16,
-    gap: 12,
-  },
-  imageOptionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    gap: 12,
-  },
-  imageOptionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 8,
-  },
-  imageOptionIconText: {
-    fontSize: 24,
-  },
-  imageOptionText: {
+  textContent: {
     fontSize: 16,
-    fontWeight: '500',
-  },
-  galleryIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 4,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  galleryIconInner: {
-    position: 'absolute',
-    width: 8,
-    height: 8,
-    borderRadius: 2,
-  },
-  cameraIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    position: 'relative',
-  },
-  cameraLensIcon: {
-    position: 'absolute',
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    top: '50%',
-    left: '50%',
-    transform: [{ translateX: -4 }, { translateY: -4 }],
-  },
-  cameraFlashIcon: {
-    position: 'absolute',
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    top: 2,
-    right: 2,
+    padding: 0,
+    margin: 0,
+    textAlignVertical: 'top',
+    flex: 1,
   },
 });
 

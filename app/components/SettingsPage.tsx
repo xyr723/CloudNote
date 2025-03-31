@@ -65,7 +65,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({
                 value={isDarkMode}
                 onValueChange={onToggleDarkMode}
                 trackColor={{false: theme.border, true: theme.primary}}
-                thumbColor={isDarkMode ? theme.surface : theme.surface}
+                thumbColor={theme.surface}
+                ios_backgroundColor={theme.border}
               />
             </View>
 
