@@ -9,7 +9,6 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import { generateThemeColors } from '../theme/colors';
 
@@ -23,23 +22,63 @@ const RegisterPage: React.FC<RegisterPageProps> = ({onRegister, onBack, theme}) 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [usernameError, setUsernameError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [confirmPasswordError, setConfirmPasswordError] = useState('');
+
+  const validateUsername = (text: string) => {
+    if (!text.trim()) {
+      setUsernameError('用户名不能为空');
+      return false;
+    }
+    if (text.length < 3) {
+      setUsernameError('用户名至少需要3个字符');
+      return false;
+    }
+    if (text.length > 20) {
+      setUsernameError('用户名不能超过20个字符');
+      return false;
+    }
+    setUsernameError('');
+    return true;
+  };
+
+  const validatePassword = (text: string) => {
+    if (!text.trim()) {
+      setPasswordError('密码不能为空');
+      return false;
+    }
+    if (text.length < 6) {
+      setPasswordError('密码至少需要6个字符');
+      return false;
+    }
+    if (text.length > 20) {
+      setPasswordError('密码不能超过20个字符');
+      return false;
+    }
+    setPasswordError('');
+    return true;
+  };
+
+  const validateConfirmPassword = (text: string) => {
+    if (!text.trim()) {
+      setConfirmPasswordError('请确认密码');
+      return false;
+    }
+    if (text !== password) {
+      setConfirmPasswordError('两次输入的密码不一致');
+      return false;
+    }
+    setConfirmPasswordError('');
+    return true;
+  };
 
   const handleRegister = () => {
-    if (!username.trim() || !password.trim() || !confirmPassword.trim()) {
-      Alert.alert('提示', '请填写所有字段');
+    if (!validateUsername(username) || 
+        !validatePassword(password) || 
+        !validateConfirmPassword(confirmPassword)) {
       return;
     }
-
-    if (password !== confirmPassword) {
-      Alert.alert('提示', '两次输入的密码不一致');
-      return;
-    }
-
-    if (password.length < 6) {
-      Alert.alert('提示', '密码长度至少为6位');
-      return;
-    }
-
     onRegister(username, password);
   };
 
@@ -69,12 +108,18 @@ const RegisterPage: React.FC<RegisterPageProps> = ({onRegister, onBack, theme}) 
                 style={[styles.input, { color: theme.text }]}
                 placeholder="设置用户名"
                 value={username}
-                onChangeText={setUsername}
+                onChangeText={(text) => {
+                  setUsername(text);
+                  validateUsername(text);
+                }}
                 placeholderTextColor={theme.textLight}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
             </View>
+            {usernameError ? (
+              <Text style={[styles.errorText, { color: theme.error }]}>{usernameError}</Text>
+            ) : null}
 
             <View style={[styles.inputWrapper, { 
               backgroundColor: theme.surface,
@@ -85,13 +130,20 @@ const RegisterPage: React.FC<RegisterPageProps> = ({onRegister, onBack, theme}) 
                 style={[styles.input, { color: theme.text }]}
                 placeholder="设置密码"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  validatePassword(text);
+                  validateConfirmPassword(confirmPassword);
+                }}
                 secureTextEntry
                 placeholderTextColor={theme.textLight}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
             </View>
+            {passwordError ? (
+              <Text style={[styles.errorText, { color: theme.error }]}>{passwordError}</Text>
+            ) : null}
 
             <View style={[styles.inputWrapper, { 
               backgroundColor: theme.surface,
@@ -102,13 +154,19 @@ const RegisterPage: React.FC<RegisterPageProps> = ({onRegister, onBack, theme}) 
                 style={[styles.input, { color: theme.text }]}
                 placeholder="确认密码"
                 value={confirmPassword}
-                onChangeText={setConfirmPassword}
+                onChangeText={(text) => {
+                  setConfirmPassword(text);
+                  validateConfirmPassword(text);
+                }}
                 secureTextEntry
                 placeholderTextColor={theme.textLight}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
             </View>
+            {confirmPasswordError ? (
+              <Text style={[styles.errorText, { color: theme.error }]}>{confirmPasswordError}</Text>
+            ) : null}
 
             <Text style={[styles.passwordTip, { color: theme.primaryLight }]}>
               密码长度至少为6位，建议使用字母、数字和符号的组合
@@ -218,6 +276,12 @@ const styles = StyleSheet.create({
   registerButtonText: {
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  errorText: {
+    fontSize: 12,
+    marginTop: -12,
+    marginBottom: 8,
+    marginLeft: 4,
   },
 });
 

@@ -17,6 +17,11 @@ import {
 import { generateThemeColors } from '../theme/colors';
 import * as ImagePicker from 'react-native-image-picker';
 
+interface TextSegment {
+  text: string;
+  fontSize: number;
+}
+
 interface EditNotePageProps {
   visible: boolean;
   isEditing: boolean;
@@ -25,12 +30,16 @@ interface EditNotePageProps {
     title: string;
     content: string;
     images?: string[];
+    fontSize?: number;
+    textSegments?: TextSegment[];
   };
   onSave: () => void;
   onClose: () => void;
   onChangeTitle: (text: string) => void;
   onChangeContent: (text: string) => void;
   onChangeImages?: (images: string[]) => void;
+  onChangeFontSize?: (size: number) => void;
+  onChangeTextSegments?: (segments: TextSegment[]) => void;
   theme: ReturnType<typeof generateThemeColors>;
 }
 
@@ -42,22 +51,69 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   onChangeTitle,
   onChangeContent,
   onChangeImages,
+  onChangeFontSize,
+  onChangeTextSegments,
   visible,
   theme,
 }) => {
-  const [fontSize, setFontSize] = useState(16);
+  const [fontSize, setFontSize] = useState(note.fontSize || 16);
   const [isBold, setIsBold] = useState(false);
   const [isItalic, setIsItalic] = useState(false);
   const [images, setImages] = useState<string[]>(note.images || []);
   const [content, setContent] = useState(note.content);
+  const [textSegments, setTextSegments] = useState<TextSegment[]>(
+    note.textSegments || [{ text: note.content, fontSize: note.fontSize || 16 }]
+  );
   const [showImageModal, setShowImageModal] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
+  const [selection, setSelection] = useState<{start: number; end: number} | null>(null);
 
   // 当note改变时更新状态
   useEffect(() => {
     setImages(note.images || []);
     setContent(note.content);
+    setFontSize(note.fontSize || 16);
+    setTextSegments(note.textSegments || [{ text: note.content, fontSize: note.fontSize || 16 }]);
   }, [note]);
+
+  const handleFontSizeChange = (newSize: number) => {
+    if (selection && selection.start !== selection.end) {
+      // 如果有选中文本，只修改选中部分的字号
+      const selectedText = content.slice(selection.start, selection.end);
+      const beforeText = content.slice(0, selection.start);
+      const afterText = content.slice(selection.end);
+
+      // 创建新的文本段落
+      const newSegments: TextSegment[] = [];
+      if (beforeText) {
+        newSegments.push({ text: beforeText, fontSize });
+      }
+      newSegments.push({ text: selectedText, fontSize: newSize });
+      if (afterText) {
+        newSegments.push({ text: afterText, fontSize });
+      }
+
+      setTextSegments(newSegments);
+      onChangeTextSegments?.(newSegments);
+
+      // 更新内容，但不包含字号标记
+      const newContent = newSegments.map(segment => segment.text).join('');
+      setContent(newContent);
+      onChangeContent(newContent);
+    } else {
+      // 如果没有选中文本，则修改全局字号
+      setFontSize(newSize);
+      onChangeFontSize?.(newSize);
+      
+      // 更新所有段落的字号
+      const newSegments = textSegments.map(segment => ({
+        ...segment,
+        fontSize: newSize
+      }));
+      setTextSegments(newSegments);
+      onChangeTextSegments?.(newSegments);
+    }
+  };
 
   const handleImagePicker = () => {
     ImagePicker.launchImageLibrary({
@@ -129,86 +185,78 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
     onChangeContent(newContent);
   };
 
-  const renderContent = () => {
-    const parts = content.split(/(\[图片\d+\])/);
-    if (parts.length === 1 && !parts[0].trim()) {
-      return (
-        <TextInput
-          style={[styles.textContent, {
-            fontSize,
-            fontWeight: isBold ? 'bold' : 'normal',
-            fontStyle: isItalic ? 'italic' : 'normal',
-            color: theme.textLight,
-            padding: 0,
-            margin: 0,
-            flex: 1,
-          }]}
-          placeholder="开始记录你的想法..."
-          placeholderTextColor={theme.textLight}
-          value={content}
-          onChangeText={(text) => {
-            setContent(text);
-            onChangeContent(text);
-          }}
-          onSelectionChange={(event) => {
-            const { selection } = event.nativeEvent;
-            setCursorPosition(selection.start);
-          }}
-          multiline
-        />
-      );
-    }
-    return parts.map((part, index) => {
-      const imageMatch = part.match(/\[图片(\d+)\]/);
-      if (imageMatch) {
-        const imageIndex = parseInt(imageMatch[1]);
-        if (images[imageIndex]) {
-          return (
-            <View key={index} style={styles.imageContainer}>
-              <Image
-                source={{ uri: images[imageIndex] }}
-                style={styles.noteImage}
-                resizeMode="contain"
-              />
-              <TouchableOpacity
-                style={[styles.deleteImageButton, { zIndex: 3 }]}
-                onPress={() => handleDeleteImage(imageIndex)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Text style={styles.deleteImageText}>×</Text>
-              </TouchableOpacity>
-            </View>
-          );
-        }
+  const renderImages = () => {
+    const imageMatches = content.match(/\[图片(\d+)\]/g) || [];
+    return imageMatches.map((match, index) => {
+      const matchResult = match.match(/\d+/);
+      if (!matchResult) return null;
+      const imageIndex = parseInt(matchResult[0]);
+      if (images[imageIndex]) {
+        return (
+          <View key={index} style={styles.imageContainer}>
+            <Image
+              source={{ uri: images[imageIndex] }}
+              style={styles.noteImage}
+              resizeMode="contain"
+            />
+            <TouchableOpacity
+              style={[styles.deleteImageButton, { zIndex: 3 }]}
+              onPress={() => handleDeleteImage(imageIndex)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text style={styles.deleteImageText}>×</Text>
+            </TouchableOpacity>
+          </View>
+        );
       }
-      return (
-        <TextInput
-          key={index}
-          style={[styles.textContent, {
-            fontSize,
-            fontWeight: isBold ? 'bold' : 'normal',
-            fontStyle: isItalic ? 'italic' : 'normal',
-            color: theme.text,
-            padding: 0,
-            margin: 0,
-            flex: 1,
-          }]}
-          value={part}
-          onChangeText={(text) => {
-            const newParts = [...parts];
-            newParts[index] = text;
-            const newContent = newParts.join('');
-            setContent(newContent);
-            onChangeContent(newContent);
-          }}
-          onSelectionChange={(event) => {
-            const { selection } = event.nativeEvent;
-            setCursorPosition(selection.start);
-          }}
-          multiline
-        />
-      );
+      return null;
     });
+  };
+
+  const renderContent = () => {
+    return (
+      <View style={styles.contentWrapper}>
+        {textSegments.map((segment, index) => (
+          <TextInput
+            key={index}
+            style={[styles.textContent, {
+              fontSize: segment.fontSize,
+              fontWeight: isBold ? 'bold' : 'normal',
+              fontStyle: isItalic ? 'italic' : 'normal',
+              color: theme.text,
+              padding: 0,
+              margin: 0,
+              minHeight: segment.fontSize * 1.5,
+            }]}
+            value={segment.text}
+            onChangeText={(text) => {
+              const newSegments = [...textSegments];
+              newSegments[index] = { ...segment, text };
+              setTextSegments(newSegments);
+              onChangeTextSegments?.(newSegments);
+              
+              // 更新内容
+              const newContent = newSegments.map(s => s.text).join('');
+              setContent(newContent);
+              onChangeContent(newContent);
+            }}
+            onSelectionChange={(event) => {
+              const { selection: sel } = event.nativeEvent;
+              // 计算实际的选择范围
+              let start = sel.start;
+              let end = sel.end;
+              for (let i = 0; i < index; i++) {
+                start += textSegments[i].text.length;
+                end += textSegments[i].text.length;
+              }
+              setCursorPosition(start);
+              setSelection({ start, end });
+            }}
+            multiline
+          />
+        ))}
+      </View>
+    );
   };
 
   const showImageOptions = () => {
@@ -260,6 +308,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
                 }]}>
                   <View style={styles.contentWrapper}>
                     {renderContent()}
+                    {renderImages()}
                   </View>
                 </View>
               </ScrollView>
@@ -280,13 +329,13 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={styles.toolbarButton}
-                    onPress={() => setFontSize(fontSize + 2)}
+                    onPress={() => handleFontSizeChange(fontSize + 2)}
                   >
                     <Text style={[styles.toolbarButtonText, { color: theme.text }]}>𝐀+</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={styles.toolbarButton}
-                    onPress={() => setFontSize(fontSize - 2)}
+                    onPress={() => handleFontSizeChange(fontSize - 2)}
                   >
                     <Text style={[styles.toolbarButtonText, { color: theme.text }]}>𝐀-</Text>
                   </TouchableOpacity>

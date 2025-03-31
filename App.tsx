@@ -31,6 +31,8 @@ interface Note {
   content: string;
   timestamp: Date;
   images?: string[];
+  fontSize?: number;
+  textSegments?: { text: string; fontSize: number }[];
 }
 
 type SortType = 'editDate' | 'createDate' | 'title';
@@ -46,7 +48,7 @@ function App(): React.JSX.Element {
     },
   ]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [currentNote, setCurrentNote] = useState<{id?: string; title: string; content: string; images?: string[]}>({
+  const [currentNote, setCurrentNote] = useState<{id?: string; title: string; content: string; images?: string[]; fontSize?: number; textSegments?: { text: string; fontSize: number }[]}>({
     title: '',
     content: '',
   });
@@ -119,7 +121,14 @@ function App(): React.JSX.Element {
         // 更新现有笔记
         setNotes(notes.map(note => 
           note.id === currentNote.id 
-            ? {...note, title: currentNote.title, content: currentNote.content, timestamp: new Date(), images: currentNote.images}
+            ? {...note, 
+                title: currentNote.title, 
+                content: currentNote.content, 
+                timestamp: new Date(), 
+                images: currentNote.images, 
+                fontSize: currentNote.fontSize,
+                textSegments: currentNote.textSegments
+              }
             : note
         ));
       } else {
@@ -130,6 +139,8 @@ function App(): React.JSX.Element {
           content: currentNote.content,
           timestamp: new Date(),
           images: currentNote.images,
+          fontSize: currentNote.fontSize,
+          textSegments: currentNote.textSegments,
         };
         setNotes([newNote, ...notes]);
       }
@@ -149,6 +160,8 @@ function App(): React.JSX.Element {
       title: note.title,
       content: note.content,
       images: note.images,
+      fontSize: note.fontSize,
+      textSegments: note.textSegments,
     });
     setIsEditing(true);
     setModalVisible(true);
@@ -468,6 +481,8 @@ function App(): React.JSX.Element {
           onChangeTitle={(text) => setCurrentNote({...currentNote, title: text})}
           onChangeContent={(text) => setCurrentNote({...currentNote, content: text})}
           onChangeImages={(images) => setCurrentNote({...currentNote, images})}
+          onChangeFontSize={(size) => setCurrentNote({...currentNote, fontSize: size})}
+          onChangeTextSegments={(segments) => setCurrentNote({...currentNote, textSegments: segments})}
           theme={theme}
         />
       )}
