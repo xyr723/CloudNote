@@ -9,7 +9,6 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import { generateThemeColors } from '../theme/colors';
 
@@ -22,10 +21,45 @@ interface LoginPageProps {
 const LoginPage: React.FC<LoginPageProps> = ({onLogin, onRegister, theme}) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [usernameError, setUsernameError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+
+  const validateUsername = (text: string) => {
+    if (!text.trim()) {
+      setUsernameError('用户名不能为空');
+      return false;
+    }
+    if (text.length < 3) {
+      setUsernameError('用户名至少需要3个字符');
+      return false;
+    }
+    if (text.length > 20) {
+      setUsernameError('用户名不能超过20个字符');
+      return false;
+    }
+    setUsernameError('');
+    return true;
+  };
+
+  const validatePassword = (text: string) => {
+    if (!text.trim()) {
+      setPasswordError('密码不能为空');
+      return false;
+    }
+    if (text.length < 6) {
+      setPasswordError('密码至少需要6个字符');
+      return false;
+    }
+    if (text.length > 20) {
+      setPasswordError('密码不能超过20个字符');
+      return false;
+    }
+    setPasswordError('');
+    return true;
+  };
 
   const handleLogin = () => {
-    if (!username.trim() || !password.trim()) {
-      Alert.alert('提示', '请输入用户名和密码');
+    if (!validateUsername(username) || !validatePassword(password)) {
       return;
     }
     onLogin(username, password);
@@ -56,12 +90,18 @@ const LoginPage: React.FC<LoginPageProps> = ({onLogin, onRegister, theme}) => {
                 style={[styles.input, { color: theme.text }]}
                 placeholder="用户名"
                 value={username}
-                onChangeText={setUsername}
+                onChangeText={(text) => {
+                  setUsername(text);
+                  validateUsername(text);
+                }}
                 placeholderTextColor={theme.textLight}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
             </View>
+            {usernameError ? (
+              <Text style={[styles.errorText, { color: theme.error }]}>{usernameError}</Text>
+            ) : null}
 
             <View style={[styles.inputWrapper, { 
               backgroundColor: theme.surface,
@@ -72,13 +112,19 @@ const LoginPage: React.FC<LoginPageProps> = ({onLogin, onRegister, theme}) => {
                 style={[styles.input, { color: theme.text }]}
                 placeholder="密码"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  validatePassword(text);
+                }}
                 secureTextEntry
                 placeholderTextColor={theme.textLight}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
             </View>
+            {passwordError ? (
+              <Text style={[styles.errorText, { color: theme.error }]}>{passwordError}</Text>
+            ) : null}
 
             <TouchableOpacity style={styles.forgotPassword}>
               <Text style={[styles.forgotPasswordText, { color: theme.primaryDark }]}>忘记密码？</Text>
@@ -217,6 +263,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginLeft: 4,
     fontWeight: '500',
+  },
+  errorText: {
+    fontSize: 12,
+    marginTop: -12,
+    marginBottom: 8,
+    marginLeft: 4,
   },
 });
 
