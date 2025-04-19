@@ -52,7 +52,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-function AppContent(): React.JSX.Element {
+function AppContent({user, setUser}: {user: {username: string; isLoggedIn: boolean; avatar?: string}; setUser: React.Dispatch<React.SetStateAction<{username: string; isLoggedIn: boolean; avatar?: string}>>}): React.JSX.Element {
   const navigation = useNavigation<NavigationProp>();
   const [notes, setNotes] = useState<Note[]>([
     {
@@ -75,10 +75,6 @@ function AppContent(): React.JSX.Element {
   const [showSettings, setShowSettings] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [themeColor, setThemeColor] = useState('薄荷生巧');
-  const [user, setUser] = useState<{username: string; isLoggedIn: boolean; avatar?: string}>({
-    username: '云笔记',
-    isLoggedIn: true,
-  });
   const [sortType, setSortType] = useState<SortType>('editDate');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [showSortMenu, setShowSortMenu] = useState(false);
@@ -117,6 +113,7 @@ function AppContent(): React.JSX.Element {
   const handleLogout = () => {
     setUser({username: '', isLoggedIn: false});
     setShowProfile(false);
+    navigation.navigate('Login');
   };
 
   const handleSave = () => {
@@ -263,7 +260,7 @@ function AppContent(): React.JSX.Element {
             />
           ) : (
             <Text style={[styles.profileButtonText, { color: theme.primary }]}>
-              {user.username[0].toUpperCase()}
+              {user.username ? user.username[0].toUpperCase() : '?'}
             </Text>
           )}
         </TouchableOpacity>
@@ -485,6 +482,11 @@ function App(): React.JSX.Element {
     }
   }, []);
 
+  const [user, setUser] = useState<{username: string; isLoggedIn: boolean; avatar?: string}>({
+    username: '',
+    isLoggedIn: false,
+  });
+
   return (
     <NavigationContainer>
       <Stack.Navigator
@@ -496,7 +498,8 @@ function App(): React.JSX.Element {
           name="Login" 
           component={({ navigation }: { navigation: NavigationProp }) => (
             <LoginPage
-              onLogin={(_username, _password) => {
+              onLogin={(username, _password) => {
+                setUser({username, isLoggedIn: true});
                 navigation.navigate('Home');
               }}
               onRegister={() => navigation.navigate('Register')}
@@ -515,7 +518,10 @@ function App(): React.JSX.Element {
             />
           )}
         />
-        <Stack.Screen name="Home" component={AppContent} />
+        <Stack.Screen 
+          name="Home" 
+          component={() => <AppContent user={user} setUser={setUser} />} 
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

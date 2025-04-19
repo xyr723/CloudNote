@@ -25,7 +25,6 @@ interface ProfilePageProps {
   visible: boolean;
   theme: ReturnType<typeof generateThemeColors>;
 }
-
 const ProfilePage: React.FC<ProfilePageProps> = ({
   username,
   avatar,
@@ -50,6 +49,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
       includeBase64: true,
     }, (response) => {
       if (response.didCancel) {
+        console.log('用户取消了图片选择');
+        console.log(username);
         return;
       }
       if (response.errorCode) {
@@ -101,7 +102,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
                 />
               ) : (
                 <Text style={[styles.avatarText, { color: theme.surface }]}>
-                  {username[0].toUpperCase()}
+                  {username?.[0]?.toUpperCase() ?? "?"}
                 </Text>
               )}
             </TouchableOpacity>
