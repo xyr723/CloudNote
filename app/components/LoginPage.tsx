@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,9 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
+import axios from 'axios';
 import { generateThemeColors } from '../theme/colors';
 
 interface LoginPageProps {
@@ -18,11 +20,12 @@ interface LoginPageProps {
   theme: ReturnType<typeof generateThemeColors>;
 }
 
-const LoginPage: React.FC<LoginPageProps> = ({onLogin, onRegister, theme}) => {
+const LoginPage: React.FC<LoginPageProps> = ({ onLogin: onLoginProp, onRegister, theme }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [usernameError, setUsernameError] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [isLoading, setIsLoading] = useState(false); // 加载状态
 
   const validateUsername = (text: string) => {
     if (!text.trim()) {
@@ -58,19 +61,48 @@ const LoginPage: React.FC<LoginPageProps> = ({onLogin, onRegister, theme}) => {
     return true;
   };
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!validateUsername(username) || !validatePassword(password)) {
       return;
     }
-    onLogin(username, password);
+
+    setIsLoading(true);
+
+    try {
+      const url = `https://native-123.oss-cn-beijing.aliyuncs.com/user-data/${username}.json`;
+      const res = await axios.get(url, {
+        timeout: 5000,
+      });
+      const userData = res.data;
+
+      if (userData.password === password) {
+        console.log('登录成功');
+        onLoginProp(username, password);
+      } else {
+        Alert.alert('登录失败', '密码错误，请重试');
+      }
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        if (error.code === 'ECONNABORTED') {
+          Alert.alert('登录失败', '网络请求超时，请检查网络连接');
+        } else if (error.response?.status === 404) {
+          Alert.alert('登录失败', '用户不存在');
+        } else {
+          Alert.alert('登录失败', '网络连接异常，请稍后重试');
+        }
+      } else {
+        Alert.alert('登录失败', '发生未知错误，请稍后重试');
+      }
+      console.error('Login error:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardAvoidingView}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.keyboardAvoidingView}>
         <View style={styles.content}>
           <View style={styles.logoContainer}>
             <View style={[styles.logoBackground, { backgroundColor: theme.primary }]}>
@@ -81,10 +113,7 @@ const LoginPage: React.FC<LoginPageProps> = ({onLogin, onRegister, theme}) => {
           </View>
 
           <View style={styles.inputContainer}>
-            <View style={[styles.inputWrapper, { 
-              backgroundColor: theme.surface,
-              borderColor: theme.border 
-            }]}>
+            <View style={[styles.inputWrapper, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <Text style={styles.inputIcon}>👤</Text>
               <TextInput
                 style={[styles.input, { color: theme.text }]}
@@ -99,14 +128,9 @@ const LoginPage: React.FC<LoginPageProps> = ({onLogin, onRegister, theme}) => {
                 autoCorrect={false}
               />
             </View>
-            {usernameError ? (
-              <Text style={[styles.errorText, { color: theme.error }]}>{usernameError}</Text>
-            ) : null}
+            {usernameError ? <Text style={[styles.errorText, { color: theme.error }]}>{usernameError}</Text> : null}
 
-            <View style={[styles.inputWrapper, { 
-              backgroundColor: theme.surface,
-              borderColor: theme.border 
-            }]}>
+            <View style={[styles.inputWrapper, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <Text style={styles.inputIcon}>🔒</Text>
               <TextInput
                 style={[styles.input, { color: theme.text }]}
@@ -122,23 +146,24 @@ const LoginPage: React.FC<LoginPageProps> = ({onLogin, onRegister, theme}) => {
                 autoCorrect={false}
               />
             </View>
-            {passwordError ? (
-              <Text style={[styles.errorText, { color: theme.error }]}>{passwordError}</Text>
-            ) : null}
+            {passwordError ? <Text style={[styles.errorText, { color: theme.error }]}>{passwordError}</Text> : null}
 
             <TouchableOpacity style={styles.forgotPassword}>
               <Text style={[styles.forgotPasswordText, { color: theme.primaryDark }]}>忘记密码？</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[
-                styles.loginButton, 
+                styles.loginButton,
                 { backgroundColor: theme.primary },
-                (!username.trim() || !password.trim()) && { backgroundColor: theme.primaryLight }
-              ]} 
+                (!username.trim() || !password.trim() || isLoading) && { backgroundColor: theme.primaryLight },
+              ]}
               onPress={handleLogin}
-              disabled={!username.trim() || !password.trim()}>
-              <Text style={[styles.loginButtonText, { color: theme.surface }]}>登 录</Text>
+              disabled={isLoading || !username.trim() || !password.trim()}
+            >
+              <Text style={[styles.loginButtonText, { color: theme.surface }]}>
+                {isLoading ? '正在登录...' : '登 录'}
+              </Text>
             </TouchableOpacity>
 
             <View style={styles.registerContainer}>
@@ -272,4 +297,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default LoginPage; 
+export default LoginPage;

@@ -18,6 +18,10 @@ import {
   StatusBar,
   Image,
 } from 'react-native';
+
+import { NavigationContainer, useNavigation } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import EditNotePage from './app/components/EditNotePage';
 import ProfilePage from './app/components/ProfilePage';
 import LoginPage from './app/components/LoginPage';
@@ -38,7 +42,18 @@ interface Note {
 type SortType = 'editDate' | 'createDate' | 'title';
 type SortOrder = 'asc' | 'desc';
 
-function App(): React.JSX.Element {
+type RootStackParamList = {
+  Login: undefined;
+  Register: undefined;
+  Home: undefined;
+};
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
+function AppContent(): React.JSX.Element {
+  const navigation = useNavigation<NavigationProp>();
   const [notes, setNotes] = useState<Note[]>([
     {
       id: '1',
@@ -57,13 +72,12 @@ function App(): React.JSX.Element {
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
   const [showProfile, setShowProfile] = useState(false);
-  const [showRegister, setShowRegister] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [themeColor, setThemeColor] = useState('薄荷生巧');
   const [user, setUser] = useState<{username: string; isLoggedIn: boolean; avatar?: string}>({
     username: '云笔记',
-    isLoggedIn: false,
+    isLoggedIn: true,
   });
   const [sortType, setSortType] = useState<SortType>('editDate');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -99,16 +113,6 @@ function App(): React.JSX.Element {
   const filteredNotes = sortedNotes.filter(note =>
     note.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
-
-  const handleLogin = (username: string, _password: string) => {
-    // 这里暂时直接登录成功，后续添加实际的登录验证
-    setUser({username, isLoggedIn: true});
-  };
-
-  const handleRegister = (_username: string, _password: string) => {
-    // 这里暂时直接注册成功，后续添加实际的注册逻辑
-    setShowRegister(false);
-  };
 
   const handleLogout = () => {
     setUser({username: '', isLoggedIn: false});
@@ -244,31 +248,11 @@ function App(): React.JSX.Element {
     );
   };
 
-  if (!user.isLoggedIn) {
-    if (showRegister) {
-      return (
-        <RegisterPage
-          onRegister={handleRegister}
-          onBack={() => setShowRegister(false)}
-          theme={theme}
-          navigation={{ navigate: () => {} }}
-        />
-      );
-    }
-    return (
-      <LoginPage
-        onLogin={handleLogin}
-        onRegister={() => setShowRegister(true)}
-        theme={theme}
-      />
-    );
-  }
-
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
       <View style={[styles.header, { backgroundColor: theme.primary }]}>
-        <Text style={styles.title}>云笔记</Text>
+        <Text style={styles.title}>云笔记 -{navigation.getState().routes[navigation.getState().index].name}</Text>
         <TouchableOpacity 
           style={[styles.profileButton, { backgroundColor: theme.surface }]} 
           onPress={() => setShowProfile(true)}>
@@ -488,6 +472,52 @@ function App(): React.JSX.Element {
         />
       )}
     </SafeAreaView>
+  );
+}
+
+function App(): React.JSX.Element {
+  const theme = useMemo(() => {
+    try {
+      return generateThemeColors('薄荷生巧', false);
+    } catch (error) {
+      console.error('Theme generation error:', error);
+      return generateThemeColors('薄荷生巧', false);
+    }
+  }, []);
+
+  return (
+    <NavigationContainer>
+      <Stack.Navigator
+        initialRouteName="Login"
+        screenOptions={{
+          headerShown: false,
+        }}>
+        <Stack.Screen 
+          name="Login" 
+          component={({ navigation }: { navigation: NavigationProp }) => (
+            <LoginPage
+              onLogin={(_username, _password) => {
+                navigation.navigate('Home');
+              }}
+              onRegister={() => navigation.navigate('Register')}
+              theme={theme}
+            />
+          )}
+        />
+        <Stack.Screen 
+          name="Register" 
+          component={({ navigation }: { navigation: NavigationProp }) => (
+            <RegisterPage
+              onRegister={() => navigation.navigate('Login')}
+              onBack={() => navigation.navigate('Login')}
+              theme={theme}
+              navigation={navigation}
+            />
+          )}
+        />
+        <Stack.Screen name="Home" component={AppContent} />
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
 
