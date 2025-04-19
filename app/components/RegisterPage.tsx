@@ -102,8 +102,8 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onBack, theme, 
           {
             text: '确定',
             onPress: () => {
-              _navigation.navigate('Login');
               onRegister(username, password);
+              _navigation.navigate('Login');
             },
           },
         ]);

@@ -65,8 +65,13 @@ class OSSClient {
   }
 }
 
+interface UserData {
+  username: string;
+  [key: string]: any;
+}
+
 // ✅ 实际调用上传函数
-export const uploadJsonToOSS = async (data: object) => {
+export const uploadJsonToOSS = async (data: UserData) => {
   const client = new OSSClient({
     accessKeyId: 'LTAI5tP7uEC3XekfkG4nRp5x',
     accessKeySecret: 'yLvMJLA9MrfJy4nA0oXwuZSXKBaX2o',
@@ -76,7 +81,7 @@ export const uploadJsonToOSS = async (data: object) => {
 
   try {
     const timestamp = Date.now();
-    const objectKey = `user-data/${timestamp}.json`;
+    const objectKey = `user-data/${data.username}.json`;
     const localPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${timestamp}.json`;
 
     await RNFetchBlob.fs.writeFile(localPath, JSON.stringify(data), 'utf8');
