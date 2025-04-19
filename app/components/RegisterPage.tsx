@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -9,22 +9,26 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
+import { uploadJsonToOSS } from '../utils/ossUpload';
 import { generateThemeColors } from '../theme/colors';
 
 interface RegisterPageProps {
   onRegister: (username: string, password: string) => void;
   onBack: () => void;
   theme: ReturnType<typeof generateThemeColors>;
+  navigation: any;
 }
 
-const RegisterPage: React.FC<RegisterPageProps> = ({onRegister, onBack, theme}) => {
+const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onBack, theme, navigation: _navigation }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [usernameError, setUsernameError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const validateUsername = (text: string) => {
     if (!text.trim()) {
@@ -73,13 +77,44 @@ const RegisterPage: React.FC<RegisterPageProps> = ({onRegister, onBack, theme}) 
     return true;
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!validateUsername(username) || 
         !validatePassword(password) || 
         !validateConfirmPassword(confirmPassword)) {
       return;
     }
-    onRegister(username, password);
+
+    setIsLoading(true);
+
+    try {
+      // 用户注册信息对象
+      const userData = {
+        username,
+        password,
+        createdAt: new Date().toISOString(),
+      };
+      console.log('userData:', userData);
+      // 调用上传函数
+      const url = await uploadJsonToOSS(userData);
+
+      if (url) {
+        Alert.alert('注册成功', '您的账号已成功创建！', [
+          {
+            text: '确定',
+            onPress: () => {
+              _navigation.navigate('Login');
+              onRegister(username, password);
+            },
+          },
+        ]);
+      } else {
+        Alert.alert('注册失败', '请稍后重试');
+      }
+    } catch (error) {
+      Alert.alert('注册失败', '发生未知错误，请稍后重试');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -174,18 +209,17 @@ const RegisterPage: React.FC<RegisterPageProps> = ({onRegister, onBack, theme}) 
 
             <TouchableOpacity
               style={[
-                styles.registerButton,
-                { backgroundColor: theme.primary },
-                (!username.trim() ||
-                  !password.trim() ||
-                  !confirmPassword.trim()) &&
-                  { backgroundColor: theme.primaryLight }
+                styles.registerButton, 
+                { 
+                  backgroundColor: theme.primary,
+                  opacity: isLoading ? 0.7 : 1
+                }
               ]}
               onPress={handleRegister}
-              disabled={
-                !username.trim() || !password.trim() || !confirmPassword.trim()
-              }>
-              <Text style={[styles.registerButtonText, { color: theme.surface }]}>注 册</Text>
+              disabled={isLoading || !username.trim() || !password.trim() || !confirmPassword.trim()}>
+              <Text style={[styles.registerButtonText, { color: theme.surface }]}>
+                {isLoading ? '注册中...' : '注 册'}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
