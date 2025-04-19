@@ -12,6 +12,7 @@
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.1.2",
     "crypto-js": "^4.2.0",
+    "md5": "^2.3.0",
     "metro-minify-esbuild": "^0.2.0",
     "react": "18.3.1",
     "react-native": "0.77.1",
