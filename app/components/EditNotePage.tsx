@@ -26,6 +26,7 @@ interface EditNotePageProps {
     content: string;
     images?: string[];
     fontSize?: number;
+    textSegments?: { text: string; fontSize: number }[];
   };
   onSave: () => void;
   onClose: () => void;
@@ -33,6 +34,7 @@ interface EditNotePageProps {
   onChangeContent: (text: string) => void;
   onChangeImages: (images: string[]) => void;
   onChangeFontSize: (size: number) => void;
+  _onChangeTextSegments: (segments: { text: string; fontSize: number }[]) => void;
   theme: ReturnType<typeof generateThemeColors>;
 }
 
@@ -46,6 +48,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   onChangeContent,
   onChangeImages,
   onChangeFontSize,
+  _onChangeTextSegments,
   theme,
 }) => {
   const [content, setContent] = useState(note.content || '');

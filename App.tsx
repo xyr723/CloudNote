@@ -251,6 +251,7 @@ function App(): React.JSX.Element {
           onRegister={handleRegister}
           onBack={() => setShowRegister(false)}
           theme={theme}
+          navigation={{ navigate: () => {} }}
         />
       );
     }
@@ -482,7 +483,7 @@ function App(): React.JSX.Element {
           onChangeContent={(text) => setCurrentNote({...currentNote, content: text})}
           onChangeImages={(images) => setCurrentNote({...currentNote, images})}
           onChangeFontSize={(size) => setCurrentNote({...currentNote, fontSize: size})}
-          onChangeTextSegments={(segments) => setCurrentNote({...currentNote, textSegments: segments})}
+          _onChangeTextSegments={(segments) => setCurrentNote({...currentNote, textSegments: segments})}
           theme={theme}
         />
       )}
