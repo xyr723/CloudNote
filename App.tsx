@@ -5,7 +5,7 @@
  * @format
  */
 
-import React, {useState, useCallback, useMemo} from 'react';
+import React, {useState, useCallback, useMemo, useEffect} from 'react';
 import {
   SafeAreaView,
   StyleSheet,
@@ -18,6 +18,7 @@ import {
   StatusBar,
   Image,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -28,6 +29,7 @@ import LoginPage from './app/components/LoginPage';
 import RegisterPage from './app/components/RegisterPage';
 import SettingsPage from './app/components/SettingsPage';
 import { generateThemeColors } from './app/theme/colors';
+import { NoteStorage } from './app/utils/storage';
 
 interface Note {
   id: string;
@@ -54,14 +56,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 function AppContent({user, setUser}: {user: {username: string; isLoggedIn: boolean; avatar?: string}; setUser: React.Dispatch<React.SetStateAction<{username: string; isLoggedIn: boolean; avatar?: string}>>}): React.JSX.Element {
   const navigation = useNavigation<NavigationProp>();
-  const [notes, setNotes] = useState<Note[]>([
-    {
-      id: '1',
-      title: '欢迎使用云笔记',
-      content: '这是一个简单的笔记示例：\n\n今天的待办：\n1. 早起晨跑\n2. 准备早餐\n3. 阅读一小时\n4. 整理房间\n\n小贴士：\n- 点击笔记可以编辑内容\n- 点击右下角的"+"按钮创建新笔记\n- 长按笔记可以删除\n- 在顶部搜索框搜索笔记\n- 保持记录的习惯\n- 整理思维，提高效率',
-      timestamp: new Date(),
-    },
-  ]);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [currentNote, setCurrentNote] = useState<{id?: string; title: string; content: string; images?: string[]; fontSize?: number; textSegments?: { text: string; fontSize: number }[]}>({
     title: '',
@@ -110,7 +105,64 @@ function AppContent({user, setUser}: {user: {username: string; isLoggedIn: boole
     note.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleLogout = () => {
+  // 加载用户的笔记
+  useEffect(() => {
+    if (user.isLoggedIn && user.username) {
+      console.log(`用户登录，正在加载笔记: ${user.username}`);
+      NoteStorage.loadNotes(user.username).then(loadedNotes => {
+        console.log(`加载笔记结果: ${loadedNotes.length} 条笔记`);
+        if (loadedNotes.length === 0) {
+          // 如果是新用户，添加欢迎笔记
+          console.log(`新用户，添加欢迎笔记: ${user.username}`);
+          const welcomeNote: Note = {
+            id: '1',
+            title: '欢迎使用云笔记',
+            content: '这是一个简单的笔记示例：\n\n今天的待办：\n1. 早起晨跑\n2. 准备早餐\n3. 阅读一小时\n4. 整理房间\n\n小贴士：\n- 点击笔记可以编辑内容\n- 点击右下角的"+"按钮创建新笔记\n- 长按笔记可以删除\n- 在顶部搜索框搜索笔记\n- 保持记录的习惯\n- 整理思维，提高效率',
+            timestamp: new Date(),
+          };
+          setNotes([welcomeNote]);
+          NoteStorage.saveNotes(user.username, [welcomeNote]);
+        } else {
+          setNotes(loadedNotes);
+        }
+      });
+    }
+  }, [user.isLoggedIn, user.username]);
+
+  // 当笔记发生变化时自动保存
+  useEffect(() => {
+    if (user.isLoggedIn && user.username && notes.length > 0) {
+      console.log(`笔记变更，正在保存: ${user.username}, 笔记数量: ${notes.length}`);
+      NoteStorage.saveNotes(user.username, notes);
+    }
+  }, [notes, user.isLoggedIn, user.username]);
+
+  // 测试AsyncStorage是否正常工作
+  useEffect(() => {
+    const testAsyncStorage = async () => {
+      try {
+        console.log('测试AsyncStorage...');
+        await AsyncStorage.setItem('test_key', 'test_value');
+        const value = await AsyncStorage.getItem('test_key');
+        console.log('AsyncStorage测试结果:', value);
+        if (value === 'test_value') {
+          console.log('AsyncStorage工作正常');
+        } else {
+          console.error('AsyncStorage测试失败: 值不匹配');
+        }
+      } catch (error) {
+        console.error('AsyncStorage测试失败:', error);
+      }
+    };
+    
+    testAsyncStorage();
+  }, []);
+
+  const handleLogout = async () => {
+    if (user.username) {
+      console.log(`用户退出，正在保存笔记: ${user.username}, 笔记数量: ${notes.length}`);
+      await NoteStorage.saveNotes(user.username, notes);
+    }
     setUser({username: '', isLoggedIn: false});
     setShowProfile(false);
     navigation.navigate('Login');
@@ -120,6 +172,7 @@ function AppContent({user, setUser}: {user: {username: string; isLoggedIn: boole
     if (currentNote.title.trim() || currentNote.content.trim()) {
       if (isEditing && currentNote.id) {
         // 更新现有笔记
+        console.log(`更新笔记: ${currentNote.id}`);
         setNotes(notes.map(note => 
           note.id === currentNote.id 
             ? {...note, 
@@ -143,6 +196,7 @@ function AppContent({user, setUser}: {user: {username: string; isLoggedIn: boole
           fontSize: currentNote.fontSize,
           textSegments: currentNote.textSegments,
         };
+        console.log(`创建新笔记: ${newNote.id}`);
         setNotes([newNote, ...notes]);
       }
       handleCloseModal();
