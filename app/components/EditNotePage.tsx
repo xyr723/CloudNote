@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,11 +17,6 @@ import {
 import { generateThemeColors } from '../theme/colors';
 import * as ImagePicker from 'react-native-image-picker';
 
-interface TextSegment {
-  text: string;
-  fontSize: number;
-}
-
 interface EditNotePageProps {
   visible: boolean;
   isEditing: boolean;
@@ -31,7 +26,6 @@ interface EditNotePageProps {
     content: string;
     images?: string[];
     fontSize?: number;
-    textSegments?: TextSegment[];
   };
   onSave: () => void;
   onClose: () => void;
@@ -39,7 +33,6 @@ interface EditNotePageProps {
   onChangeContent: (text: string) => void;
   onChangeImages?: (images: string[]) => void;
   onChangeFontSize?: (size: number) => void;
-  onChangeTextSegments?: (segments: TextSegment[]) => void;
   theme: ReturnType<typeof generateThemeColors>;
 }
 
@@ -52,7 +45,6 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   onChangeContent,
   onChangeImages,
   onChangeFontSize,
-  onChangeTextSegments,
   visible,
   theme,
 }) => {
@@ -61,79 +53,80 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   const [isItalic, setIsItalic] = useState(false);
   const [images, setImages] = useState<string[]>(note.images || []);
   const [content, setContent] = useState(note.content);
-  const [textSegments, setTextSegments] = useState<TextSegment[]>(
-    note.textSegments || [{ text: note.content, fontSize: note.fontSize || 16 }]
-  );
   const [showImageModal, setShowImageModal] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
-  const [selection, setSelection] = useState<{start: number; end: number} | null>(null);
 
   // 当note改变时更新状态
   useEffect(() => {
-    setImages(note.images || []);
+    if (note.images) {
+      setImages(note.images);
+    }
     setContent(note.content);
     setFontSize(note.fontSize || 16);
-    setTextSegments(note.textSegments || [{ text: note.content, fontSize: note.fontSize || 16 }]);
-  }, [note]);
+  }, [note.content, note.images, note.fontSize]);
+
+  const syncImagesAndContent = useCallback(() => {
+    console.log("Current images:", images);
+    // 从内容中提取所有图片标记
+    const imageMarkers = content.match(/\[图片\d+\]/g) || [];
+    console.log("Found image markers:", imageMarkers);
+    
+    // 检查是否有引用了不存在的图片的标记
+    const invalidMarkers = imageMarkers.filter(marker => {
+      const index = parseInt(marker.match(/\d+/)?.[0] || '0');
+      const isValid = !images[index];
+      return isValid;
+    });
+
+    // 如果有无效标记，从内容中移除它们
+    if (invalidMarkers.length > 0) {
+      console.log("Removing invalid markers:", invalidMarkers);
+      let newContent = content;
+      invalidMarkers.forEach(marker => {
+        newContent = newContent.replace(marker, '');
+      });
+      setContent(newContent.trim());
+    }
+  }, [content, images, setContent]);
+
+  // 在组件挂载和内容变化时同步图片数组和内容
+  useEffect(() => {
+    syncImagesAndContent();
+  }, [syncImagesAndContent]);
 
   const handleFontSizeChange = (newSize: number) => {
-    if (selection && selection.start !== selection.end) {
-      // 如果有选中文本，只修改选中部分的字号
-      const selectedText = content.slice(selection.start, selection.end);
-      const beforeText = content.slice(0, selection.start);
-      const afterText = content.slice(selection.end);
-
-      // 创建新的文本段落
-      const newSegments: TextSegment[] = [];
-      if (beforeText) {
-        newSegments.push({ text: beforeText, fontSize });
-      }
-      newSegments.push({ text: selectedText, fontSize: newSize });
-      if (afterText) {
-        newSegments.push({ text: afterText, fontSize });
-      }
-
-      setTextSegments(newSegments);
-      onChangeTextSegments?.(newSegments);
-
-      // 更新内容，但不包含字号标记
-      const newContent = newSegments.map(segment => segment.text).join('');
-      setContent(newContent);
-      onChangeContent(newContent);
-    } else {
-      // 如果没有选中文本，则修改全局字号
-      setFontSize(newSize);
-      onChangeFontSize?.(newSize);
-      
-      // 更新所有段落的字号
-      const newSegments = textSegments.map(segment => ({
-        ...segment,
-        fontSize: newSize
-      }));
-      setTextSegments(newSegments);
-      onChangeTextSegments?.(newSegments);
-    }
+    setFontSize(newSize);
+    onChangeFontSize?.(newSize);
   };
 
   const handleImagePicker = () => {
+    console.log("开始选择图片");
     ImagePicker.launchImageLibrary({
       mediaType: 'photo',
       includeBase64: true,
     }, (response) => {
+      console.log("图片选择响应:", response);
       if (response.didCancel) {
+        console.log("用户取消选择图片");
         return;
       }
       if (response.errorCode) {
+        console.log("选择图片错误:", response.errorCode);
         Alert.alert('错误', '选择图片时发生错误');
         return;
       }
       if (response.assets && response.assets[0].uri) {
         const newImage = response.assets[0].uri;
+        console.log("新图片路径:", newImage);
         const newImages = [...images, newImage];
+        console.log("更新后的图片数组:", newImages);
         setImages(newImages);
+        
+        // 立即更新父组件的状态
         onChangeImages?.(newImages);
-        // 在光标位置插入图片
-        const newContent = content.slice(0, cursorPosition) + `\n[图片${newImages.length - 1}]\n` + content.slice(cursorPosition);
+        
+        const newContent = content.slice(0, cursorPosition) + `[图片${newImages.length - 1}]` + content.slice(cursorPosition);
+        console.log("更新后的内容:", newContent);
         setContent(newContent);
         onChangeContent(newContent);
       }
@@ -157,8 +150,9 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
         const newImages = [...images, newImage];
         setImages(newImages);
         onChangeImages?.(newImages);
-        // 在光标位置插入图片
-        const newContent = content.slice(0, cursorPosition) + `\n[图片${newImages.length - 1}]\n` + content.slice(cursorPosition);
+        console.log("图片",newImages);
+        // 在光标位置插入图片标记
+        const newContent = content.slice(0, cursorPosition) + `[图片${newImages.length - 1}]` + content.slice(cursorPosition);
         setContent(newContent);
         onChangeContent(newContent);
       }
@@ -185,76 +179,80 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
     onChangeContent(newContent);
   };
 
-  const renderImages = () => {
-    const imageMatches = content.match(/\[图片(\d+)\]/g) || [];
-    return imageMatches.map((match, index) => {
-      const matchResult = match.match(/\d+/);
-      if (!matchResult) return null;
-      const imageIndex = parseInt(matchResult[0]);
-      if (images[imageIndex]) {
-        return (
-          <View key={index} style={styles.imageContainer}>
-            <Image
-              source={{ uri: images[imageIndex] }}
-              style={styles.noteImage}
-              resizeMode="contain"
-            />
-            <TouchableOpacity
-              style={[styles.deleteImageButton, { zIndex: 3 }]}
-              onPress={() => handleDeleteImage(imageIndex)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Text style={styles.deleteImageText}>×</Text>
-            </TouchableOpacity>
-          </View>
-        );
-      }
-      return null;
-    });
-  };
-
   const renderContent = () => {
+    const parts = content.split(/(\[图片\d+\])/g);
+    console.log("渲染内容 - 图片数组:", images);
+    console.log("渲染内容 - 当前内容:", content);
+    console.log("渲染内容 - 分割后的部分:", parts);
+
     return (
       <View style={styles.contentWrapper}>
-        {textSegments.map((segment, index) => (
-          <TextInput
-            key={index}
-            style={[styles.textContent, {
-              fontSize: segment.fontSize,
-              fontWeight: isBold ? 'bold' : 'normal',
-              fontStyle: isItalic ? 'italic' : 'normal',
-              color: theme.text,
-              padding: 0,
-              margin: 0,
-              minHeight: segment.fontSize * 1.5,
-            }]}
-            value={segment.text}
-            onChangeText={(text) => {
-              const newSegments = [...textSegments];
-              newSegments[index] = { ...segment, text };
-              setTextSegments(newSegments);
-              onChangeTextSegments?.(newSegments);
-              
-              // 更新内容
-              const newContent = newSegments.map(s => s.text).join('');
-              setContent(newContent);
-              onChangeContent(newContent);
-            }}
-            onSelectionChange={(event) => {
-              const { selection: sel } = event.nativeEvent;
-              // 计算实际的选择范围
-              let start = sel.start;
-              let end = sel.end;
-              for (let i = 0; i < index; i++) {
-                start += textSegments[i].text.length;
-                end += textSegments[i].text.length;
-              }
-              setCursorPosition(start);
-              setSelection({ start, end });
-            }}
-            multiline
-          />
-        ))}
+        {parts.map((part, index) => {
+          const imageMatch = part.match(/\[图片(\d+)\]/);
+          if (imageMatch) {
+            const imageIndex = parseInt(imageMatch[1]);
+            console.log("渲染图片 - 找到图片标记，索引:", imageIndex);
+            console.log("渲染图片 - 对应的图片路径:", images[imageIndex]);
+            if (images[imageIndex]) {
+              return (
+                <View key={index} style={styles.imageContainer}>
+                  <Image
+                    source={{ uri: images[imageIndex] }}
+                    style={[styles.noteImage, { backgroundColor: '#f0f0f0' }]}
+                    resizeMode="contain"
+                    onError={(error) => console.log("图片加载错误:", error.nativeEvent.error)}
+                    onLoad={() => console.log("图片加载成功:", images[imageIndex])}
+                  />
+                  <TouchableOpacity
+                    style={[styles.deleteImageButton, { zIndex: 3 }]}
+                    onPress={() => handleDeleteImage(imageIndex)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <Text style={styles.deleteImageText}>×</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            } else {
+              console.log("渲染图片 - 图片不存在，索引:", imageIndex);
+              return (
+                <View key={index} style={[styles.imageContainer, styles.imagePlaceholder]}>
+                  <Text style={styles.imagePlaceholderText}>图片不存在</Text>
+                </View>
+              );
+            }
+          }
+          return (
+            <TextInput
+              key={index}
+              style={[styles.textContent, {
+                fontSize: fontSize,
+                fontWeight: isBold ? 'bold' : 'normal',
+                fontStyle: isItalic ? 'italic' : 'normal',
+                color: theme.text,
+                padding: 8,
+                margin: 0,
+                textAlignVertical: 'top',
+              }]}
+              value={part}
+              onChangeText={(text) => {
+                const newParts = [...parts];
+                newParts[index] = text;
+                const newContent = newParts.join('');
+                setContent(newContent);
+                onChangeContent(newContent);
+              }}
+              onSelectionChange={(event) => {
+                const { selection: sel } = event.nativeEvent;
+                let position = sel.start;
+                for (let i = 0; i < index; i++) {
+                  position += parts[i].length;
+                }
+                setCursorPosition(position);
+              }}
+              multiline
+            />
+          );
+        })}
       </View>
     );
   };
@@ -306,10 +304,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
                   backgroundColor: theme.surface,
                   borderColor: theme.border,
                 }]}>
-                  <View style={styles.contentWrapper}>
-                    {renderContent()}
-                    {renderImages()}
-                  </View>
+                  {renderContent()}
                 </View>
               </ScrollView>
 
@@ -706,6 +701,16 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     top: 2,
     right: 2,
+  },
+  imagePlaceholder: {
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 100,
+  },
+  imagePlaceholderText: {
+    color: '#999',
+    fontSize: 14,
   },
 });
 
