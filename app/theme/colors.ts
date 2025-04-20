@@ -43,7 +43,7 @@ export const themePresets: ThemePresets = {
       error: '#B29EA1',
     },
     dark: {
-      primary: '#6A4C93',
+      primary: '#DCC6EA',
       primaryLight: '#8B6BB3',
       primaryDark: '#4A2C73',
       primaryTransparent: '#6A4C9340',
@@ -57,7 +57,7 @@ export const themePresets: ThemePresets = {
       shadow: '#00000040',
       accent: '#B29EA1',
       accentLight: '#8B6BB3',
-      error: '#E57373',
+      error: '#DCC6EA',
     }
   },
   '清冽冰川': {
@@ -79,7 +79,7 @@ export const themePresets: ThemePresets = {
       error: '#9BB4D3',
     },
     dark: {
-      primary: '#4B6CB7',
+      primary: '#B7CCDF',
       primaryLight: '#6B8CD7',
       primaryDark: '#2B4C97',
       primaryTransparent: '#4B6CB740',
@@ -93,7 +93,7 @@ export const themePresets: ThemePresets = {
       shadow: '#00000040',
       accent: '#9BB4D3',
       accentLight: '#6B8CD7',
-      error: '#E57373',
+      error: '#B7CCDF',
     }
   },
   '流金岁月': {
@@ -115,8 +115,8 @@ export const themePresets: ThemePresets = {
       error: '#202C26',
     },
     dark: {
-      primary: '#E5D6A4',
-      primaryLight: '#F5E6B4',
+      primary: '#938368',
+      primaryLight: '#D3AB89',
       primaryDark: '#D5C694',
       primaryTransparent: '#E5D6A440',
       text: '#E0E0E0',
@@ -129,7 +129,7 @@ export const themePresets: ThemePresets = {
       shadow: '#00000040',
       accent: '#E5D6A4',
       accentLight: '#F5E6B4',
-      error: '#E57373',
+      error: '#938368',
     }
   },
   '薄荷生巧': {
@@ -151,7 +151,7 @@ export const themePresets: ThemePresets = {
       error: '#58433A',
     },
     dark: {
-      primary: '#4A7B4A',
+      primary: '#BBE1E4',
       primaryLight: '#6A9B6A',
       primaryDark: '#2A5B2A',
       primaryTransparent: '#4A7B4A40',
@@ -165,7 +165,7 @@ export const themePresets: ThemePresets = {
       shadow: '#00000040',
       accent: '#4A7B4A',
       accentLight: '#6A9B6A',
-      error: '#E57373',
+      error: '#BBE1E4',
     }
   },
   '桃桃乌龙': {
@@ -187,7 +187,7 @@ export const themePresets: ThemePresets = {
       error: '#E57373',
     },
     dark: {
-      primary: '#B76E79',
+      primary: '#FBD7D7',
       primaryLight: '#D78E99',
       primaryDark: '#974E59',
       primaryTransparent: '#B76E7940',

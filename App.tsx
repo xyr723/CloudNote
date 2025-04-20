@@ -249,7 +249,7 @@ function AppContent({user, setUser}: {user: {username: string; isLoggedIn: boole
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
       <View style={[styles.header, { backgroundColor: theme.primary }]}>
-        <Text style={styles.title}>云笔记 -{navigation.getState().routes[navigation.getState().index].name}</Text>
+        <Text style={styles.title}>云笔记</Text>
         <TouchableOpacity 
           style={[styles.profileButton, { backgroundColor: theme.surface }]} 
           onPress={() => setShowProfile(true)}>
@@ -279,7 +279,7 @@ function AppContent({user, setUser}: {user: {username: string; isLoggedIn: boole
           onChangeText={setSearchQuery}
         />
         <View style={styles.tipContainer}>
-          <Text style={styles.tipText}>
+          <Text style={[styles.tipText, { color: theme.textLight }]}>
             💡 小贴士：长按笔记可以删除哦 (◕‿◕✿)
           </Text>
         </View>
