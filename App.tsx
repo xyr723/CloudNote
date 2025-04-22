@@ -76,6 +76,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
   const [showProfile, setShowProfile] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [sortType, setSortType] = useState<SortType>('editDate');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [showSortMenu, setShowSortMenu] = useState(false);
@@ -166,15 +167,17 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
 
   const handleLogout = async () => {
     try {
+      // 先关闭确认弹窗
+      setShowLogoutConfirm(false);
+      // 立即关闭个人资料页面
+      setShowProfile(false);
+      // 立即重置用户状态
+      setUser({username: '', isLoggedIn: false});
+      // 保存笔记
       if (user.username) {
         await NoteStorage.saveNotes(user.username, notes);
       }
-      // 先关闭个人资料页面
-      setShowProfile(false);
-      // 添加一个短暂的延迟
-      await new Promise(resolve => setTimeout(resolve, 300));
-      // 最后重置用户状态和导航
-      setUser({username: '', isLoggedIn: false});
+      // 导航到登录页面
       navigation.navigate('Login');
     } catch (error) {
       console.error('Logout error:', error);
@@ -524,7 +527,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
           username={user.username}
           avatar={user.avatar}
           notesCount={notes.length}
-          onLogout={handleLogout}
+          onLogout={() => setShowLogoutConfirm(true)}
           onClose={() => setShowProfile(false)}
           onOpenSettings={handleOpenSettings}
           onUpdateAvatar={handleUpdateAvatar}
@@ -543,6 +546,35 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
           theme={theme}
         />
       )}
+
+      <Modal
+        visible={showLogoutConfirm}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLogoutConfirm(false)}>
+        <View style={[styles.deleteModalContainer, { backgroundColor: theme.primaryTransparent }]}>
+          <View style={[styles.deleteModalContent, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.deleteTitle, { color: theme.primaryDark }]}>退出登录</Text>
+            <Text style={[styles.deleteMessage, { color: theme.text }]}>确定要退出登录吗？</Text>
+            <Text style={[styles.deleteSubMessage, { color: theme.accent }]}>退出后将无法查看笔记哦 (｡•́︿•̀｡)</Text>
+            <View style={styles.deleteButtons}>
+              <TouchableOpacity
+                style={[styles.deleteButton, styles.cancelDeleteButton, { 
+                  backgroundColor: theme.surface,
+                  borderColor: theme.primary 
+                }]}
+                onPress={() => setShowLogoutConfirm(false)}>
+                <Text style={[styles.cancelDeleteButtonText, { color: theme.primary }]}>再想想</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deleteButton, styles.confirmDeleteButton, { backgroundColor: theme.error }]}
+                onPress={handleLogout}>
+                <Text style={[styles.confirmDeleteButtonText, { color: theme.surface }]}>退出</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {modalVisible && (
         <EditNotePage
@@ -613,8 +645,12 @@ function App(): React.JSX.Element {
           component={({ navigation }: { navigation: NavigationProp }) => (
             <LoginPage
               onLogin={(username, _password) => {
-                setUser({username, isLoggedIn: true});
+                // 先导航到主页
                 navigation.navigate('Home');
+                // 然后在下一个事件循环中更新用户状态
+                setTimeout(() => {
+                  setUser({username, isLoggedIn: true});
+                }, 0);
               }}
               onRegister={() => navigation.navigate('Register')}
               theme={theme}
