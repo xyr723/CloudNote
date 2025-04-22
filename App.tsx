@@ -55,7 +55,14 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-function AppContent({user, setUser}: {user: {username: string; isLoggedIn: boolean; avatar?: string}; setUser: React.Dispatch<React.SetStateAction<{username: string; isLoggedIn: boolean; avatar?: string}>>}): React.JSX.Element {
+function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIsDarkMode}: {
+  user: {username: string; isLoggedIn: boolean; avatar?: string}; 
+  setUser: React.Dispatch<React.SetStateAction<{username: string; isLoggedIn: boolean; avatar?: string}>>; 
+  themeColor: string; 
+  setThemeColor: React.Dispatch<React.SetStateAction<string>>; 
+  isDarkMode: boolean; 
+  setIsDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
+}): React.JSX.Element {
   const navigation = useNavigation<NavigationProp>();
   const [notes, setNotes] = useState<Note[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -69,8 +76,6 @@ function AppContent({user, setUser}: {user: {username: string; isLoggedIn: boole
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
   const [showProfile, setShowProfile] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [themeColor, setThemeColor] = useState('薄荷生巧');
   const [sortType, setSortType] = useState<SortType>('editDate');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [showSortMenu, setShowSortMenu] = useState(false);
@@ -80,7 +85,7 @@ function AppContent({user, setUser}: {user: {username: string; isLoggedIn: boole
       return generateThemeColors(themeColor, isDarkMode);
     } catch (error) {
       console.error('Theme generation error:', error);
-      return generateThemeColors('薄荷生巧', isDarkMode); // 使用默认主题
+      return generateThemeColors('薄荷生巧', isDarkMode);
     }
   }, [themeColor, isDarkMode]);
 
@@ -160,13 +165,20 @@ function AppContent({user, setUser}: {user: {username: string; isLoggedIn: boole
   }, []);
 
   const handleLogout = async () => {
-    if (user.username) {
-      console.log(`用户退出，正在保存笔记: ${user.username}, 笔记数量: ${notes.length}`);
-      await NoteStorage.saveNotes(user.username, notes);
+    try {
+      if (user.username) {
+        await NoteStorage.saveNotes(user.username, notes);
+      }
+      // 先关闭个人资料页面
+      setShowProfile(false);
+      // 添加一个短暂的延迟
+      await new Promise(resolve => setTimeout(resolve, 300));
+      // 最后重置用户状态和导航
+      setUser({username: '', isLoggedIn: false});
+      navigation.navigate('Login');
+    } catch (error) {
+      console.error('Logout error:', error);
     }
-    setUser({username: '', isLoggedIn: false});
-    setShowProfile(false);
-    navigation.navigate('Login');
   };
 
   const handleSave = async () => {
@@ -264,7 +276,20 @@ function AppContent({user, setUser}: {user: {username: string; isLoggedIn: boole
       '#BBE1E4': '薄荷生巧',
       '#FBD7D7': '桃桃乌龙',
     };
-    setThemeColor(themeMap[color] || '薄荷生巧');
+    const newThemeColor = themeMap[color] || '薄荷生巧';
+    setThemeColor(newThemeColor);
+    // 保存主题设置到本地存储
+    AsyncStorage.setItem('themeColor', newThemeColor).catch(error => {
+      console.error('保存主题颜色失败:', error);
+    });
+  };
+
+  const handleToggleDarkMode = (value: boolean) => {
+    setIsDarkMode(value);
+    // 保存深色模式设置到本地存储
+    AsyncStorage.setItem('isDarkMode', value.toString()).catch(error => {
+      console.error('保存深色模式设置失败:', error);
+    });
   };
 
   const handleUpdateAvatar = (avatarUri: string) => {
@@ -512,7 +537,7 @@ function AppContent({user, setUser}: {user: {username: string; isLoggedIn: boole
           visible={showSettings}
           onClose={handleCloseSettings}
           isDarkMode={isDarkMode}
-          onToggleDarkMode={setIsDarkMode}
+          onToggleDarkMode={handleToggleDarkMode}
           themeColor={themeColor}
           onThemeColorChange={handleThemeColorChange}
           theme={theme}
@@ -539,19 +564,40 @@ function AppContent({user, setUser}: {user: {username: string; isLoggedIn: boole
 }
 
 function App(): React.JSX.Element {
-  const theme = useMemo(() => {
-    try {
-      return generateThemeColors('薄荷生巧', false);
-    } catch (error) {
-      console.error('Theme generation error:', error);
-      return generateThemeColors('薄荷生巧', false);
-    }
-  }, []);
-
+  const [themeColor, setThemeColor] = useState('薄荷生巧');
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const [user, setUser] = useState<{username: string; isLoggedIn: boolean; avatar?: string}>({
     username: '',
     isLoggedIn: false,
   });
+
+  // 从本地存储加载主题设置
+  useEffect(() => {
+    const loadThemeSettings = async () => {
+      try {
+        const savedThemeColor = await AsyncStorage.getItem('themeColor');
+        const savedIsDarkMode = await AsyncStorage.getItem('isDarkMode');
+        if (savedThemeColor) {
+          setThemeColor(savedThemeColor);
+        }
+        if (savedIsDarkMode) {
+          setIsDarkMode(savedIsDarkMode === 'true');
+        }
+      } catch (error) {
+        console.error('加载主题设置失败:', error);
+      }
+    };
+    loadThemeSettings();
+  }, []);
+
+  const theme = useMemo(() => {
+    try {
+      return generateThemeColors(themeColor, isDarkMode);
+    } catch (error) {
+      console.error('Theme generation error:', error);
+      return generateThemeColors('薄荷生巧', isDarkMode);
+    }
+  }, [themeColor, isDarkMode]);
 
   return (
     <NavigationContainer>
@@ -559,6 +605,8 @@ function App(): React.JSX.Element {
         initialRouteName="Login"
         screenOptions={{
           headerShown: false,
+          animation: 'none',
+          presentation: 'card',
         }}>
         <Stack.Screen 
           name="Login" 
@@ -586,7 +634,16 @@ function App(): React.JSX.Element {
         />
         <Stack.Screen 
           name="Home" 
-          component={() => <AppContent user={user} setUser={setUser} />} 
+          component={() => (
+            <AppContent 
+              user={user} 
+              setUser={setUser} 
+              themeColor={themeColor}
+              setThemeColor={setThemeColor}
+              isDarkMode={isDarkMode}
+              setIsDarkMode={setIsDarkMode}
+            />
+          )} 
         />
       </Stack.Navigator>
     </NavigationContainer>
