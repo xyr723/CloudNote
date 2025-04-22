@@ -9,7 +9,7 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Platform,
-  Alert,
+  Modal,
 } from 'react-native';
 import axios from 'axios';
 import { generateThemeColors } from '../theme/colors';
@@ -25,7 +25,16 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin: onLoginProp, onRegister,
   const [password, setPassword] = useState('');
   const [usernameError, setUsernameError] = useState('');
   const [passwordError, setPasswordError] = useState('');
-  const [isLoading, setIsLoading] = useState(false); // 加载状态
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
+  const [errorTitle, setErrorTitle] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const showError = (title: string, message: string) => {
+    setErrorTitle(title);
+    setErrorMessage(message);
+    setErrorModalVisible(true);
+  };
 
   const validateUsername = (text: string) => {
     if (!text.trim()) {
@@ -79,19 +88,19 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin: onLoginProp, onRegister,
         console.log('登录成功');
         onLoginProp(username, password);
       } else {
-        Alert.alert('登录失败', '密码错误，请重试');
+        showError('登录失败', '密码错误，请重试 (｡•́︿•̀｡)');
       }
     } catch (error) {
       if (axios.isAxiosError(error)) {
         if (error.code === 'ECONNABORTED') {
-          Alert.alert('登录失败', '网络请求超时，请检查网络连接');
+          showError('登录失败', '网络请求超时，请检查网络连接 (｡•́︿•̀｡)');
         } else if (error.response?.status === 404) {
-          Alert.alert('登录失败', '用户不存在');
+          showError('登录失败', '用户不存在 (｡•́︿•̀｡)');
         } else {
-          Alert.alert('登录失败', '网络连接异常，请稍后重试');
+          showError('登录失败', '网络连接异常，请稍后重试 (｡•́︿•̀｡)');
         }
       } else {
-        Alert.alert('登录失败', '发生未知错误，请稍后重试');
+        showError('登录失败', '发生未知错误，请稍后重试 (｡•́︿•̀｡)');
       }
       console.error('Login error:', error);
     } finally {
@@ -175,6 +184,25 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin: onLoginProp, onRegister,
           </View>
         </View>
       </KeyboardAvoidingView>
+      <Modal
+        visible={errorModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setErrorModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.errorTitle, { color: theme.primaryDark }]}>{errorTitle}</Text>
+            <Text style={[styles.errorMessage, { color: theme.text }]}>{errorMessage}</Text>
+            <View style={styles.errorButtons}>
+              <TouchableOpacity
+                style={[styles.errorButton, { backgroundColor: theme.primary }]}
+                onPress={() => setErrorModalVisible(false)}>
+                <Text style={[styles.errorButtonText, { color: theme.surface }]}>知道了</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -294,6 +322,43 @@ const styles = StyleSheet.create({
     marginTop: -12,
     marginBottom: 8,
     marginLeft: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '80%',
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 12,
+  },
+  errorMessage: {
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  errorButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  errorButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    minWidth: 100,
+  },
+  errorButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
 
