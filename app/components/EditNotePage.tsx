@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { generateThemeColors } from '../theme/colors';
 import * as ImagePicker from 'react-native-image-picker';
+import RNFetchBlob from 'react-native-blob-util';
 
 interface EditNotePageProps {
   visible: boolean;
@@ -26,6 +27,7 @@ interface EditNotePageProps {
     content: string;
     images?: string[];
     fontSize?: number;
+    textSegments?: { text: string; fontSize: number }[];
   };
   onSave: () => void;
   onClose: () => void;
@@ -33,6 +35,7 @@ interface EditNotePageProps {
   onChangeContent: (text: string) => void;
   onChangeImages?: (images: string[]) => void;
   onChangeFontSize?: (size: number) => void;
+  onChangeTextSegments?: (segments: { text: string; fontSize: number }[]) => void;
   theme: ReturnType<typeof generateThemeColors>;
 }
 
@@ -45,6 +48,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   onChangeContent,
   onChangeImages,
   onChangeFontSize,
+  onChangeTextSegments: _onChangeTextSegments,
   visible,
   theme,
 }) => {
@@ -99,12 +103,140 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
     onChangeFontSize?.(newSize);
   };
 
+  const getImagePath = useCallback((imageIndex: number): string => {
+    return `${RNFetchBlob.fs.dirs.DocumentDir}/images/${note.id}_${imageIndex}.jpg`;
+  }, [note.id]);
+
+  const saveImageToLocal = async (imageUri: string, imageIndex: number): Promise<string> => {
+    try {
+      const imagePath = getImagePath(imageIndex);
+      
+      // 确保目录存在，如果已存在则忽略错误
+      const dir = `${RNFetchBlob.fs.dirs.DocumentDir}/images`;
+      try {
+        await RNFetchBlob.fs.mkdir(dir);
+      } catch (error: any) {
+        // 如果文件夹已存在，忽略错误
+        if (!error.message.includes('already exists')) {
+          throw error;
+        }
+      }
+      
+      // 复制图片到本地存储
+      await RNFetchBlob.fs.cp(imageUri, imagePath);
+      
+      return Platform.OS === 'android' ? `file://${imagePath}` : imagePath;
+    } catch (error) {
+      console.error('保存图片到本地失败:', error);
+      throw error;
+    }
+  };
+
+  const loadImageFromLocal = useCallback(async (imageIndex: number): Promise<string | null> => {
+    try {
+      const imagePath = getImagePath(imageIndex);
+      console.log("尝试加载图片:", imagePath);
+      
+      // 检查文件是否存在
+      const exists = await RNFetchBlob.fs.exists(imagePath);
+      console.log("图片是否存在:", exists);
+      
+      if (!exists) {
+        console.log('图片不存在:', imagePath);
+        return null;
+      }
+      
+      const finalPath = Platform.OS === 'android' ? `file://${imagePath}` : imagePath;
+      console.log("最终图片路径:", finalPath);
+      return finalPath;
+    } catch (error) {
+      console.error('从本地加载图片失败:', error);
+      return null;
+    }
+  }, [getImagePath]);
+
+  // 在组件挂载时加载本地图片
+  useEffect(() => {
+    const loadLocalImages = async () => {
+      console.log("开始加载本地图片");
+      console.log("当前笔记ID:", note.id);
+      console.log("当前图片数组:", note.images);
+      
+      // 如果note.images为空，尝试从本地加载所有可能的图片
+      if (!note.images || note.images.length === 0) {
+        console.log("尝试从本地加载所有可能的图片");
+        let index = 0;
+        const loadedImages: string[] = [];
+        
+        while (true) {
+          const imagePath = getImagePath(index);
+          const exists = await RNFetchBlob.fs.exists(imagePath);
+          if (!exists) {
+            break;
+          }
+          
+          const finalPath = Platform.OS === 'android' ? `file://${imagePath}` : imagePath;
+          loadedImages.push(finalPath);
+          index++;
+        }
+        
+        if (loadedImages.length > 0) {
+          console.log("找到本地图片:", loadedImages);
+          setImages(loadedImages);
+          if (onChangeImages) {
+            onChangeImages(loadedImages);
+          }
+        } else {
+          console.log("未找到本地图片");
+          setImages([]);
+        }
+      } else {
+        console.log("有图片需要加载");
+        const loadedImages = await Promise.all(
+          note.images.map(async (imagePath, index) => {
+            try {
+              console.log(`加载图片 ${index}, 路径:`, imagePath);
+              // 如果图片路径已经是本地路径，直接使用
+              if (imagePath.startsWith('file://')) {
+                console.log("使用已有的本地路径");
+                // 检查文件是否存在
+                const exists = await RNFetchBlob.fs.exists(imagePath.replace('file://', ''));
+                if (!exists) {
+                  console.log("本地文件不存在，尝试重新加载");
+                  const localPath = await loadImageFromLocal(index);
+                  return localPath;
+                }
+                return imagePath;
+              }
+              // 否则尝试从本地加载
+              const localPath = await loadImageFromLocal(index);
+              console.log("从本地加载的路径:", localPath);
+              return localPath;
+            } catch (error) {
+              console.error(`加载图片 ${index} 失败:`, error);
+              return null;
+            }
+          })
+        );
+        console.log("加载后的图片数组:", loadedImages);
+        const validImages = loadedImages.filter((img): img is string => img !== null);
+        console.log("有效的图片数组:", validImages);
+        setImages(validImages);
+      }
+    };
+    
+    loadLocalImages();
+  }, [note.images, loadImageFromLocal, note.id, getImagePath, onChangeImages]);
+
   const handleImagePicker = () => {
     console.log("开始选择图片");
     ImagePicker.launchImageLibrary({
       mediaType: 'photo',
       includeBase64: true,
-    }, (response) => {
+      quality: 0.8,
+      maxWidth: 1024,
+      maxHeight: 1024,
+    }, async (response) => {
       console.log("图片选择响应:", response);
       if (response.didCancel) {
         console.log("用户取消选择图片");
@@ -116,19 +248,34 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
         return;
       }
       if (response.assets && response.assets[0].uri) {
-        const newImage = response.assets[0].uri;
-        console.log("新图片路径:", newImage);
-        const newImages = [...images, newImage];
-        console.log("更新后的图片数组:", newImages);
-        setImages(newImages);
-        
-        // 立即更新父组件的状态
-        onChangeImages?.(newImages);
-        
-        const newContent = content.slice(0, cursorPosition) + `[图片${newImages.length - 1}]` + content.slice(cursorPosition);
-        console.log("更新后的内容:", newContent);
-        setContent(newContent);
-        onChangeContent(newContent);
+        try {
+          const newImage = response.assets[0].uri;
+          console.log("新图片路径:", newImage);
+          
+          // 保存图片到本地
+          const savedImagePath = await saveImageToLocal(newImage, images.length);
+          console.log("保存后的图片路径:", savedImagePath);
+          
+          const newImages = [...images, savedImagePath];
+          console.log("更新后的图片数组:", newImages);
+          setImages(newImages);
+          
+          // 立即更新父组件的状态，保存完整的图片路径
+          if (onChangeImages) {
+            console.log("调用onChangeImages更新图片数组");
+            onChangeImages(newImages);
+          } else {
+            console.log("onChangeImages未定义");
+          }
+          
+          const newContent = content.slice(0, cursorPosition) + `[图片${newImages.length - 1}]` + content.slice(cursorPosition);
+          console.log("更新后的内容:", newContent);
+          setContent(newContent);
+          onChangeContent(newContent);
+        } catch (error) {
+          console.error('处理图片失败:', error);
+          Alert.alert('错误', '保存图片时发生错误');
+        }
       }
     });
   };
@@ -137,7 +284,10 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
     ImagePicker.launchCamera({
       mediaType: 'photo',
       includeBase64: true,
-    }, (response) => {
+      quality: 0.8,
+      maxWidth: 1024,
+      maxHeight: 1024,
+    }, async (response) => {
       if (response.didCancel) {
         return;
       }
@@ -146,37 +296,71 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
         return;
       }
       if (response.assets && response.assets[0].uri) {
-        const newImage = response.assets[0].uri;
-        const newImages = [...images, newImage];
-        setImages(newImages);
-        onChangeImages?.(newImages);
-        console.log("图片",newImages);
-        // 在光标位置插入图片标记
-        const newContent = content.slice(0, cursorPosition) + `[图片${newImages.length - 1}]` + content.slice(cursorPosition);
-        setContent(newContent);
-        onChangeContent(newContent);
+        try {
+          const newImage = response.assets[0].uri;
+          
+          // 保存图片到本地
+          const savedImagePath = await saveImageToLocal(newImage, images.length);
+          
+          const newImages = [...images, savedImagePath];
+          setImages(newImages);
+          onChangeImages?.(newImages);
+          console.log("图片",newImages);
+          
+          // 在光标位置插入图片标记
+          const newContent = content.slice(0, cursorPosition) + `[图片${newImages.length - 1}]` + content.slice(cursorPosition);
+          setContent(newContent);
+          onChangeContent(newContent);
+        } catch (error) {
+          console.error('处理图片失败:', error);
+          Alert.alert('错误', '保存图片时发生错误');
+        }
       }
     });
   };
 
-  const handleDeleteImage = (imageIndex: number) => {
-    const newImages = images.filter((_, i) => i !== imageIndex);
-    setImages(newImages);
-    onChangeImages?.(newImages);
-    
-    // 更新内容中的图片标记
-    let newContent = content;
-    const imagePattern = new RegExp(`\\[图片${imageIndex}\\]`, 'g');
-    newContent = newContent.replace(imagePattern, '');
-    
-    // 重新编号剩余的图片标记
-    for (let i = imageIndex + 1; i < images.length; i++) {
-      const oldPattern = new RegExp(`\\[图片${i}\\]`, 'g');
-      newContent = newContent.replace(oldPattern, `[图片${i - 1}]`);
+  const handleDeleteImage = async (imageIndex: number) => {
+    try {
+      // 删除本地图片文件
+      const imagePath = getImagePath(imageIndex);
+      console.log("尝试删除图片，路径:", imagePath);
+      
+      // 检查文件是否存在
+      const exists = await RNFetchBlob.fs.exists(imagePath);
+      if (!exists) {
+        console.log("图片文件不存在，跳过删除");
+      } else {
+        console.log("图片文件存在，开始删除");
+        await RNFetchBlob.fs.unlink(imagePath);
+        console.log("图片删除成功");
+      }
+      
+      // 更新图片数组
+      const newImages = images.filter((_, i) => i !== imageIndex);
+      setImages(newImages);
+      
+      // 更新父组件的状态
+      if (onChangeImages) {
+        onChangeImages(newImages);
+      }
+      
+      // 更新内容中的图片标记
+      let newContent = content;
+      const imagePattern = new RegExp(`\\[图片${imageIndex}\\]`, 'g');
+      newContent = newContent.replace(imagePattern, '');
+      
+      // 重新编号剩余的图片标记
+      for (let i = imageIndex + 1; i < images.length; i++) {
+        const oldPattern = new RegExp(`\\[图片${i}\\]`, 'g');
+        newContent = newContent.replace(oldPattern, `[图片${i - 1}]`);
+      }
+      
+      setContent(newContent);
+      onChangeContent(newContent);
+    } catch (error) {
+      console.error('删除图片失败:', error);
+      Alert.alert('错误', '删除图片时发生错误');
     }
-    
-    setContent(newContent);
-    onChangeContent(newContent);
   };
 
   const renderContent = () => {
