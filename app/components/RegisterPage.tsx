@@ -9,7 +9,7 @@ import {
   StatusBar,
   KeyboardAvoidingView,
   Platform,
-  Alert,
+  Modal,
 } from 'react-native';
 import { uploadJsonToOSS } from '../utils/ossUpload';
 import { generateThemeColors } from '../theme/colors';
@@ -29,6 +29,28 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onBack, theme, 
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
+  const [errorTitle, setErrorTitle] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [countdown, setCountdown] = useState(3);
+
+  const showError = (title: string, message: string) => {
+    setErrorTitle(title);
+    setErrorMessage(message);
+    setErrorModalVisible(true);
+    if (title === '注册成功') {
+      setCountdown(3);
+      const timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+  };
 
   const validateUsername = (text: string) => {
     if (!text.trim()) {
@@ -98,20 +120,12 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onBack, theme, 
       const url = await uploadJsonToOSS(userData);
 
       if (url) {
-        Alert.alert('注册成功', '您的账号已成功创建！', [
-          {
-            text: '确定',
-            onPress: () => {
-              onRegister(username, password);
-              _navigation.navigate('Login');
-            },
-          },
-        ]);
+        showError('注册成功', '您的账号已成功创建！(=✪ᆽ✪=)');
       } else {
-        Alert.alert('注册失败', '请稍后重试');
+        showError('注册失败', '请稍后重试');
       }
     } catch (error) {
-      Alert.alert('注册失败', '发生未知错误，请稍后重试');
+      showError('注册失败', '发生未知错误，请稍后重试');
     } finally {
       setIsLoading(false);
     }
@@ -224,6 +238,33 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onBack, theme, 
           </View>
         </View>
       </KeyboardAvoidingView>
+      <Modal
+        visible={errorModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setErrorModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.errorTitle, { color: theme.primaryDark }]}>{errorTitle}</Text>
+            <Text style={[styles.errorMessage, { color: theme.text }]}>{errorMessage}</Text>
+            <View style={styles.errorButtons}>
+              <TouchableOpacity
+                style={[styles.errorButton, { backgroundColor: theme.primary }]}
+                onPress={() => {
+                  setErrorModalVisible(false);
+                  if (errorTitle === '注册成功') {
+                    onRegister(username, password);
+                    _navigation.navigate('Login');
+                  }
+                }}>
+                <Text style={[styles.errorButtonText, { color: theme.surface }]}>
+                  {errorTitle === '注册成功' ? `返回登录 (${countdown}s)` : '好嘟'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -316,6 +357,40 @@ const styles = StyleSheet.create({
     marginTop: -12,
     marginBottom: 8,
     marginLeft: 4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderRadius: 12,
+    width: '80%',
+    maxHeight: '80%',
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  errorMessage: {
+    fontSize: 16,
+  },
+  errorButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 16,
+  },
+  errorButton: {
+    padding: 12,
+    borderRadius: 8,
+  },
+  errorButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 
