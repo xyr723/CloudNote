@@ -65,7 +65,9 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
 }): React.JSX.Element {
   const navigation = useNavigation<NavigationProp>();
   const [notes, setNotes] = useState<Note[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
+  const [cachedNotes, setCachedNotes] = useState<Note[]>([]);
   const [currentNote, setCurrentNote] = useState<{id?: string; title: string; content: string; images?: string[]; fontSize?: number; textSegments?: { text: string; fontSize: number }[]}>({
     title: '',
     content: '',
@@ -112,29 +114,61 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
     note.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // 加载用户的笔记
+  // 预加载笔记数据
+  const preloadNotes = useCallback(async (username: string) => {
+    try {
+      const loadedNotes = await NoteStorage.loadNotes(username);
+      setCachedNotes(loadedNotes);
+    } catch (error) {
+      console.error('预加载笔记失败:', error);
+    }
+  }, []);
+
+  // 在用户登录时预加载笔记
   useEffect(() => {
     if (user.isLoggedIn && user.username) {
-      console.log(`用户登录，正在加载笔记: ${user.username}`);
-      NoteStorage.loadNotes(user.username).then(loadedNotes => {
-        console.log(`加载笔记结果: ${loadedNotes.length} 条笔记`);
-        if (loadedNotes.length === 0) {
-          // 如果是新用户，添加欢迎笔记
-          console.log(`新用户，添加欢迎笔记: ${user.username}`);
-          const welcomeNote: Note = {
-            id: '1',
-            title: '欢迎使用云笔记',
-            content: '这是一个简单的笔记示例：\n\n今天的待办：\n1. 早起晨跑\n2. 准备早餐\n3. 阅读一小时\n4. 整理房间\n\n小贴士：\n- 点击笔记可以编辑内容\n- 点击右下角的"+"按钮创建新笔记\n- 长按笔记可以删除\n- 在顶部搜索框搜索笔记\n- 保持记录的习惯\n- 整理思维，提高效率',
-            timestamp: new Date(),
-          };
-          setNotes([welcomeNote]);
-          NoteStorage.saveNotes(user.username, [welcomeNote]);
-        } else {
-          setNotes(loadedNotes);
-        }
-      });
+      preloadNotes(user.username);
     }
-  }, [user.isLoggedIn, user.username]);
+  }, [user.isLoggedIn, user.username, preloadNotes]);
+
+  // 加载用户的笔记
+  useEffect(() => {
+    const loadNotes = async () => {
+      if (user.isLoggedIn && user.username) {
+        try {
+          setIsLoading(true);
+          
+          // 如果缓存中有数据，直接使用缓存
+          if (cachedNotes.length > 0) {
+            setNotes(cachedNotes);
+            setIsLoading(false);
+            return;
+          }
+
+          const loadedNotes = await NoteStorage.loadNotes(user.username);
+          
+          if (loadedNotes.length === 0) {
+            const welcomeNote: Note = {
+              id: '1',
+              title: '欢迎使用云笔记',
+              content: '这是一个简单的笔记示例：\n\n今天的待办：\n1. 早起晨跑\n2. 准备早餐\n3. 阅读一小时\n4. 整理房间\n\n小贴士：\n- 点击笔记可以编辑内容\n- 点击右下角的"+"按钮创建新笔记\n- 长按笔记可以删除\n- 在顶部搜索框搜索笔记\n- 保持记录的习惯\n- 整理思维，提高效率',
+              timestamp: new Date(),
+            };
+            setNotes([welcomeNote]);
+            await NoteStorage.saveNotes(user.username, [welcomeNote]);
+          } else {
+            setNotes(loadedNotes);
+          }
+        } catch (error) {
+          console.error('加载笔记失败:', error);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadNotes();
+  }, [user.isLoggedIn, user.username, cachedNotes]);
 
   // 当笔记发生变化时自动保存
   useEffect(() => {
@@ -184,13 +218,13 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = useCallback(async () => {
     if (currentNote.title.trim() || currentNote.content.trim()) {
       try {
+        let updatedNotes: Note[];
+        
         if (isEditing && currentNote.id) {
-          // 更新现有笔记
-          console.log(`更新笔记: ${currentNote.id}`);
-          const updatedNotes = notes.map(note => 
+          updatedNotes = notes.map(note => 
             note.id === currentNote.id 
               ? {...note, 
                   title: currentNote.title, 
@@ -202,11 +236,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
                 }
               : note
           );
-          setNotes(updatedNotes);
-          // 保存到存储
-          await NoteStorage.saveNotes(user.username, updatedNotes);
         } else {
-          // 创建新笔记
           const newNote: Note = {
             id: Date.now().toString(),
             title: currentNote.title,
@@ -216,19 +246,27 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
             fontSize: currentNote.fontSize,
             textSegments: currentNote.textSegments,
           };
-          console.log(`创建新笔记: ${newNote.id}`);
-          const updatedNotes = [newNote, ...notes];
-          setNotes(updatedNotes);
-          // 保存到存储
-          await NoteStorage.saveNotes(user.username, updatedNotes);
+          updatedNotes = [newNote, ...notes];
         }
+
+        // 批量更新状态
+        setNotes(updatedNotes);
+        setCachedNotes(updatedNotes);
+        
+        // 异步保存到存储
+        if (user.username) {
+          NoteStorage.saveNotes(user.username, updatedNotes).catch(error => {
+            console.error('保存笔记失败:', error);
+          });
+        }
+
         handleCloseModal();
       } catch (error) {
         console.error('保存笔记失败:', error);
         Alert.alert('错误', '保存笔记时发生错误');
       }
     }
-  };
+  }, [currentNote, isEditing, notes, user.username]);
 
   const handleCloseModal = () => {
     setModalVisible(false);
@@ -339,6 +377,15 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
     );
   };
 
+  const renderFooter = () => {
+    if (filteredNotes.length === 0) return null;
+    return (
+      <Text style={[styles.footerText, { color: theme.textLight }]}>
+        没有更多笔记了
+      </Text>
+    );
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
@@ -372,11 +419,17 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
-        <View style={styles.tipContainer}>
-          <Text style={[styles.tipText, { color: theme.textLight }]}>
-            💡 小贴士：长按笔记可以删除哦 (◕‿◕✿)
-          </Text>
-        </View>
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={[styles.loadingText, { color: theme.textLight }]}>加载中...</Text>
+          </View>
+        ) : (
+          <View style={styles.tipContainer}>
+            <Text style={[styles.tipText, { color: theme.textLight }]}>
+              💡 小贴士：长按笔记可以删除哦 (◕‿◕✿)
+            </Text>
+          </View>
+        )}
         <View style={styles.sortMenu}>
           <TouchableOpacity 
             style={[styles.sortMenuButton, { backgroundColor: theme.primaryLight }]}
@@ -477,6 +530,8 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
         renderItem={renderNoteItem}
         keyExtractor={item => item.id}
         style={styles.noteList}
+        contentContainerStyle={styles.noteListContent}
+        ListFooterComponent={renderFooter}
       />
 
       <TouchableOpacity
@@ -734,6 +789,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingTop: 8,
   },
+  noteListContent: {
+    paddingBottom: 50,
+  },
   noteItem: {
     margin: 10,
     marginTop: 6,
@@ -953,6 +1011,28 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 18,
+  },
+  loadingContainer: {
+    padding: 6,
+    paddingTop: 4,
+    paddingLeft: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+    alignSelf: 'center',
+    width: '90%',
+  },
+  loadingText: {
+    fontSize: 14,
+    textAlign: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  footerText: {
+    fontSize: 14,
+    textAlign: 'center',
+    paddingVertical: 8,
   },
 });
 
