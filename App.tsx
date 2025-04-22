@@ -17,6 +17,7 @@ import {
   Modal,
   StatusBar,
   Image,
+  Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -168,38 +169,49 @@ function AppContent({user, setUser}: {user: {username: string; isLoggedIn: boole
     navigation.navigate('Login');
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (currentNote.title.trim() || currentNote.content.trim()) {
-      if (isEditing && currentNote.id) {
-        // 更新现有笔记
-        console.log(`更新笔记: ${currentNote.id}`);
-        setNotes(notes.map(note => 
-          note.id === currentNote.id 
-            ? {...note, 
-                title: currentNote.title, 
-                content: currentNote.content, 
-                timestamp: new Date(), 
-                images: currentNote.images, 
-                fontSize: currentNote.fontSize,
-                textSegments: currentNote.textSegments
-              }
-            : note
-        ));
-      } else {
-        // 创建新笔记
-        const newNote: Note = {
-          id: Date.now().toString(),
-          title: currentNote.title,
-          content: currentNote.content,
-          timestamp: new Date(),
-          images: currentNote.images,
-          fontSize: currentNote.fontSize,
-          textSegments: currentNote.textSegments,
-        };
-        console.log(`创建新笔记: ${newNote.id}`);
-        setNotes([newNote, ...notes]);
+      try {
+        if (isEditing && currentNote.id) {
+          // 更新现有笔记
+          console.log(`更新笔记: ${currentNote.id}`);
+          const updatedNotes = notes.map(note => 
+            note.id === currentNote.id 
+              ? {...note, 
+                  title: currentNote.title, 
+                  content: currentNote.content, 
+                  timestamp: new Date(), 
+                  images: currentNote.images, 
+                  fontSize: currentNote.fontSize,
+                  textSegments: currentNote.textSegments
+                }
+              : note
+          );
+          setNotes(updatedNotes);
+          // 保存到存储
+          await NoteStorage.saveNotes(user.username, updatedNotes);
+        } else {
+          // 创建新笔记
+          const newNote: Note = {
+            id: Date.now().toString(),
+            title: currentNote.title,
+            content: currentNote.content,
+            timestamp: new Date(),
+            images: currentNote.images,
+            fontSize: currentNote.fontSize,
+            textSegments: currentNote.textSegments,
+          };
+          console.log(`创建新笔记: ${newNote.id}`);
+          const updatedNotes = [newNote, ...notes];
+          setNotes(updatedNotes);
+          // 保存到存储
+          await NoteStorage.saveNotes(user.username, updatedNotes);
+        }
+        handleCloseModal();
+      } catch (error) {
+        console.error('保存笔记失败:', error);
+        Alert.alert('错误', '保存笔记时发生错误');
       }
-      handleCloseModal();
     }
   };
 
@@ -518,7 +530,7 @@ function AppContent({user, setUser}: {user: {username: string; isLoggedIn: boole
           onChangeContent={(text) => setCurrentNote({...currentNote, content: text})}
           onChangeImages={(images) => setCurrentNote({...currentNote, images})}
           onChangeFontSize={(size) => setCurrentNote({...currentNote, fontSize: size})}
-          _onChangeTextSegments={(segments) => setCurrentNote({...currentNote, textSegments: segments})}
+          onChangeTextSegments={(segments) => setCurrentNote({...currentNote, textSegments: segments})}
           theme={theme}
         />
       )}
