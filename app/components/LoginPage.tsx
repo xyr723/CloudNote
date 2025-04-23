@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import axios from 'axios';
 import { generateThemeColors } from '../theme/colors';
+import md5 from 'md5';
 
 interface LoginPageProps {
   onLogin: (username: string, password: string) => void;
@@ -84,7 +85,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin: onLoginProp, onRegister,
       });
       const userData = res.data;
 
-      if (userData.password === password) {
+      if (userData.password === md5(password)) {
         console.log('登录成功');
         onLoginProp(username, password);
       } else {
