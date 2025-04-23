@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { uploadJsonToOSS } from '../utils/ossUpload';
 import { generateThemeColors } from '../theme/colors';
+import md5 from 'md5';
 
 interface RegisterPageProps {
   onRegister: (username: string, password: string) => void;
@@ -112,7 +113,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onBack, theme, 
       // 用户注册信息对象
       const userData = {
         username,
-        password,
+        password: md5(password), // 对密码进行MD5加密
         createdAt: new Date().toISOString(),
       };
       console.log('userData:', userData);
