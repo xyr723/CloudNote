@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { generateThemeColors } from '../theme/colors';
 import * as ImagePicker from 'react-native-image-picker';
+import ChangePasswordPage from './ChangePasswordPage';
 
 interface ProfilePageProps {
   username: string;
@@ -37,6 +38,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
   theme,
 }) => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
 
   const handleImagePicker = () => {
     setShowConfirmModal(true);
@@ -122,7 +124,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
               <Text style={[styles.menuArrow, { color: theme.primary }]}>›</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]}>
+            <TouchableOpacity 
+              style={[styles.menuItem, { borderBottomColor: theme.border }]}
+              onPress={() => setShowChangePassword(true)}>
               <Text style={styles.menuIcon}>🔒</Text>
               <Text style={[styles.menuText, { color: theme.text }]}>修改密码</Text>
               <Text style={[styles.menuArrow, { color: theme.primary }]}>›</Text>
@@ -147,6 +151,17 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
           <Text style={[styles.version, { color: theme.textLight }]}>版本 1.0.0</Text>
         </ScrollView>
       </SafeAreaView>
+
+      <Modal
+        visible={showChangePassword}
+        animationType="slide"
+        onRequestClose={() => setShowChangePassword(false)}>
+        <ChangePasswordPage
+          username={username}
+          theme={theme}
+          onBack={() => setShowChangePassword(false)}
+        />
+      </Modal>
 
       <Modal
         visible={showConfirmModal}
