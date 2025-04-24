@@ -217,12 +217,14 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
       setShowLogoutConfirm(false);
       // 立即关闭个人资料页面
       setShowProfile(false);
-      // 立即重置用户状态
-      setUser({username: '', isLoggedIn: false});
       // 保存笔记
       if (user.username) {
         await NoteStorage.saveNotes(user.username, notes);
+        // 清除头像缓存
+        await NoteStorage.clearAvatar(user.username);
       }
+      // 立即重置用户状态
+      setUser({username: '', isLoggedIn: false});
       // 导航到登录页面
       navigation.navigate('Login');
     } catch (error) {
@@ -708,11 +710,13 @@ function App(): React.JSX.Element {
               onLogin={async (username, _password) => {
                 // 保存登录状态
                 await NoteStorage.saveLoginState(username);
+                // 获取用户头像
+                const avatarUrl = await NoteStorage.getAvatar(username);
                 // 先导航到主页
                 navigation.navigate('Home');
                 // 然后在下一个事件循环中更新用户状态
                 setTimeout(() => {
-                  setUser({username, isLoggedIn: true});
+                  setUser({username, isLoggedIn: true, avatar: avatarUrl || undefined});
                 }, 0);
               }}
               onRegister={() => navigation.navigate('Register')}
