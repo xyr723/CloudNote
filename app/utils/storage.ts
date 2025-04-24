@@ -360,9 +360,19 @@ export class NoteStorage {
   static async clearLoginState(): Promise<void> {
     try {
       await AsyncStorage.removeItem(this.LOGIN_STATE_KEY);
-      console.log('✅ 登录状态已清除');
+      console.log('✅ 登录状态清除成功');
     } catch (error) {
       console.error('❌ 清除登录状态失败:', error);
+      throw error;
+    }
+  }
+
+  static async clearAvatar(username: string): Promise<void> {
+    try {
+      await AsyncStorage.removeItem(`avatar_${username}`);
+      console.log('✅ 头像缓存清除成功');
+    } catch (error) {
+      console.error('❌ 清除头像缓存失败:', error);
       throw error;
     }
   }
