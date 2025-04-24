@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -45,7 +45,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
     setShowConfirmModal(true);
   };
 
-  const handleConfirmImagePicker = () => {
+  const handleConfirmImagePicker = useCallback(() => {
     setShowConfirmModal(false);
     ImagePicker.launchImageLibrary({
       mediaType: 'photo',
@@ -95,7 +95,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
         }
       }
     });
-  };
+  }, [username, onUpdateAvatar]);
 
   const handleLogout = async () => {
     try {

@@ -173,10 +173,22 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
   // 当笔记发生变化时自动保存
   useEffect(() => {
     if (user.isLoggedIn && user.username && notes.length > 0) {
-      console.log(`笔记变更，正在保存: ${user.username}, 笔记数量: ${notes.length}`);
-      NoteStorage.saveNotes(user.username, notes);
+      // 只有当笔记内容真正发生变化时才保存
+      const hasChanges = notes.some(note => {
+        const cachedNote = cachedNotes.find(cached => cached.id === note.id);
+        return !cachedNote || 
+               cachedNote.title !== note.title || 
+               cachedNote.content !== note.content ||
+               JSON.stringify(cachedNote.images) !== JSON.stringify(note.images);
+      });
+
+      if (hasChanges) {
+        console.log(`笔记变更，正在保存: ${user.username}, 笔记数量: ${notes.length}`);
+        NoteStorage.saveNotes(user.username, notes);
+        setCachedNotes(notes);
+      }
     }
-  }, [notes, user.isLoggedIn, user.username]);
+  }, [notes, user.isLoggedIn, user.username, cachedNotes]);
 
   // 测试AsyncStorage是否正常工作
   useEffect(() => {
@@ -333,9 +345,9 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
     });
   };
 
-  const handleUpdateAvatar = (avatarUri: string) => {
+  const handleUpdateAvatar = useCallback((avatarUri: string) => {
     setUser(prev => ({...prev, avatar: avatarUri}));
-  };
+  }, [setUser]);
 
   const renderNoteItem = ({item}: {item: Note}) => {
     // 提取第一张图片（如果有）
