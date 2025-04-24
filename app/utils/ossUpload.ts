@@ -27,10 +27,14 @@ export class OSSClient {
   async put(objectKey: string, localPath: string): Promise<{ url: string }> {
     const url = `https://${this.bucket}.oss-${this.region}.aliyuncs.com/${objectKey}`;
     const fileStat = await RNFetchBlob.fs.stat(localPath.replace(/^file:\/\//, ''));
-    const fileData = await RNFetchBlob.fs.readFile(fileStat.path, 'base64');
 
     const method = 'PUT';
-    const contentType = 'application/json';
+    const fileExtension = objectKey.split('.').pop()?.toLowerCase();
+    const contentType = fileExtension === 'jpg' || fileExtension === 'jpeg' 
+      ? 'image/jpeg' 
+      : fileExtension === 'png' 
+        ? 'image/png' 
+        : 'application/octet-stream';
     const date = new Date().toUTCString();
     const canonicalizedResource = `/${this.bucket}/${objectKey}`;
     const stringToSign = [
@@ -47,18 +51,15 @@ export class OSSClient {
 
     const authorization = `OSS ${this.accessKeyId}:${signature}`;
 
-    const res = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        Authorization: authorization,
-        Date: date,
-        'Content-Type': contentType,
-      },
-      body: RNFetchBlob.base64.decode(fileData),
-    });
+    // 使用 RNFetchBlob.fetch 直接上传文件
+    const res = await RNFetchBlob.fetch('PUT', url, {
+      Authorization: authorization,
+      Date: date,
+      'Content-Type': contentType,
+    }, RNFetchBlob.wrap(fileStat.path));
 
-    if (!res.ok) {
-      throw new Error(`Upload failed with status ${res.status}`);
+    if (res.info().status !== 200) {
+      throw new Error(`Upload failed with status ${res.info().status}`);
     }
 
     return { url };

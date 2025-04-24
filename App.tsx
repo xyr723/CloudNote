@@ -655,41 +655,35 @@ function App(): React.JSX.Element {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [user, setUser] = useState<{username: string; isLoggedIn: boolean; avatar?: string}>({
     username: '',
-    isLoggedIn: false,
+    isLoggedIn: false
   });
 
-  // 从本地存储加载主题设置
+  const theme = useMemo(() => generateThemeColors(themeColor, isDarkMode), [themeColor, isDarkMode]);
+
+  // 检查登录状态
   useEffect(() => {
-    const loadThemeSettings = async () => {
+    const checkLoginState = async () => {
       try {
-        const savedThemeColor = await AsyncStorage.getItem('themeColor');
-        const savedIsDarkMode = await AsyncStorage.getItem('isDarkMode');
-        if (savedThemeColor) {
-          setThemeColor(savedThemeColor);
-        }
-        if (savedIsDarkMode) {
-          setIsDarkMode(savedIsDarkMode === 'true');
+        const loginState = await NoteStorage.getLoginState();
+        if (loginState) {
+          console.log('检测到已保存的登录状态，自动登录');
+          setUser({
+            username: loginState.username,
+            isLoggedIn: true
+          });
         }
       } catch (error) {
-        console.error('加载主题设置失败:', error);
+        console.error('检查登录状态失败:', error);
       }
     };
-    loadThemeSettings();
-  }, []);
 
-  const theme = useMemo(() => {
-    try {
-      return generateThemeColors(themeColor, isDarkMode);
-    } catch (error) {
-      console.error('Theme generation error:', error);
-      return generateThemeColors('薄荷生巧', isDarkMode);
-    }
-  }, [themeColor, isDarkMode]);
+    checkLoginState();
+  }, []);
 
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName="Login"
+        initialRouteName={user.isLoggedIn ? "Home" : "Login"}
         screenOptions={{
           headerShown: false,
           animation: 'none',
@@ -699,7 +693,9 @@ function App(): React.JSX.Element {
           name="Login" 
           component={({ navigation }: { navigation: NavigationProp }) => (
             <LoginPage
-              onLogin={(username, _password) => {
+              onLogin={async (username, _password) => {
+                // 保存登录状态
+                await NoteStorage.saveLoginState(username);
                 // 先导航到主页
                 navigation.navigate('Home');
                 // 然后在下一个事件循环中更新用户状态

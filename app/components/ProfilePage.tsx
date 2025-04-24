@@ -14,6 +14,7 @@ import {
 import { generateThemeColors } from '../theme/colors';
 import * as ImagePicker from 'react-native-image-picker';
 import ChangePasswordPage from './ChangePasswordPage';
+import { NoteStorage } from '../utils/storage';
 
 interface ProfilePageProps {
   username: string;
@@ -49,10 +50,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
     ImagePicker.launchImageLibrary({
       mediaType: 'photo',
       includeBase64: true,
-    }, (response) => {
+    }, async (response) => {
       if (response.didCancel) {
         console.log('用户取消了图片选择');
-        console.log(username);
         return;
       }
       if (response.errorCode) {
@@ -71,9 +71,42 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
         return;
       }
       if (response.assets && response.assets[0].uri) {
-        onUpdateAvatar(response.assets[0].uri);
+        try {
+          console.log('选择的图片 URI:', response.assets[0].uri);
+          // 上传头像到云端
+          const avatarUrl = await NoteStorage.saveAvatar(username, response.assets[0].uri);
+          console.log('上传后的头像 URL:', avatarUrl);
+          // 更新头像显示
+          onUpdateAvatar(avatarUrl);
+        } catch (error) {
+          console.error('上传头像失败:', error);
+          Alert.alert(
+            '错误',
+            '上传头像失败，请重试',
+            [
+              {
+                text: '确定',
+                style: 'default',
+                onPress: () => {},
+              },
+            ],
+            { cancelable: true }
+          );
+        }
       }
     });
+  };
+
+  const handleLogout = async () => {
+    try {
+      // 清除登录状态
+      await NoteStorage.clearLoginState();
+      // 调用父组件的登出处理函数
+      onLogout();
+    } catch (error) {
+      console.error('登出失败:', error);
+      Alert.alert('错误', '登出时发生错误，请重试');
+    }
   };
 
   return (
@@ -99,7 +132,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
             >
               {avatar ? (
                 <Image
-                  source={{ uri: avatar }}
+                  source={{ uri: avatar + '?timestamp=' + Date.now() }}
                   style={styles.avatarImage}
                 />
               ) : (
@@ -144,7 +177,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
               backgroundColor: theme.surface,
               borderColor: theme.error 
             }]} 
-            onPress={onLogout}>
+            onPress={handleLogout}>
             <Text style={[styles.logoutButtonText, { color: theme.error }]}>退出登录</Text>
           </TouchableOpacity>
 
@@ -168,23 +201,22 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
         transparent
         animationType="fade"
         onRequestClose={() => setShowConfirmModal(false)}>
-        <View style={[styles.deleteModalContainer, { backgroundColor: theme.primaryTransparent }]}>
-          <View style={[styles.deleteModalContent, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.deleteTitle, { color: theme.primaryDark }]}>选择头像</Text>
-            <Text style={[styles.deleteMessage, { color: theme.text }]}>即将打开相册选择图片，是否继续？</Text>
-            <View style={styles.deleteButtons}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.modalTitle, { color: theme.text }]}>选择头像</Text>
+            <Text style={[styles.modalMessage, { color: theme.text }]}>
+              请从相册中选择一张图片作为头像
+            </Text>
+            <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[styles.deleteButton, styles.cancelDeleteButton, { 
-                  backgroundColor: theme.surface,
-                  borderColor: theme.primary 
-                }]}
-                onPress={() => setShowConfirmModal(false)}>
-                <Text style={[styles.cancelDeleteButtonText, { color: theme.primary }]}>取消</Text>
+                style={[styles.modalButton, { backgroundColor: theme.primary }]}
+                onPress={handleConfirmImagePicker}>
+                <Text style={[styles.modalButtonText, { color: theme.surface }]}>选择图片</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.deleteButton, styles.confirmDeleteButton, { backgroundColor: theme.primary }]}
-                onPress={handleConfirmImagePicker}>
-                <Text style={[styles.confirmDeleteButtonText, { color: theme.surface }]}>确定</Text>
+                style={[styles.modalButton, { backgroundColor: theme.surface }]}
+                onPress={() => setShowConfirmModal(false)}>
+                <Text style={[styles.modalButtonText, { color: theme.text }]}>取消</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -349,55 +381,43 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 40,
   },
-  deleteModalContainer: {
+  modalOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  deleteModalContent: {
-    borderRadius: 20,
-    padding: 25,
-    alignItems: 'center',
+  modalContent: {
     width: '80%',
-    elevation: 5,
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
   },
-  deleteTitle: {
-    fontSize: 20,
+  modalTitle: {
+    fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 16,
+    marginBottom: 12,
   },
-  deleteMessage: {
+  modalMessage: {
     fontSize: 16,
-    marginBottom: 24,
     textAlign: 'center',
+    marginBottom: 20,
   },
-  deleteButtons: {
+  modalButtons: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-around',
     width: '100%',
   },
-  deleteButton: {
-    borderRadius: 12,
-    paddingVertical: 12,
+  modalButton: {
     paddingHorizontal: 24,
-    marginHorizontal: 8,
+    paddingVertical: 12,
+    borderRadius: 8,
     minWidth: 100,
-    alignItems: 'center',
   },
-  cancelDeleteButton: {
-    borderWidth: 1,
-  },
-  confirmDeleteButton: {
-    backgroundColor: '#E5A4C4',
-  },
-  cancelDeleteButtonText: {
-    fontWeight: '600',
-    fontSize: 15,
-  },
-  confirmDeleteButtonText: {
-    color: 'white',
-    fontWeight: '600',
-    fontSize: 15,
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });
 
