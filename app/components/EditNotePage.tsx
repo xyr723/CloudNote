@@ -17,6 +17,7 @@ import {
 import { generateThemeColors } from '../theme/colors';
 import * as ImagePicker from 'react-native-image-picker';
 import RNFetchBlob from 'react-native-blob-util';
+import { OSSClient } from '../utils/ossUpload';
 
 interface EditNotePageProps {
   visible: boolean;
@@ -78,8 +79,8 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
     // 检查是否有引用了不存在的图片的标记
     const invalidMarkers = imageMarkers.filter(marker => {
       const index = parseInt(marker.match(/\d+/)?.[0] || '0');
-      const isValid = !images[index];
-      return isValid;
+      // 只有当索引超出数组范围时才视为无效
+      return index >= images.length;
     });
 
     // 如果有无效标记，从内容中移除它们
@@ -89,7 +90,10 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
       invalidMarkers.forEach(marker => {
         newContent = newContent.replace(marker, '');
       });
-      setContent(newContent.trim());
+      // 只有在内容确实发生变化时才更新
+      if (newContent !== content) {
+        setContent(newContent.trim());
+      }
     }
   }, [content, images, setContent]);
 
@@ -104,129 +108,50 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   };
 
   const getImagePath = useCallback((imageIndex: number): string => {
-    return `${RNFetchBlob.fs.dirs.DocumentDir}/images/${note.id}_${imageIndex}.jpg`;
+    const timestamp = Date.now();
+    const basePath = `${RNFetchBlob.fs.dirs.DocumentDir}/images`;
+    const fileName = `${note.id}_${timestamp}_${imageIndex}.jpg`;
+    return `${basePath}/${fileName}`;
   }, [note.id]);
 
-  const saveImageToLocal = async (imageUri: string, imageIndex: number): Promise<string> => {
+  const uploadImageToOSS = async (imageUri: string, noteId: string | undefined, imageIndex: number): Promise<string> => {
+    if (!noteId) {
+      throw new Error('笔记ID不能为空');
+    }
+
+    const client = new OSSClient({
+      accessKeyId: 'LTAI5tP7uEC3XekfkG4nRp5x',
+      accessKeySecret: 'yLvMJLA9MrfJy4nA0oXwuZSXKBaX2o',
+      bucket: 'native-123',
+      region: 'cn-beijing',
+    });
+
     try {
-      const imagePath = getImagePath(imageIndex);
+      const timestamp = Date.now();
+      const objectKey = `note-images/${noteId}_${timestamp}_${imageIndex}.jpg`;
+      const localPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${noteId}_${timestamp}_${imageIndex}.jpg`;
+
+      // 复制图片到本地临时文件
+      await RNFetchBlob.fs.cp(imageUri, localPath);
       
-      // 确保目录存在，如果已存在则忽略错误
-      const dir = `${RNFetchBlob.fs.dirs.DocumentDir}/images`;
-      try {
-        await RNFetchBlob.fs.mkdir(dir);
-      } catch (error: any) {
-        // 如果文件夹已存在，忽略错误
-        if (!error.message.includes('already exists')) {
-          throw error;
-        }
+      const filePath = Platform.OS === 'android' ? `file://${localPath}` : localPath;
+      await client.put(objectKey, filePath);
+      
+      // 获取图片的 OSS URL，添加时间戳参数避免缓存
+      const imageUrl = `https://native-123.oss-cn-beijing.aliyuncs.com/${objectKey}?t=${timestamp}`;
+      
+      // 验证 URL 是否可以访问
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`图片 URL 无法访问: ${response.status}`);
       }
       
-      // 复制图片到本地存储
-      await RNFetchBlob.fs.cp(imageUri, imagePath);
-      
-      return Platform.OS === 'android' ? `file://${imagePath}` : imagePath;
+      return imageUrl;
     } catch (error) {
-      console.error('保存图片到本地失败:', error);
+      console.error('❌ 图片上传到云端失败:', error);
       throw error;
     }
   };
-
-  const loadImageFromLocal = useCallback(async (imageIndex: number): Promise<string | null> => {
-    try {
-      const imagePath = getImagePath(imageIndex);
-      console.log("尝试加载图片:", imagePath);
-      
-      // 检查文件是否存在
-      const exists = await RNFetchBlob.fs.exists(imagePath);
-      console.log("图片是否存在:", exists);
-      
-      if (!exists) {
-        console.log('图片不存在:', imagePath);
-        return null;
-      }
-      
-      const finalPath = Platform.OS === 'android' ? `file://${imagePath}` : imagePath;
-      console.log("最终图片路径:", finalPath);
-      return finalPath;
-    } catch (error) {
-      console.error('从本地加载图片失败:', error);
-      return null;
-    }
-  }, [getImagePath]);
-
-  // 在组件挂载时加载本地图片
-  useEffect(() => {
-    const loadLocalImages = async () => {
-      console.log("开始加载本地图片");
-      console.log("当前笔记ID:", note.id);
-      console.log("当前图片数组:", note.images);
-      
-      // 如果note.images为空，尝试从本地加载所有可能的图片
-      if (!note.images || note.images.length === 0) {
-        console.log("尝试从本地加载所有可能的图片");
-        let index = 0;
-        const loadedImages: string[] = [];
-        
-        while (true) {
-          const imagePath = getImagePath(index);
-          const exists = await RNFetchBlob.fs.exists(imagePath);
-          if (!exists) {
-            break;
-          }
-          
-          const finalPath = Platform.OS === 'android' ? `file://${imagePath}` : imagePath;
-          loadedImages.push(finalPath);
-          index++;
-        }
-        
-        if (loadedImages.length > 0) {
-          console.log("找到本地图片:", loadedImages);
-          setImages(loadedImages);
-          if (onChangeImages) {
-            onChangeImages(loadedImages);
-          }
-        } else {
-          console.log("未找到本地图片");
-          setImages([]);
-        }
-      } else {
-        console.log("有图片需要加载");
-        const loadedImages = await Promise.all(
-          note.images.map(async (imagePath, index) => {
-            try {
-              console.log(`加载图片 ${index}, 路径:`, imagePath);
-              // 如果图片路径已经是本地路径，直接使用
-              if (imagePath.startsWith('file://')) {
-                console.log("使用已有的本地路径");
-                // 检查文件是否存在
-                const exists = await RNFetchBlob.fs.exists(imagePath.replace('file://', ''));
-                if (!exists) {
-                  console.log("本地文件不存在，尝试重新加载");
-                  const localPath = await loadImageFromLocal(index);
-                  return localPath;
-                }
-                return imagePath;
-              }
-              // 否则尝试从本地加载
-              const localPath = await loadImageFromLocal(index);
-              console.log("从本地加载的路径:", localPath);
-              return localPath;
-            } catch (error) {
-              console.error(`加载图片 ${index} 失败:`, error);
-              return null;
-            }
-          })
-        );
-        console.log("加载后的图片数组:", loadedImages);
-        const validImages = loadedImages.filter((img): img is string => img !== null);
-        console.log("有效的图片数组:", validImages);
-        setImages(validImages);
-      }
-    };
-    
-    loadLocalImages();
-  }, [note.images, loadImageFromLocal, note.id, getImagePath, onChangeImages]);
 
   const handleImagePicker = () => {
     console.log("开始选择图片");
@@ -236,6 +161,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
       quality: 0.8,
       maxWidth: 1024,
       maxHeight: 1024,
+      selectionLimit: 0, // 允许选择多张图片
     }, async (response) => {
       console.log("图片选择响应:", response);
       if (response.didCancel) {
@@ -247,18 +173,31 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
         Alert.alert('错误', '选择图片时发生错误');
         return;
       }
-      if (response.assets && response.assets[0].uri) {
+      if (response.assets && response.assets.length > 0) {
         try {
-          const newImage = response.assets[0].uri;
-          console.log("新图片路径:", newImage);
+          const newImages = [...images];
+          let currentContent = content;
           
-          // 保存图片到本地
-          const savedImagePath = await saveImageToLocal(newImage, images.length);
-          console.log("保存后的图片路径:", savedImagePath);
+          for (const asset of response.assets) {
+            if (asset.uri) {
+              console.log("新图片路径:", asset.uri);
+              
+              // 上传图片到 OSS
+              const imageUrl = await uploadImageToOSS(asset.uri, note.id, newImages.length);
+              console.log("上传后的图片 URL:", imageUrl);
+              
+              newImages.push(imageUrl);
+              
+              // 在光标位置插入图片标记
+              const imageMarker = `[图片${newImages.length - 1}]`;
+              currentContent = currentContent.slice(0, cursorPosition) + imageMarker + currentContent.slice(cursorPosition);
+            }
+          }
           
-          const newImages = [...images, savedImagePath];
           console.log("更新后的图片数组:", newImages);
           setImages(newImages);
+          setContent(currentContent);
+          onChangeContent(currentContent);
           
           // 立即更新父组件的状态，保存完整的图片路径
           if (onChangeImages) {
@@ -267,11 +206,6 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
           } else {
             console.log("onChangeImages未定义");
           }
-          
-          const newContent = content.slice(0, cursorPosition) + `[图片${newImages.length - 1}]` + content.slice(cursorPosition);
-          console.log("更新后的内容:", newContent);
-          setContent(newContent);
-          onChangeContent(newContent);
         } catch (error) {
           console.error('处理图片失败:', error);
           Alert.alert('错误', '保存图片时发生错误');
@@ -299,13 +233,14 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
         try {
           const newImage = response.assets[0].uri;
           
-          // 保存图片到本地
-          const savedImagePath = await saveImageToLocal(newImage, images.length);
+          // 上传图片到 OSS
+          const imageUrl = await uploadImageToOSS(newImage, note.id, images.length);
+          console.log("上传后的图片 URL:", imageUrl);
           
-          const newImages = [...images, savedImagePath];
+          const newImages = [...images, imageUrl];
           setImages(newImages);
           onChangeImages?.(newImages);
-          console.log("图片",newImages);
+          console.log("图片", newImages);
           
           // 在光标位置插入图片标记
           const newContent = content.slice(0, cursorPosition) + `[图片${newImages.length - 1}]` + content.slice(cursorPosition);
@@ -379,7 +314,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
             console.log("渲染图片 - 对应的图片路径:", images[imageIndex]);
             if (images[imageIndex]) {
               return (
-                <View key={index} style={styles.imageContainer}>
+                <View key={`image-${imageIndex}-${index}`} style={styles.imageContainer}>
                   <Image
                     source={{ uri: images[imageIndex] }}
                     style={[styles.noteImage, { backgroundColor: '#f0f0f0' }]}
@@ -398,16 +333,12 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
               );
             } else {
               console.log("渲染图片 - 图片不存在，索引:", imageIndex);
-              return (
-                <View key={index} style={[styles.imageContainer, styles.imagePlaceholder]}>
-                  <Text style={styles.imagePlaceholderText}>图片不存在</Text>
-                </View>
-              );
+              return null;
             }
           }
           return (
             <TextInput
-              key={index}
+              key={`text-${index}`}
               style={[styles.textContent, {
                 fontSize: fontSize,
                 fontWeight: isBold ? 'bold' : 'normal',
