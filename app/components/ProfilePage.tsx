@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -27,7 +27,7 @@ interface ProfilePageProps {
   visible: boolean;
   theme: ReturnType<typeof generateThemeColors>;
 }
-const ProfilePage: React.FC<ProfilePageProps> = ({
+const ProfilePage: React.FC<ProfilePageProps> = React.memo(({
   username,
   avatar,
   notesCount,
@@ -41,9 +41,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
 
-  const handleImagePicker = () => {
+  const handleImagePicker = useCallback(() => {
     setShowConfirmModal(true);
-  };
+  }, []);
 
   const handleConfirmImagePicker = useCallback(() => {
     setShowConfirmModal(false);
@@ -97,7 +97,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
     });
   }, [username, onUpdateAvatar]);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       // 清除登录状态
       await NoteStorage.clearLoginState();
@@ -107,7 +107,24 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
       console.error('登出失败:', error);
       Alert.alert('错误', '登出时发生错误，请重试');
     }
-  };
+  }, [onLogout]);
+
+  const handleOpenChangePassword = useCallback(() => {
+    setShowChangePassword(true);
+  }, []);
+
+  const handleCloseChangePassword = useCallback(() => {
+    setShowChangePassword(false);
+  }, []);
+
+  const handleCloseConfirmModal = useCallback(() => {
+    setShowConfirmModal(false);
+  }, []);
+
+  const avatarSource = useMemo(() => {
+    if (!avatar) return undefined;
+    return { uri: avatar + '?timestamp=' + Date.now() };
+  }, [avatar]);
 
   return (
     <Modal
@@ -132,7 +149,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
             >
               {avatar ? (
                 <Image
-                  source={{ uri: avatar + '?timestamp=' + Date.now() }}
+                  source={avatarSource}
                   style={styles.avatarImage}
                 />
               ) : (
@@ -159,7 +176,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
 
             <TouchableOpacity 
               style={[styles.menuItem, { borderBottomColor: theme.border }]}
-              onPress={() => setShowChangePassword(true)}>
+              onPress={handleOpenChangePassword}>
               <Text style={styles.menuIcon}>🔒</Text>
               <Text style={[styles.menuText, { color: theme.text }]}>修改密码</Text>
               <Text style={[styles.menuArrow, { color: theme.primary }]}>›</Text>
@@ -188,11 +205,11 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
       <Modal
         visible={showChangePassword}
         animationType="slide"
-        onRequestClose={() => setShowChangePassword(false)}>
+        onRequestClose={handleCloseChangePassword}>
         <ChangePasswordPage
           username={username}
           theme={theme}
-          onBack={() => setShowChangePassword(false)}
+          onBack={handleCloseChangePassword}
         />
       </Modal>
 
@@ -200,7 +217,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
         visible={showConfirmModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowConfirmModal(false)}>
+        onRequestClose={handleCloseConfirmModal}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>选择头像</Text>
@@ -215,7 +232,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, { backgroundColor: theme.surface }]}
-                onPress={() => setShowConfirmModal(false)}>
+                onPress={handleCloseConfirmModal}>
                 <Text style={[styles.modalButtonText, { color: theme.text }]}>取消</Text>
               </TouchableOpacity>
             </View>
@@ -224,7 +241,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
       </Modal>
     </Modal>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
