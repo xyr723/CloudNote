@@ -85,7 +85,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin: onLoginProp, onRegister,
       });
       const userData = res.data;
 
-      if (userData.password === md5(password)) {
+      const encryptedPassword = md5(password);
+      if (userData.password === encryptedPassword) {
         console.log('登录成功');
         onLoginProp(username, password);
       } else {
