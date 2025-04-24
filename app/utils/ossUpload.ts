@@ -11,7 +11,7 @@ type OSSConfig = {
   region: string;
 };
 
-class OSSClient {
+export class OSSClient {
   private accessKeyId: string;
   private accessKeySecret: string;
   private bucket: string;

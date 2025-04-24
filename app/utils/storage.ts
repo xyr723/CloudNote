@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNFetchBlob from 'react-native-blob-util';
 import { Platform } from 'react-native';
+import { OSSClient } from './ossUpload';
 
 interface Note {
   id: string;
@@ -19,6 +20,55 @@ export class NoteStorage {
 
   private static getImagePath(username: string, noteId: string, imageIndex: number): string {
     return `${RNFetchBlob.fs.dirs.DocumentDir}/images/${username}/${noteId}_${imageIndex}.jpg`;
+  }
+
+  private static async uploadNotesToOSS(username: string, notes: Note[]): Promise<void> {
+    const client = new OSSClient({
+      accessKeyId: 'LTAI5tP7uEC3XekfkG4nRp5x',
+      accessKeySecret: 'yLvMJLA9MrfJy4nA0oXwuZSXKBaX2o',
+      bucket: 'native-123',
+      region: 'cn-beijing',
+    });
+
+    try {
+      const objectKey = `user-notes/${username}.json`;
+      const localPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${username}_notes.json`;
+
+      // 将笔记数据转换为 JSON 字符串
+      const notesString = JSON.stringify(notes);
+      await RNFetchBlob.fs.writeFile(localPath, notesString, 'utf8');
+      
+      const filePath = Platform.OS === 'android' ? `file://${localPath}` : localPath;
+      await client.put(objectKey, filePath);
+      
+      console.log('✅ 笔记同步到云端成功');
+    } catch (error) {
+      console.error('❌ 笔记同步到云端失败:', error);
+      throw error;
+    }
+  }
+
+  private static async downloadNotesFromOSS(username: string): Promise<Note[] | null> {
+    try {
+      const url = `https://native-123.oss-cn-beijing.aliyuncs.com/user-notes/${username}.json`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null;
+        }
+        throw new Error(`下载失败: ${response.status}`);
+      }
+      
+      const notes = await response.json();
+      return notes.map((note: any) => ({
+        ...note,
+        timestamp: new Date(note.timestamp)
+      }));
+    } catch (error) {
+      console.error('❌ 从云端下载笔记失败:', error);
+      return null;
+    }
   }
 
   static async saveImage(username: string, noteId: string, imageIndex: number, imageUri: string): Promise<string> {
@@ -97,18 +147,60 @@ export class NoteStorage {
       }
       const notesString = JSON.stringify(notes);
       console.log(`正在保存笔记，用户: ${username}, 笔记数量: ${notes.length}`);
+      
+      // 先保存到本地
       await AsyncStorage.setItem(key, notesString);
-      console.log(`笔记保存成功，用户: ${username}`);
+      console.log(`笔记保存到本地成功，用户: ${username}`);
+      
+      // 尝试同步到云端，如果失败则记录到待同步队列
+      try {
+        await this.uploadNotesToOSS(username, notes);
+        console.log(`笔记同步到云端成功，用户: ${username}`);
+      } catch (error) {
+        console.warn('笔记同步到云端失败，将在下次联网时重试:', error);
+        // 将笔记标记为需要同步
+        await AsyncStorage.setItem(`${key}_needs_sync`, 'true');
+      }
     } catch (error) {
       console.error('保存笔记失败:', error);
       throw error;
     }
   }
 
-  static async loadNotes(username: string): Promise<Note[]> {
+  // 添加同步方法，用于在应用启动或网络恢复时调用
+  static async syncNotes(username: string): Promise<void> {
     try {
       const key = this.getNotesKey(username);
-      console.log(`正在加载笔记，用户: ${username}`);
+      const needsSync = await AsyncStorage.getItem(`${key}_needs_sync`);
+      
+      if (needsSync === 'true') {
+        console.log(`检测到未同步的笔记，开始同步，用户: ${username}`);
+        const notesString = await AsyncStorage.getItem(key);
+        if (notesString) {
+          const notes = JSON.parse(notesString);
+          await this.uploadNotesToOSS(username, notes);
+          console.log(`笔记同步成功，用户: ${username}`);
+          // 清除同步标记
+          await AsyncStorage.removeItem(`${key}_needs_sync`);
+        }
+      }
+    } catch (error) {
+      console.error('同步笔记失败:', error);
+    }
+  }
+
+  static async loadNotes(username: string): Promise<Note[]> {
+    try {
+      // 首先尝试从云端加载
+      const cloudNotes = await this.downloadNotesFromOSS(username);
+      if (cloudNotes) {
+        console.log('从云端加载笔记成功');
+        return cloudNotes;
+      }
+
+      // 如果云端没有，则从本地加载
+      const key = this.getNotesKey(username);
+      console.log(`正在加载本地笔记，用户: ${username}`);
       const notesString = await AsyncStorage.getItem(key);
       if (!notesString) {
         console.log(`未找到笔记，用户: ${username}`);
