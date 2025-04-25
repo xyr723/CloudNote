@@ -15,6 +15,7 @@ import { generateThemeColors } from '../theme/colors';
 import * as ImagePicker from 'react-native-image-picker';
 import ChangePasswordPage from './ChangePasswordPage';
 import { NoteStorage } from '../utils/storage';
+import TrashPage from './TrashPage';
 
 interface ProfilePageProps {
   username: string;
@@ -40,6 +41,7 @@ const ProfilePage: React.FC<ProfilePageProps> = React.memo(({
 }) => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
+  const [showTrash, setShowTrash] = useState(false);
 
   const handleImagePicker = useCallback(() => {
     setShowConfirmModal(true);
@@ -121,125 +123,154 @@ const ProfilePage: React.FC<ProfilePageProps> = React.memo(({
     setShowConfirmModal(false);
   }, []);
 
+  const handleOpenTrash = useCallback(() => {
+    setShowTrash(true);
+  }, []);
+
+  const handleCloseTrash = useCallback(() => {
+    setShowTrash(false);
+  }, []);
+
   const avatarSource = useMemo(() => {
     if (!avatar) return undefined;
     return { uri: avatar + '?timestamp=' + Date.now() };
   }, [avatar]);
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      onRequestClose={onClose}>
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-        <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
-        <View style={[styles.header, { backgroundColor: theme.primary }]}>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Text style={[styles.closeButtonText, { color: theme.surface }]}>×</Text>
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.surface }]}>个人中心</Text>
-          <View style={styles.placeholder} />
-        </View>
-
-        <ScrollView style={styles.content}>
-          <View style={[styles.profileSection, { backgroundColor: theme.surface }]}>
-            <TouchableOpacity 
-              style={[styles.avatarContainer, { backgroundColor: theme.primary }]}
-              onPress={handleImagePicker}
-            >
-              {avatar ? (
-                <Image
-                  source={avatarSource}
-                  style={styles.avatarImage}
-                />
-              ) : (
-                <Text style={[styles.avatarText, { color: theme.surface }]}>
-                  {username?.[0]?.toUpperCase() ?? "?"}
-                </Text>
-              )}
+    <>
+      <Modal
+        visible={visible}
+        animationType="slide"
+        onRequestClose={onClose}>
+        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+          <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
+          <View style={[styles.header, { backgroundColor: theme.primary }]}>
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+              <Text style={[styles.closeButtonText, { color: theme.surface }]}>×</Text>
             </TouchableOpacity>
-            <Text style={[styles.username, { color: theme.textDark }]}>{username}</Text>
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <Text style={[styles.statNumber, { color: theme.primary }]}>{notesCount}</Text>
-                <Text style={[styles.statLabel, { color: theme.primaryLight }]}>笔记数量</Text>
+            <Text style={[styles.headerTitle, { color: theme.surface }]}>个人中心</Text>
+            <View style={styles.placeholder} />
+          </View>
+
+          <ScrollView style={styles.content}>
+            <View style={[styles.profileSection, { backgroundColor: theme.surface }]}>
+              <TouchableOpacity 
+                style={[styles.avatarContainer, { backgroundColor: theme.primary }]}
+                onPress={handleImagePicker}
+              >
+                {avatar ? (
+                  <Image
+                    source={avatarSource}
+                    style={styles.avatarImage}
+                  />
+                ) : (
+                  <Text style={[styles.avatarText, { color: theme.surface }]}>
+                    {username?.[0]?.toUpperCase() ?? "?"}
+                  </Text>
+                )}
+              </TouchableOpacity>
+              <Text style={[styles.username, { color: theme.textDark }]}>{username}</Text>
+              <View style={styles.statsContainer}>
+                <View style={styles.statItem}>
+                  <Text style={[styles.statNumber, { color: theme.primary }]}>{notesCount}</Text>
+                  <Text style={[styles.statLabel, { color: theme.primaryLight }]}>笔记数量</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={[styles.menuSection, { backgroundColor: theme.surface }]}>
+              <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={onOpenSettings}>
+                <Text style={styles.menuIcon}>⚙️</Text>
+                <Text style={[styles.menuText, { color: theme.text }]}>设置</Text>
+                <Text style={[styles.menuArrow, { color: theme.primary }]}>›</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.menuItem, { borderBottomColor: theme.border }]}
+                onPress={handleOpenChangePassword}>
+                <Text style={styles.menuIcon}>🔒</Text>
+                <Text style={[styles.menuText, { color: theme.text }]}>修改密码</Text>
+                <Text style={[styles.menuArrow, { color: theme.primary }]}>›</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.menuItem, { borderBottomColor: theme.border }]}
+                onPress={handleOpenTrash}>
+                <Text style={styles.menuIcon}>🗑️</Text>
+                <Text style={[styles.menuText, { color: theme.text }]}>回收站</Text>
+                <Text style={[styles.menuArrow, { color: theme.primary }]}>›</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]}>
+                <Text style={styles.menuIcon}>ℹ️</Text>
+                <Text style={[styles.menuText, { color: theme.text }]}>关于云笔记</Text>
+                <Text style={[styles.menuArrow, { color: theme.primary }]}>›</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity 
+              style={[styles.logoutButton, { 
+                backgroundColor: theme.surface,
+                borderColor: theme.error 
+              }]} 
+              onPress={handleLogout}>
+              <Text style={[styles.logoutButtonText, { color: theme.error }]}>退出登录</Text>
+            </TouchableOpacity>
+
+            <Text style={[styles.version, { color: theme.textLight }]}>版本 1.0.0</Text>
+          </ScrollView>
+        </SafeAreaView>
+
+        <Modal
+          visible={showChangePassword}
+          animationType="slide"
+          onRequestClose={handleCloseChangePassword}>
+          <ChangePasswordPage
+            username={username}
+            theme={theme}
+            onBack={handleCloseChangePassword}
+          />
+        </Modal>
+
+        <Modal
+          visible={showConfirmModal}
+          transparent
+          animationType="fade"
+          onRequestClose={handleCloseConfirmModal}>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>选择头像</Text>
+              <Text style={[styles.modalMessage, { color: theme.text }]}>
+                请从相册中选择一张图片作为头像
+              </Text>
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: theme.primary }]}
+                  onPress={handleConfirmImagePicker}>
+                  <Text style={[styles.modalButtonText, { color: theme.surface }]}>选择图片</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: theme.surface }]}
+                  onPress={handleCloseConfirmModal}>
+                  <Text style={[styles.modalButtonText, { color: theme.text }]}>取消</Text>
+                </TouchableOpacity>
               </View>
             </View>
           </View>
-
-          <View style={[styles.menuSection, { backgroundColor: theme.surface }]}>
-            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={onOpenSettings}>
-              <Text style={styles.menuIcon}>⚙️</Text>
-              <Text style={[styles.menuText, { color: theme.text }]}>设置</Text>
-              <Text style={[styles.menuArrow, { color: theme.primary }]}>›</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={[styles.menuItem, { borderBottomColor: theme.border }]}
-              onPress={handleOpenChangePassword}>
-              <Text style={styles.menuIcon}>🔒</Text>
-              <Text style={[styles.menuText, { color: theme.text }]}>修改密码</Text>
-              <Text style={[styles.menuArrow, { color: theme.primary }]}>›</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]}>
-              <Text style={styles.menuIcon}>ℹ️</Text>
-              <Text style={[styles.menuText, { color: theme.text }]}>关于云笔记</Text>
-              <Text style={[styles.menuArrow, { color: theme.primary }]}>›</Text>
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity 
-            style={[styles.logoutButton, { 
-              backgroundColor: theme.surface,
-              borderColor: theme.error 
-            }]} 
-            onPress={handleLogout}>
-            <Text style={[styles.logoutButtonText, { color: theme.error }]}>退出登录</Text>
-          </TouchableOpacity>
-
-          <Text style={[styles.version, { color: theme.textLight }]}>版本 1.0.0</Text>
-        </ScrollView>
-      </SafeAreaView>
+        </Modal>
+      </Modal>
 
       <Modal
-        visible={showChangePassword}
+        visible={showTrash}
         animationType="slide"
-        onRequestClose={handleCloseChangePassword}>
-        <ChangePasswordPage
-          username={username}
+        onRequestClose={handleCloseTrash}
+        transparent={false}>
+        <TrashPage
+          onClose={handleCloseTrash}
           theme={theme}
-          onBack={handleCloseChangePassword}
         />
       </Modal>
-
-      <Modal
-        visible={showConfirmModal}
-        transparent
-        animationType="fade"
-        onRequestClose={handleCloseConfirmModal}>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>选择头像</Text>
-            <Text style={[styles.modalMessage, { color: theme.text }]}>
-              请从相册中选择一张图片作为头像
-            </Text>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, { backgroundColor: theme.primary }]}
-                onPress={handleConfirmImagePicker}>
-                <Text style={[styles.modalButtonText, { color: theme.surface }]}>选择图片</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, { backgroundColor: theme.surface }]}
-                onPress={handleCloseConfirmModal}>
-                <Text style={[styles.modalButtonText, { color: theme.text }]}>取消</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-    </Modal>
+    </>
   );
 });
 
