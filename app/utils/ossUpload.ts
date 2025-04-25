@@ -96,3 +96,17 @@ export const uploadJsonToOSS = async (data: UserData) => {
     return null;
   }
 };
+
+// 检查用户名是否已存在
+export const checkUsernameExists = async (username: string): Promise<boolean> => {
+  try {
+    const response = await fetch(
+      `https://native-123.oss-cn-beijing.aliyuncs.com/user-data/${username}.json`,
+      { method: 'HEAD' }
+    );
+    return response.status === 200;
+  } catch (error) {
+    console.error('检查用户名时出错:', error);
+    throw error;
+  }
+};

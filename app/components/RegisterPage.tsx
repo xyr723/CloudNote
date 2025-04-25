@@ -11,7 +11,7 @@ import {
   Platform,
   Modal,
 } from 'react-native';
-import { uploadJsonToOSS } from '../utils/ossUpload';
+import { uploadJsonToOSS, checkUsernameExists } from '../utils/ossUpload';
 import { generateThemeColors } from '../theme/colors';
 import md5 from 'md5';
 
@@ -110,6 +110,14 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onBack, theme, 
     setIsLoading(true);
 
     try {
+      // 检查用户名是否已存在
+      const exists = await checkUsernameExists(username);
+      if (exists) {
+        showError('注册失败', '该用户名已被注册，请更换其他用户名');
+        setIsLoading(false);
+        return;
+      }
+
       // 用户注册信息对象
       const userData = {
         username,
