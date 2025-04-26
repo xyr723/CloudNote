@@ -1,0 +1,54 @@
+name: '[CI] React Native'
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'yarn'
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Install node_modules
+        run: |
+          set -euxo pipefail
+          yarn install --frozen-lockfile
+
+      - name: Cache Pods
+        uses: actions/cache@v4
+        id: pods-cache
+        with:
+          path: ./ios/Pods
+          key: ${{ runner.os }}-pods-${{ hashFiles('ios/Podfile.lock') }}
+
+      - name: Install pods
+        working-directory: ios
+        env:
+          NO_FLIPPER: 1
+        run: |
+          set -euxo pipefail
+          bundle exec pod install
+
+      - name: Run eslint
+        run: |
+          set -euxo pipefail
+          yarn lint
+
+      - name: Build iOS
+        run: |
+          set -euxo pipefail
+          yarn build-ios
