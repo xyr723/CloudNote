@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  ci:
+  build-ios:
     runs-on: macos-latest
     permissions:
       id-token: write
@@ -47,11 +47,6 @@ jobs:
         run: |
           set -euxo pipefail
           yarn lint
-
-      - name: Build Android
-        run: |
-          set -euxo pipefail
-          yarn build-android
 
       - name: Build iOS
         run: |
