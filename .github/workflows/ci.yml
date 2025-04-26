@@ -7,7 +7,7 @@ on:
 
 jobs:
   ci:
-    runs-on: flyci-macos-14-m2
+    runs-on: macos-latest
     permissions:
       id-token: write
       contents: read
@@ -57,7 +57,3 @@ jobs:
         run: |
           set -euxo pipefail
           yarn build-ios
-
-      - name: Fix my build
-        uses: fly-ci/wingman-action@v1
-        if: failure()
