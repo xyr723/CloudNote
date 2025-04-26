@@ -22,6 +22,7 @@ jobs:
         working-directory: ios
         run: |
           set -euxo pipefail
+          bundle install
           bundle exec pod install
  
       - name: Run tests
