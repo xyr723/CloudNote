@@ -143,6 +143,31 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
         setContent(newContent.trim());
       }
     }
+
+    // 检查是否有图片没有对应的标记，但只在添加新图片时执行
+    const existingIndices = new Set(
+      imageMarkers.map(marker => parseInt(marker.match(/\d+/)?.[0] || '0'))
+    );
+    
+    // 只有当图片数量大于标记数量时才添加新标记
+    if (images.length > imageMarkers.length) {
+      let newContent = content;
+      let contentChanged = false;
+      
+      // 为没有标记的图片添加标记
+      images.forEach((_, index) => {
+        if (!existingIndices.has(index)) {
+          const marker = `[图片${index}]`;
+          newContent += (newContent.endsWith('\n') ? '' : '\n') + marker;
+          contentChanged = true;
+        }
+      });
+      
+      if (contentChanged) {
+        console.log("Adding missing image markers");
+        setContent(newContent.trim());
+      }
+    }
   }, [content, images, setContent]);
 
   // 在组件挂载和内容变化时同步图片数组和内容
@@ -163,9 +188,8 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   }, [note.id]);
 
   const uploadImageToOSS = async (imageUri: string, noteId: string | undefined, imageIndex: number): Promise<string> => {
-    if (!noteId) {
-      throw new Error('笔记ID不能为空');
-    }
+    // 使用临时ID或实际ID
+    const effectiveNoteId = noteId || tempNoteId;
 
     const client = new OSSClient({
       accessKeyId: 'LTAI5tP7uEC3XekfkG4nRp5x',
@@ -176,8 +200,8 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
 
     try {
       const timestamp = Date.now();
-      const objectKey = `note-images/${noteId}_${timestamp}_${imageIndex}.jpg`;
-      const localPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${noteId}_${timestamp}_${imageIndex}.jpg`;
+      const objectKey = `note-images/${effectiveNoteId}_${timestamp}_${imageIndex}.jpg`;
+      const localPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${effectiveNoteId}_${timestamp}_${imageIndex}.jpg`;
 
       // 复制图片到本地临时文件
       await RNFetchBlob.fs.cp(imageUri, localPath);
@@ -582,11 +606,20 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
               return (
                 <View key={`image-${imageIndex}-${index}`} style={styles.imageContainer}>
                   <Image
-                    source={{ uri: images[imageIndex] }}
+                    source={{ uri: images[imageIndex] + '?t=' + Date.now() }}
                     style={[styles.noteImage, { backgroundColor: '#f0f0f0' }]}
                     resizeMode="contain"
-                    onError={(error) => console.log("图片加载错误:", error.nativeEvent.error)}
+                    onError={(error) => {
+                      console.log("图片加载错误:", error.nativeEvent.error);
+                      console.log("图片URL:", images[imageIndex]);
+                      // 尝试重新加载图片
+                      const newImages = [...images];
+                      newImages[imageIndex] = images[imageIndex] + '?t=' + Date.now();
+                      setImages(newImages);
+                    }}
+                    onLoadStart={() => console.log("开始加载图片:", images[imageIndex])}
                     onLoad={() => console.log("图片加载成功:", images[imageIndex])}
+                    onLoadEnd={() => console.log("图片加载结束:", images[imageIndex])}
                   />
                   <TouchableOpacity
                     style={[styles.deleteImageButton, { zIndex: 3 }]}
