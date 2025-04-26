@@ -722,7 +722,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
                     onPress={isRecording ? handleStopRecording : handleStartRecording}
                   >
                     <Text style={[styles.toolbarButtonText, { color: isRecording ? theme.error : theme.text }]}>
-                      {isRecording ? '停止' : '录音'}
+                      {isRecording ? '停止' : '🎙️'}
                     </Text>
                   </TouchableOpacity>
                 </View>
