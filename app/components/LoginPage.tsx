@@ -86,17 +86,32 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin: onLoginProp, onRegister,
 
     setIsLoading(true);
     try {
-      const response = await axios.post('http://localhost:3000/api/login', {
-        username,
-        password: md5(password),
+      const url = `https://native-123.oss-cn-beijing.aliyuncs.com/user-data/${username}.json`;
+      const res = await axios.get(url, {
+        timeout: 5000,
       });
-      if (response.data.success) {
+      const userData = res.data;
+
+      const encryptedPassword = md5(password);
+      if (userData.password === encryptedPassword) {
+        console.log('登录成功');
         onLoginProp(username, password);
       } else {
-        showError('登录失败', response.data.message || '用户名或密码错误');
+        showError('登录失败', '密码错误，请重试 (｡•́︿•̀｡)');
       }
     } catch (error) {
-      showError('登录失败', '服务器连接失败，请稍后重试');
+      if (axios.isAxiosError(error)) {
+        if (error.code === 'ECONNABORTED') {
+          showError('登录失败', '网络请求超时，请检查网络连接 (｡•́︿•̀｡)');
+        } else if (error.response?.status === 404) {
+          showError('登录失败', '用户不存在 (｡•́︿•̀｡)');
+        } else {
+          showError('登录失败', '网络连接异常，请稍后重试 (｡•́︿•̀｡)');
+        }
+      } else {
+        showError('登录失败', '发生未知错误，请稍后重试 (｡•́︿•̀｡)');
+      }
+      console.error('Login error:', error);
     } finally {
       setIsLoading(false);
     }
