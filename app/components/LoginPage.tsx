@@ -10,8 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
-  Linking,
 } from 'react-native';
+import { WebView } from 'react-native-webview';
 import axios from 'axios';
 import { generateThemeColors } from '../theme/colors';
 import md5 from 'md5';
@@ -31,6 +31,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin: onLoginProp, onRegister,
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [errorTitle, setErrorTitle] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [showOSSConsole, setShowOSSConsole] = useState(false);
 
   const showError = (title: string, message: string) => {
     setErrorTitle(title);
@@ -79,8 +80,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin: onLoginProp, onRegister,
 
     // 检查是否是管理员账号
     if (username === 'admin' && password === 'admin123') {
-      // 使用Linking打开阿里云OSS控制台
-      Linking.openURL('https://oss.console.aliyun.com/bucket/oss-cn-beijing/native-123/object?path=note-audios%2F');
+      setShowOSSConsole(true);
       return;
     }
 
@@ -116,6 +116,36 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin: onLoginProp, onRegister,
       setIsLoading(false);
     }
   };
+
+  if (showOSSConsole) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
+        <View style={[styles.header, { backgroundColor: theme.primary }]}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => {
+              setShowOSSConsole(false);
+              setUsername('');
+              setPassword('');
+              setUsernameError('');
+              setPasswordError('');
+            }}
+          >
+            <Text style={[styles.backButtonText, { color: theme.surface }]}>返回</Text>
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: theme.surface }]}>OSS控制台</Text>
+        </View>
+        <WebView
+          source={{ uri: 'https://oss.console.aliyun.com/bucket/oss-cn-beijing/native-123/object?path=note-audios%2F' }}
+          style={styles.webview}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+          startInLoadingState={true}
+        />
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -368,6 +398,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     textAlign: 'center',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+  },
+  backButton: {
+    padding: 8,
+  },
+  backButtonText: {
+    fontSize: 16,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginLeft: 16,
+  },
+  webview: {
+    flex: 1,
   },
 });
 
