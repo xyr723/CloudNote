@@ -3,10 +3,10 @@ name: "[CI] React Native"
 on:
   push:
     branches:
-      - main
+      - ci
   pull_request:
     branches:
-      - main
+      - ci
   # `workflow_dispatch` allows to run the workflow manually
   # when selecting it in the `Actions tab`
   workflow_dispatch:
