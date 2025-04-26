@@ -48,15 +48,15 @@ jobs:
           set -euxo pipefail
           yarn lint
 
-      - name: Build iOS
-        run: |
-          set -euxo pipefail
-          yarn build-ios
-
       - name: Build Android
         run: |
           set -euxo pipefail
           yarn build-android
+
+      - name: Build iOS
+        run: |
+          set -euxo pipefail
+          yarn build-ios
 
       - name: Fix my build
         uses: fly-ci/wingman-action@v1
