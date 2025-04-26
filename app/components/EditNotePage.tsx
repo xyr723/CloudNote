@@ -70,8 +70,41 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentAudioIndex, setCurrentAudioIndex] = useState(-1);
   const [currentAudioPath, setCurrentAudioPath] = useState<string | null>(null);
+  const [tempNoteId] = useState(() => `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
 
   const audioRecorderPlayer = useMemo(() => new AudioRecorderPlayer(), []);
+
+  const uploadAudioToOSS = useCallback(async (audioUri: string, noteId: string | undefined, audioIndex: number): Promise<string> => {
+    // 使用临时ID或实际ID
+    const effectiveNoteId = noteId || tempNoteId;
+
+    const client = new OSSClient({
+      accessKeyId: 'LTAI5tP7uEC3XekfkG4nRp5x',
+      accessKeySecret: 'yLvMJLA9MrfJy4nA0oXwuZSXKBaX2o',
+      bucket: 'native-123',
+      region: 'cn-beijing',
+    });
+
+    try {
+      const timestamp = Date.now();
+      const objectKey = `note-audios/${effectiveNoteId}_${timestamp}_${audioIndex}.mp3`;
+      const localPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${effectiveNoteId}_${timestamp}_${audioIndex}.mp3`;
+
+      // 复制音频到本地临时文件
+      await RNFetchBlob.fs.cp(audioUri, localPath);
+      
+      const filePath = Platform.OS === 'android' ? `file://${localPath}` : localPath;
+      await client.put(objectKey, filePath);
+      
+      // 获取音频的 OSS URL，添加时间戳参数避免缓存
+      const audioUrl = `https://native-123.oss-cn-beijing.aliyuncs.com/${objectKey}?t=${timestamp}`;
+      
+      return audioUrl;
+    } catch (error) {
+      console.error('❌ 音频上传到云端失败:', error);
+      throw error;
+    }
+  }, [tempNoteId]);
 
   // 当note改变时更新状态
   useEffect(() => {
@@ -432,7 +465,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
       setCurrentAudioPath(null);
       Alert.alert('错误', '停止录音失败');
     }
-  }, [isRecording, note.id, audios, cursorPosition, content, onChangeAudios, onChangeContent, audioRecorderPlayer, currentAudioPath]);
+  }, [isRecording, note.id, audios, cursorPosition, content, onChangeAudios, onChangeContent, audioRecorderPlayer, currentAudioPath, uploadAudioToOSS]);
 
   // 组件卸载时停止录音
   useEffect(() => {
@@ -496,39 +529,6 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
     } catch (error) {
       console.error('删除音频失败:', error);
       Alert.alert('错误', '删除音频失败');
-    }
-  };
-
-  const uploadAudioToOSS = async (audioUri: string, noteId: string | undefined, audioIndex: number): Promise<string> => {
-    if (!noteId) {
-      throw new Error('笔记ID不能为空');
-    }
-
-    const client = new OSSClient({
-      accessKeyId: 'LTAI5tP7uEC3XekfkG4nRp5x',
-      accessKeySecret: 'yLvMJLA9MrfJy4nA0oXwuZSXKBaX2o',
-      bucket: 'native-123',
-      region: 'cn-beijing',
-    });
-
-    try {
-      const timestamp = Date.now();
-      const objectKey = `note-audios/${noteId}_${timestamp}_${audioIndex}.mp3`;
-      const localPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${noteId}_${timestamp}_${audioIndex}.mp3`;
-
-      // 复制音频到本地临时文件
-      await RNFetchBlob.fs.cp(audioUri, localPath);
-      
-      const filePath = Platform.OS === 'android' ? `file://${localPath}` : localPath;
-      await client.put(objectKey, filePath);
-      
-      // 获取音频的 OSS URL，添加时间戳参数避免缓存
-      const audioUrl = `https://native-123.oss-cn-beijing.aliyuncs.com/${objectKey}?t=${timestamp}`;
-      
-      return audioUrl;
-    } catch (error) {
-      console.error('❌ 音频上传到云端失败:', error);
-      throw error;
     }
   };
 
