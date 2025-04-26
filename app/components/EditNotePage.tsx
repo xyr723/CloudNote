@@ -952,7 +952,7 @@ const styles = StyleSheet.create({
     padding: 0,
     margin: 0,
     textAlignVertical: 'top',
-    flex: 1,
+    //flex: 1,
   },
   imageContainer: {
     position: 'relative',
@@ -1097,8 +1097,10 @@ const styles = StyleSheet.create({
   audioContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 8,
-    padding: 8,
+    marginVertical: 0,
+    marginTop: 0,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
     borderRadius: 8,
     backgroundColor: '#f0f0f0',
   },
