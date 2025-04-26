@@ -82,6 +82,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
   const [sortType, setSortType] = useState<SortType>('editDate');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [showSortMenu, setShowSortMenu] = useState(false);
+  const [deleteSuccessModalVisible, setDeleteSuccessModalVisible] = useState(false);
 
   const theme = useMemo(() => {
     try {
@@ -308,9 +309,26 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
 
   const confirmDelete = () => {
     if (noteToDelete) {
-      setNotes(notes.filter(note => note.id !== noteToDelete));
+      // 从本地状态中删除笔记
+      const updatedNotes = notes.filter(note => note.id !== noteToDelete);
+      setNotes(updatedNotes);
       setDeleteModalVisible(false);
       setNoteToDelete(null);
+      
+      // 保存更新后的笔记到云端
+      if (user.username) {
+        NoteStorage.saveNotes(user.username, updatedNotes).catch(error => {
+          console.error('保存笔记失败:', error);
+        });
+      }
+      
+      // 显示删除成功弹窗
+      setDeleteSuccessModalVisible(true);
+      
+      // 3秒后自动关闭弹窗
+      setTimeout(() => {
+        setDeleteSuccessModalVisible(false);
+      }, 1500);
     }
   };
 
@@ -586,6 +604,23 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
                 <Text style={[styles.confirmDeleteButtonText, { color: theme.surface }]}>删除</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={deleteSuccessModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDeleteSuccessModalVisible(false)}>
+        <View style={[styles.deleteModalContainer, { backgroundColor: theme.primaryTransparent }]}>
+          <View style={[styles.deleteModalContent, { backgroundColor: theme.surface }]}>
+            <View style={[styles.deleteIconContainer, { backgroundColor: theme.primaryLight }]}>
+              <Text style={styles.deleteIcon}>✅</Text>
+            </View>
+            <Text style={[styles.deleteTitle, { color: theme.primaryDark }]}>删除成功</Text>
+            <Text style={[styles.deleteMessage, { color: theme.text }]}>笔记已放入回收站</Text>
+            <Text style={[styles.deleteSubMessage, { color: theme.accent }]}>可以在回收站中查看或恢复 (◕‿◕✿)</Text>
           </View>
         </View>
       </Modal>
