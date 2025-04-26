@@ -14,6 +14,7 @@ import {
   ScrollView,
   Alert,
   PermissionsAndroid,
+  ActivityIndicator,
 } from 'react-native';
 import { generateThemeColors } from '../theme/colors';
 import * as ImagePicker from 'react-native-image-picker';
@@ -72,6 +73,8 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   const [currentAudioIndex, setCurrentAudioIndex] = useState(-1);
   const [currentAudioPath, setCurrentAudioPath] = useState<string | null>(null);
   const [tempNoteId] = useState(() => `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
+  const [isAiThinking, setIsAiThinking] = useState(false);
+  const [showAiThinkingModal, setShowAiThinkingModal] = useState(false);
 
   const audioRecorderPlayer = useMemo(() => new AudioRecorderPlayer(), []);
 
@@ -788,22 +791,36 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
-                    style={[styles.toolbarButton, isRecording && styles.recordingButton]}
-                    onPress={isRecording ? handleStopRecording : handleStartRecording}
-                  >
-                    <Text 
-                      style={[styles.toolbarButtonText, { color: theme.text }]}
-                      onPress={async ()=>{
-                        const existsText = "不存在正整数x,y,z,n，当>3时，满足x^n+y^n=z^n"; // 先前的笔记内容
+                    style={[styles.toolbarButton]}
+                    onPress={async () => {
+                      try {
+                        setIsAiThinking(true); // 设置AI思考状态为true
+                        setShowAiThinkingModal(true); // 显示AI思考中的模态框
+                        const existsText = content || "不存在正整数x,y,z,n，当>3时，满足x^n+y^n=z^n"; // 使用当前内容或默认内容
                         const userPrompt = "请帮我讲述一下这个命题中一些有趣的故事，不少于500字"; // 弹个对话框提示用户输入一些提示词
                         const completedText = await completeTextWithLLM(existsText, userPrompt); // 调用LLM接口
                         console.log("LLM返回的文本:", completedText); // 打印返回的文本
                         const newContent = content + completedText; // 将返回的文本添加到当前内容
                         console.log("更新后的内容:", newContent); // 打印更新后的内容
-                      }}
-                      >
-                      {'🤖️'}
-                    </Text>
+                        setContent(newContent); // 更新内容状态
+                        onChangeContent(newContent); // 通知父组件内容已更新
+                      } catch (error) {
+                        console.error("AI补全文本失败:", error);
+                        Alert.alert("错误", "AI补全文本失败，请稍后再试");
+                      } finally {
+                        setIsAiThinking(false); // 无论成功还是失败，都将AI思考状态设置为false
+                        setShowAiThinkingModal(false); // 隐藏AI思考中的模态框
+                      }
+                    }}
+                    disabled={isAiThinking} // 在AI思考时禁用按钮
+                  >
+                    {isAiThinking ? (
+                      <ActivityIndicator size="small" color={theme.primary} />
+                    ) : (
+                      <Text style={[styles.toolbarButtonText, { color: theme.text }]}>
+                        {'🤖️'}
+                      </Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
@@ -869,6 +886,31 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
             </View>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* AI思考中的模态框 */}
+      <Modal
+        visible={showAiThinkingModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAiThinkingModal(false)}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.primaryTransparent }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+            <View style={[styles.modalIconContainer, { backgroundColor: theme.primaryLight }]}>
+              <Text style={styles.modalIcon}>🤖️</Text>
+            </View>
+            <Text style={[styles.modalTitle, { color: theme.primaryDark }]}>AI思考中</Text>
+            <Text style={[styles.modalMessage, { color: theme.text }]}>
+              正在为您生成内容，请稍候...
+            </Text>
+            <Text style={[styles.modalSubMessage, { color: theme.accent }]}>
+              这可能需要几秒钟时间 (◕‿◕✿)
+            </Text>
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={theme.primary} />
+            </View>
+          </View>
+        </View>
       </Modal>
     </Modal>
   );
@@ -1063,7 +1105,6 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -1208,6 +1249,54 @@ const styles = StyleSheet.create({
   },
   recordingButton: {
     backgroundColor: 'rgba(255,0,0,0.1)',
+  },
+  modalContent: {
+    width: '80%',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  modalIconContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalIcon: {
+    fontSize: 30,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    fontSize: 16,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubMessage: {
+    fontSize: 14,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  loadingContainer: {
+    marginTop: 10,
+  },
+  loadingText: {
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 
