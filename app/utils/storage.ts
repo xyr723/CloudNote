@@ -2,6 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNFetchBlob from 'react-native-blob-util';
 import { Platform } from 'react-native';
 import { OSSClient } from './ossUpload';
+import { Buffer } from 'buffer';
+
+// 添加 Base64 编码/解码函数
+const btoa = (str: string) => Buffer.from(str, 'binary').toString('base64');
+const atob = (str: string) => Buffer.from(str, 'base64').toString('binary');
 
 interface Note {
   id: string;

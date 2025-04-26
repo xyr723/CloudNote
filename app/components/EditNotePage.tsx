@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -13,11 +13,13 @@ import {
   Image,
   ScrollView,
   Alert,
+  PermissionsAndroid,
 } from 'react-native';
 import { generateThemeColors } from '../theme/colors';
 import * as ImagePicker from 'react-native-image-picker';
 import RNFetchBlob from 'react-native-blob-util';
 import { OSSClient } from '../utils/ossUpload';
+import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 
 interface EditNotePageProps {
   visible: boolean;
@@ -27,6 +29,7 @@ interface EditNotePageProps {
     title: string;
     content: string;
     images?: string[];
+    audios?: string[];
     fontSize?: number;
     textSegments?: { text: string; fontSize: number }[];
   };
@@ -35,6 +38,7 @@ interface EditNotePageProps {
   onChangeTitle: (text: string) => void;
   onChangeContent: (text: string) => void;
   onChangeImages?: (images: string[]) => void;
+  onChangeAudios?: (audios: string[]) => void;
   onChangeFontSize?: (size: number) => void;
   onChangeTextSegments?: (segments: { text: string; fontSize: number }[]) => void;
   theme: ReturnType<typeof generateThemeColors>;
@@ -48,6 +52,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   onChangeTitle,
   onChangeContent,
   onChangeImages,
+  onChangeAudios,
   onChangeFontSize,
   onChangeTextSegments: _onChangeTextSegments,
   visible,
@@ -57,9 +62,16 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   const [isBold, setIsBold] = useState(false);
   const [isItalic, setIsItalic] = useState(false);
   const [images, setImages] = useState<string[]>(note.images || []);
+  const [audios, setAudios] = useState<string[]>(note.audios || []);
   const [content, setContent] = useState(note.content);
   const [showImageModal, setShowImageModal] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentAudioIndex, setCurrentAudioIndex] = useState(-1);
+  const [currentAudioPath, setCurrentAudioPath] = useState<string | null>(null);
+
+  const audioRecorderPlayer = useMemo(() => new AudioRecorderPlayer(), []);
 
   // 当note改变时更新状态
   useEffect(() => {
@@ -298,9 +310,232 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
     }
   };
 
+  const requestAudioPermission = async () => {
+    if (Platform.OS === 'android') {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+          {
+            title: '录音权限',
+            message: '需要访问麦克风以录制音频',
+            buttonNeutral: '稍后询问',
+            buttonNegative: '取消',
+            buttonPositive: '确定',
+          },
+        );
+        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+          return true;
+        } else {
+          Alert.alert('权限被拒绝', '需要录音权限才能使用录音功能');
+          return false;
+        }
+      } catch (err) {
+        console.warn(err);
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const getAudioPath = useCallback((audioIndex: number): string => {
+    const timestamp = Date.now();
+    const basePath = `${RNFetchBlob.fs.dirs.DocumentDir}/audios`;
+    const fileName = `${note.id}_${timestamp}_${audioIndex}.mp3`;
+    return `${basePath}/${fileName}`;
+  }, [note.id]);
+
+  const handleStartRecording = async () => {
+    try {
+      if (isRecording) {
+        return;
+      }
+
+      const hasPermission = await requestAudioPermission();
+      if (!hasPermission) {
+        return;
+      }
+
+      // 确保音频目录存在
+      const audioDir = `${RNFetchBlob.fs.dirs.DocumentDir}/audios`;
+      try {
+        await RNFetchBlob.fs.mkdir(audioDir);
+      } catch (error: any) {
+        if (!error.message.includes('already exists')) {
+          throw error;
+        }
+      }
+
+      const audioPath = getAudioPath(audios.length);
+      console.log('开始录音，文件路径:', audioPath);
+      
+      // 确保文件不存在
+      const exists = await RNFetchBlob.fs.exists(audioPath);
+      if (exists) {
+        await RNFetchBlob.fs.unlink(audioPath);
+      }
+
+      await audioRecorderPlayer.startRecorder(audioPath);
+      audioRecorderPlayer.addRecordBackListener((e: { currentPosition: number }) => {
+        console.log('录音时间:', e.currentPosition);
+      });
+      setIsRecording(true);
+      setCurrentAudioPath(audioPath);
+    } catch (error) {
+      console.error('开始录音失败:', error);
+      Alert.alert('错误', '开始录音失败');
+    }
+  };
+
+  const handleStopRecording = useCallback(async () => {
+    try {
+      if (!isRecording || !currentAudioPath) {
+        return;
+      }
+
+      console.log('停止录音');
+      console.log('录音文件路径:', currentAudioPath);
+      
+      // 检查文件是否存在
+      const exists = await RNFetchBlob.fs.exists(currentAudioPath);
+      if (!exists) {
+        throw new Error('录音文件不存在');
+      }
+
+      const result = await audioRecorderPlayer.stopRecorder();
+      audioRecorderPlayer.removeRecordBackListener();
+      setIsRecording(false);
+      
+      if (!result) {
+        throw new Error('录音文件不存在');
+      }
+
+      // 上传录音文件
+      const audioUrl = await uploadAudioToOSS(currentAudioPath, note.id, audios.length);
+      console.log('上传后的音频 URL:', audioUrl);
+      
+      const newAudios = [...audios, audioUrl];
+      setAudios(newAudios);
+      onChangeAudios?.(newAudios);
+      
+      // 在光标位置插入音频标记
+      const audioMarker = `[音频${newAudios.length - 1}]`;
+      const newContent = content.slice(0, cursorPosition) + audioMarker + content.slice(cursorPosition);
+      setContent(newContent);
+      onChangeContent(newContent);
+      
+      // 重置当前录音路径
+      setCurrentAudioPath(null);
+    } catch (error) {
+      console.error('停止录音失败:', error);
+      // 即使停止录音失败，也要重置状态
+      setIsRecording(false);
+      setCurrentAudioPath(null);
+      Alert.alert('错误', '停止录音失败');
+    }
+  }, [isRecording, note.id, audios, cursorPosition, content, onChangeAudios, onChangeContent, audioRecorderPlayer, currentAudioPath]);
+
+  // 组件卸载时停止录音
+  useEffect(() => {
+    return () => {
+      if (isRecording) {
+        handleStopRecording().catch(console.error);
+      }
+    };
+  }, [isRecording, handleStopRecording]);
+
+  const handlePlayAudio = async (audioIndex: number) => {
+    try {
+      if (isPlaying && currentAudioIndex === audioIndex) {
+        await audioRecorderPlayer.stopPlayer();
+        setIsPlaying(false);
+        setCurrentAudioIndex(-1);
+      } else {
+        if (isPlaying) {
+          await audioRecorderPlayer.stopPlayer();
+        }
+        await audioRecorderPlayer.startPlayer(audios[audioIndex]);
+        audioRecorderPlayer.addPlayBackListener((e: { currentPosition: number; duration: number }) => {
+          if (e.currentPosition === e.duration) {
+            setIsPlaying(false);
+            setCurrentAudioIndex(-1);
+          }
+        });
+        setIsPlaying(true);
+        setCurrentAudioIndex(audioIndex);
+      }
+    } catch (error) {
+      console.error('播放音频失败:', error);
+      Alert.alert('错误', '播放音频失败');
+    }
+  };
+
+  const handleDeleteAudio = async (audioIndex: number) => {
+    try {
+      // 更新音频数组
+      const newAudios = audios.filter((_, i) => i !== audioIndex);
+      setAudios(newAudios);
+      
+      // 更新父组件的状态
+      if (onChangeAudios) {
+        onChangeAudios(newAudios);
+      }
+      
+      // 更新内容中的音频标记
+      let newContent = content;
+      const audioPattern = new RegExp(`\\[音频${audioIndex}\\]`, 'g');
+      newContent = newContent.replace(audioPattern, '');
+      
+      // 重新编号剩余的音频标记
+      for (let i = audioIndex + 1; i < audios.length; i++) {
+        const oldPattern = new RegExp(`\\[音频${i}\\]`, 'g');
+        newContent = newContent.replace(oldPattern, `[音频${i - 1}]`);
+      }
+      
+      setContent(newContent);
+      onChangeContent(newContent);
+    } catch (error) {
+      console.error('删除音频失败:', error);
+      Alert.alert('错误', '删除音频失败');
+    }
+  };
+
+  const uploadAudioToOSS = async (audioUri: string, noteId: string | undefined, audioIndex: number): Promise<string> => {
+    if (!noteId) {
+      throw new Error('笔记ID不能为空');
+    }
+
+    const client = new OSSClient({
+      accessKeyId: 'LTAI5tP7uEC3XekfkG4nRp5x',
+      accessKeySecret: 'yLvMJLA9MrfJy4nA0oXwuZSXKBaX2o',
+      bucket: 'native-123',
+      region: 'cn-beijing',
+    });
+
+    try {
+      const timestamp = Date.now();
+      const objectKey = `note-audios/${noteId}_${timestamp}_${audioIndex}.mp3`;
+      const localPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${noteId}_${timestamp}_${audioIndex}.mp3`;
+
+      // 复制音频到本地临时文件
+      await RNFetchBlob.fs.cp(audioUri, localPath);
+      
+      const filePath = Platform.OS === 'android' ? `file://${localPath}` : localPath;
+      await client.put(objectKey, filePath);
+      
+      // 获取音频的 OSS URL，添加时间戳参数避免缓存
+      const audioUrl = `https://native-123.oss-cn-beijing.aliyuncs.com/${objectKey}?t=${timestamp}`;
+      
+      return audioUrl;
+    } catch (error) {
+      console.error('❌ 音频上传到云端失败:', error);
+      throw error;
+    }
+  };
+
   const renderContent = () => {
-    const parts = content.split(/(\[图片\d+\])/g);
+    const parts = content.split(/(\[图片\d+\]|\[音频\d+\])/g);
     console.log("渲染内容 - 图片数组:", images);
+    console.log("渲染内容 - 音频数组:", audios);
     console.log("渲染内容 - 当前内容:", content);
     console.log("渲染内容 - 分割后的部分:", parts);
 
@@ -308,6 +543,8 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
       <View style={styles.contentWrapper}>
         {parts.map((part, index) => {
           const imageMatch = part.match(/\[图片(\d+)\]/);
+          const audioMatch = part.match(/\[音频(\d+)\]/);
+          
           if (imageMatch) {
             const imageIndex = parseInt(imageMatch[1]);
             console.log("渲染图片 - 找到图片标记，索引:", imageIndex);
@@ -334,6 +571,28 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
             } else {
               console.log("渲染图片 - 图片不存在，索引:", imageIndex);
               return null;
+            }
+          } else if (audioMatch) {
+            const audioIndex = parseInt(audioMatch[1]);
+            if (audios[audioIndex]) {
+              return (
+                <View key={`audio-${audioIndex}-${index}`} style={styles.audioContainer}>
+                  <TouchableOpacity
+                    style={[styles.playButton, { backgroundColor: theme.primary }]}
+                    onPress={() => handlePlayAudio(audioIndex)}
+                  >
+                    <Text style={[styles.playButtonText, { color: theme.surface }]}>
+                      {isPlaying && currentAudioIndex === audioIndex ? '暂停' : '播放'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.deleteAudioButton, { backgroundColor: theme.error }]}
+                    onPress={() => handleDeleteAudio(audioIndex)}
+                  >
+                    <Text style={styles.deleteAudioText}>×</Text>
+                  </TouchableOpacity>
+                </View>
+              );
             }
           }
           return (
@@ -457,6 +716,14 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
                       <View style={[styles.cameraLens, { backgroundColor: theme.text }]} />
                       <View style={[styles.cameraFlash, { backgroundColor: theme.text }]} />
                     </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.toolbarButton, isRecording && styles.recordingButton]}
+                    onPress={isRecording ? handleStopRecording : handleStartRecording}
+                  >
+                    <Text style={[styles.toolbarButtonText, { color: isRecording ? theme.error : theme.text }]}>
+                      {isRecording ? '停止' : '录音'}
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -826,6 +1093,39 @@ const styles = StyleSheet.create({
   imagePlaceholderText: {
     color: '#999',
     fontSize: 14,
+  },
+  audioContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 8,
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#f0f0f0',
+  },
+  playButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  playButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  deleteAudioButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteAudioText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  recordingButton: {
+    backgroundColor: 'rgba(255,0,0,0.1)',
   },
 });
 
