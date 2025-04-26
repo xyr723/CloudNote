@@ -539,6 +539,32 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
     console.log("渲染内容 - 当前内容:", content);
     console.log("渲染内容 - 分割后的部分:", parts);
 
+    // 如果内容为空且没有图片和音频，添加一个空的 TextInput 来显示提示
+    if (content.trim() === '' && images.length === 0 && audios.length === 0) {
+      return (
+        <View style={styles.contentWrapper}>
+          <TextInput
+            style={[styles.textContent, {
+              fontSize: fontSize,
+              fontWeight: isBold ? 'bold' : 'normal',
+              fontStyle: isItalic ? 'italic' : 'normal',
+              color: theme.text,
+              padding: 8,
+              margin: 0,
+              textAlignVertical: 'top',
+            }]}
+            placeholder="点击此处开始编辑笔记..."
+            placeholderTextColor={theme.textLight}
+            onChangeText={(text) => {
+              setContent(text);
+              onChangeContent(text);
+            }}
+            multiline
+          />
+        </View>
+      );
+    }
+
     return (
       <View style={styles.contentWrapper}>
         {parts.map((part, index) => {
