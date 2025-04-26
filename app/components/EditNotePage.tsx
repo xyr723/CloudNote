@@ -20,6 +20,7 @@ import * as ImagePicker from 'react-native-image-picker';
 import RNFetchBlob from 'react-native-blob-util';
 import { OSSClient } from '../utils/ossUpload';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
+import { completeTextWithLLM } from '../utils/chatComplete';
 
 interface EditNotePageProps {
   visible: boolean;
@@ -105,6 +106,8 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
       throw error;
     }
   }, [tempNoteId]);
+
+  // const doChatComplete = useCallback(async);
 
   // 当note改变时更新状态
   useEffect(() => {
@@ -749,6 +752,24 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
                   >
                     <Text style={[styles.toolbarButtonText, { color: isRecording ? theme.error : theme.text }]}>
                       {isRecording ? '停止' : '🎙️'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.toolbarButton, isRecording && styles.recordingButton]}
+                    onPress={isRecording ? handleStopRecording : handleStartRecording}
+                  >
+                    <Text 
+                      style={[styles.toolbarButtonText, { color: theme.text }]}
+                      onPress={async ()=>{
+                        const existsText = "不存在正整数x,y,z,n，当>3时，满足x^n+y^n=z^n"; // 先前的笔记内容
+                        const userPrompt = "请帮我讲述一下这个命题中一些有趣的故事，不少于500字"; // 弹个对话框提示用户输入一些提示词
+                        const completedText = await completeTextWithLLM(existsText, userPrompt); // 调用LLM接口
+                        console.log("LLM返回的文本:", completedText); // 打印返回的文本
+                        const newContent = content + completedText; // 将返回的文本添加到当前内容
+                        console.log("更新后的内容:", newContent); // 打印更新后的内容
+                      }}
+                      >
+                      {'🤖️'}
                     </Text>
                   </TouchableOpacity>
                 </View>
