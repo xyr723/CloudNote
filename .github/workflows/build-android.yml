@@ -37,7 +37,7 @@ jobs:
           java-version: '18' # 使用 JDK 18
 
       - name: Install Android SDK
-        uses: android-actions/setup-android-sdk@v2
+        uses: react-native-community/react-native-android-ci@v3
         with:
           android-sdk-version: '35.0.0'
           android-ndk-version: '27.1.12297006'
