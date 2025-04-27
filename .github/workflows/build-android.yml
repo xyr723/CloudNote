@@ -37,7 +37,7 @@ jobs:
           java-version: '18' # 使用 JDK 18
 
       - name: Install Android SDK
-        uses: actions/setup-android@v2
+        uses: r0adkll/setup-android@v1
         with:
           android-sdk-version: '35.0.0'
           android-ndk-version: '27.1.12297006'
