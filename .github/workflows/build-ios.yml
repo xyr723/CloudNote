@@ -1,4 +1,4 @@
-name: '[CI] React Native'
+name: React Native Build iOS Test ipk
 
 on:
   push:
