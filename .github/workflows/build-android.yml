@@ -1,6 +1,9 @@
-name: React Native Build Android Test ipk
+name: React Native Build Android Test APK
 
-on: workflow_dispatch
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
 
 jobs:
   build_android:
@@ -9,15 +12,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          repository: xyr723/CloudNote
-          token: ${{ secrets.MIMIR_GITHUB_TOKEN }}
-          fetch-depth: 0
 
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version-file: '.nvmrc'
           cache: 'yarn'
 
       - name: Install Yarn
@@ -26,7 +25,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          yarn install
+          yarn install --frozen-lockfile
           npx react-native clean
 
       - name: Grant execute permissions to gradlew
@@ -43,26 +42,15 @@ jobs:
         with:
           ndk-version: '27.1.12297006'
           build-tools-version: '35.0.0'
-          platform-version:
-            '35'
-
-            # 添加 JS 代码打包步骤
-      - name: Bundle JavaScript code
-        run: |
-          npx react-native bundle \
-            --entry-file index.js \
-            --platform android \
-            --dev false \
-            --bundle-output android/app/src/main/assets/index.android.bundle \
-            --assets-dest android/app/src/main/res/
+          platform-version: '35'
 
       - name: Build debug APK
+        working-directory: android
         run: |
-          cd android
-          ./gradlew assembleDebug
+          ./gradlew assembleRelease
 
       - name: Publish Android Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Android-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: Android-release
+          path: android/app/build/outputs/apk/release/app-release.apk
