@@ -1,0 +1,66 @@
+name: React Native Build Android Release
+
+on: workflow_dispatch
+
+jobs:
+  build_android:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: xyr723/CloudNote
+          token: ${{ secrets.MIMIR_GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'yarn'
+
+      - name: Install Yarn
+        run: |
+          npm install -g yarn  # 安装 Yarn
+
+      - name: Install dependencies
+        run: |
+          yarn install
+          npx react-native clean  # 清理缓存
+          yarn build  # 如果有自定义构建命令，可以替换
+
+      - name: Install JDK 18
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '18' # 使用 JDK 18
+
+      - name: Install Android SDK
+        uses: react-native-community/react-native-android-ci@v2
+        with:
+          android-sdk-version: '30.0.3'
+          android-ndk-version: '22.1.7171670'
+
+      - name: Build APK
+        run: |
+          cd android
+          ./gradlew assembleRelease  # 构建 release APK
+
+      - name: Sign APK
+        uses: r0adkll/sign-android-release@v1
+        id: sign_apk
+        with:
+          releaseDirectory: android/app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.APK_SIGN_JKS_BASE64 }}
+          keyStorePassword: ${{ secrets.APK_SIGN_JKS_PASSWORD }}
+          keyPassword: ${{ secrets.APK_SIGN_ALIAS_PASS }}
+          alias: ${{ secrets.APK_SIGN_ALIAS }}
+        env:
+          BUILD_TOOLS_VERSION: '34.0.0'
+
+      - name: Publish Android Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-release
+          path: android/app/build/outputs/apk/release/*-release.apk
