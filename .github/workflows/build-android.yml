@@ -17,7 +17,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '22' # React Native 通常使用 Node.js 18
           cache: 'yarn'
 
       - name: Install Yarn
@@ -39,8 +39,8 @@ jobs:
       - name: Install Android SDK
         uses: react-native-community/react-native-android-ci@v2
         with:
-          android-sdk-version: '30.0.3'
-          android-ndk-version: '22.1.7171670'
+          android-sdk-version: '35.0.0'
+          android-ndk-version: '27.1.12297006'
 
       - name: Build APK
         run: |
