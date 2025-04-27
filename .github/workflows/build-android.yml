@@ -1,4 +1,4 @@
-name: React Native Build Android Release
+name: React Native Build Android Test APK
 
 on: workflow_dispatch
 
@@ -45,25 +45,13 @@ jobs:
           build-tools-version: '35.0.0'
           platform-version: '35'
 
-      - name: Build APK
+      - name: Build debug APK
         run: |
           cd android
-          ./gradlew assembleRelease
-
-      - name: Sign APK
-        uses: r0adkll/sign-android-release@v1
-        id: sign_apk
-        with:
-          releaseDirectory: android/app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.APK_SIGN_JKS_BASE64 }}
-          keyStorePassword: ${{ secrets.APK_SIGN_JKS_PASSWORD }}
-          keyPassword: ${{ secrets.APK_SIGN_ALIAS_PASS }}
-          alias: ${{ secrets.APK_SIGN_ALIAS }}
-        env:
-          BUILD_TOOLS_VERSION: '35.0.0' # 与上面安装的版本保持一致
+          ./gradlew assembleDebug
 
       - name: Publish Android Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Android-release
-          path: android/app/build/outputs/apk/release/*-release.apk
+          name: Android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
