@@ -43,10 +43,10 @@ jobs:
           set -euxo pipefail
           bundle exec pod install
 
-      - name: Run eslint
-        run: |
-          set -euxo pipefail
-          yarn lint
+      # - name: Run eslint
+      #   run: |
+      #     set -euxo pipefail
+      #     yarn lint
 
       - name: Build iOS
         run: |

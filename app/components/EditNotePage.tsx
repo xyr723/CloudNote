@@ -33,7 +33,7 @@ interface EditNotePageProps {
     images?: string[];
     audios?: string[];
     fontSize?: number;
-    textSegments?: { text: string; fontSize: number }[];
+    textSegments?: { text: string; fontSize: number; isBold?: boolean }[];
   };
   onSave: () => void;
   onClose: () => void;
@@ -42,7 +42,7 @@ interface EditNotePageProps {
   onChangeImages?: (images: string[]) => void;
   onChangeAudios?: (audios: string[]) => void;
   onChangeFontSize?: (size: number) => void;
-  onChangeTextSegments?: (segments: { text: string; fontSize: number }[]) => void;
+  onChangeTextSegments?: (segments: { text: string; fontSize: number; isBold?: boolean }[]) => void;
   theme: ReturnType<typeof generateThemeColors>;
 }
 
@@ -68,6 +68,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   const [content, setContent] = useState(note.content);
   const [showImageModal, setShowImageModal] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [isRecording, setIsRecording] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentAudioIndex, setCurrentAudioIndex] = useState(-1);
@@ -75,6 +76,9 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   const [tempNoteId] = useState(() => `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [showAiThinkingModal, setShowAiThinkingModal] = useState(false);
+  const [textSegments, setTextSegments] = useState<{ text: string; fontSize: number; isBold?: boolean }[]>(
+    note.textSegments || [{ text: note.content, fontSize: note.fontSize || 16, isBold: false }]
+  );
 
   const audioRecorderPlayer = useMemo(() => new AudioRecorderPlayer(), []);
 
@@ -562,6 +566,67 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
     }
   };
 
+  const handleBoldToggle = () => {
+    if (selection.start !== selection.end) {
+      // 有选中文本时，只对选中部分应用加粗
+      const newTextSegments = [...textSegments];
+      const startSegment = newTextSegments.findIndex(segment => {
+        const segmentStart = newTextSegments
+          .slice(0, newTextSegments.indexOf(segment))
+          .reduce((acc, seg) => acc + seg.text.length, 0);
+        return selection.start >= segmentStart && selection.start < segmentStart + segment.text.length;
+      });
+      
+      if (startSegment !== -1) {
+        const segment = newTextSegments[startSegment];
+        const segmentStart = newTextSegments
+          .slice(0, startSegment)
+          .reduce((acc, seg) => acc + seg.text.length, 0);
+        
+        const relativeStart = selection.start - segmentStart;
+        const relativeEnd = Math.min(selection.end - segmentStart, segment.text.length);
+        
+        // 分割文本段
+        const beforeText = segment.text.slice(0, relativeStart);
+        const selectedText = segment.text.slice(relativeStart, relativeEnd);
+        const afterText = segment.text.slice(relativeEnd);
+        
+        // 创建新的文本段
+        const newSegments = [];
+        if (beforeText) {
+          newSegments.push({ ...segment, text: beforeText });
+        }
+        newSegments.push({ ...segment, text: selectedText, isBold: !segment.isBold });
+        if (afterText) {
+          newSegments.push({ ...segment, text: afterText });
+        }
+        
+        // 更新文本段数组
+        newTextSegments.splice(startSegment, 1, ...newSegments);
+        setTextSegments(newTextSegments);
+        
+        // 更新内容
+        const newContent = newTextSegments.map(segment => segment.text).join('');
+        setContent(newContent);
+        onChangeContent(newContent);
+        if (_onChangeTextSegments) {
+          _onChangeTextSegments(newTextSegments);
+        }
+      }
+    } else {
+      // 没有选中文本时，切换全局加粗状态
+      setIsBold(!isBold);
+      const newTextSegments = textSegments.map(segment => ({
+        ...segment,
+        isBold: !isBold
+      }));
+      setTextSegments(newTextSegments);
+      if (_onChangeTextSegments) {
+        _onChangeTextSegments(newTextSegments);
+      }
+    }
+  };
+
   const renderContent = () => {
     const parts = content.split(/(\[图片\d+\]|\[音频\d+\])/g);
     console.log("渲染内容 - 图片数组:", images);
@@ -588,6 +653,9 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
             onChangeText={(text) => {
               setContent(text);
               onChangeContent(text);
+            }}
+            onSelectionChange={(event) => {
+              setSelection(event.nativeEvent.selection);
             }}
             multiline
           />
@@ -660,12 +728,16 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
               );
             }
           }
+          
+          // 找到对应的文本段
+          const segment = textSegments.find(seg => seg.text === part);
+          
           return (
             <TextInput
               key={`text-${index}`}
               style={[styles.textContent, {
-                fontSize: fontSize,
-                fontWeight: isBold ? 'bold' : 'normal',
+                fontSize: segment?.fontSize || fontSize,
+                fontWeight: segment?.isBold ? 'bold' : 'normal',
                 fontStyle: isItalic ? 'italic' : 'normal',
                 color: theme.text,
                 padding: 8,
@@ -687,6 +759,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
                   position += parts[i].length;
                 }
                 setCursorPosition(position);
+                setSelection(sel);
               }}
               multiline
             />
@@ -750,10 +823,13 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
               <View style={[styles.toolbar, { backgroundColor: theme.surface }]}>
                 <View style={styles.toolbarRow}>
                   <TouchableOpacity 
-                    style={[styles.toolbarButton, isBold && styles.toolbarButtonActive]}
-                    onPress={() => setIsBold(!isBold)}
+                    style={[styles.toolbarButton, (isBold || (selection.start !== selection.end && textSegments.some(seg => seg.isBold))) && styles.toolbarButtonActive]}
+                    onPress={handleBoldToggle}
                   >
-                    <Text style={[styles.toolbarButtonText, { color: isBold ? theme.primary : theme.text }]}>𝐁</Text>
+                    <Text style={[styles.toolbarButtonText, { 
+                      color: (isBold || (selection.start !== selection.end && textSegments.some(seg => seg.isBold))) ? theme.primary : theme.text,
+                      fontWeight: 'bold'
+                    }]}>𝐁</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={[styles.toolbarButton, isItalic && styles.toolbarButtonActive]}
