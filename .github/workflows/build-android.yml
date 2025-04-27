@@ -22,19 +22,19 @@ jobs:
 
       - name: Install Yarn
         run: |
-          npm install -g yarn
+          npm install -g yarn  # 安装 Yarn
 
       - name: Install dependencies
         run: |
-          yarn install
-          npx react-native clean
-          yarn android
+          yarn install  # 安装依赖
+          npx react-native clean  # 清理缓存
+          yarn android  # 构建项目
 
       - name: Install JDK 18
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '18'
+          java-version: '18' # 使用 JDK 18
 
       - name: Install Android SDK and NDK
         run: |
@@ -52,10 +52,17 @@ jobs:
           # 安装必要的 Android SDK 组件
           $HOME/android-sdk/cmdline-tools/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.0" "ndk;21.4.7075529"
 
+      - name: Give gradlew execute permissions
+        run: chmod +x android/gradlew # 给 gradlew 赋予执行权限
+
+      - name: Start Metro server
+        run: |
+          yarn start --reset-cache &  # 启动 Metro 服务器
+
       - name: Build APK
         run: |
           cd android
-          ./gradlew assembleRelease
+          ./gradlew assembleRelease  # 构建 release APK
 
       - name: Sign APK
         uses: r0adkll/sign-android-release@v1
