@@ -40,9 +40,9 @@ jobs:
 
       - name: Install Android SDK and NDK
         run: |
-          # 安装必需的工具和依赖
           sudo apt update
-          sudo apt install -y wget unzip openjdk-18-jdk
+          sudo apt install -y wget unzip
+
 
           # 下载并解压 Android 命令行工具
           wget https://dl.google.com/android/repository/commandlinetools-linux-6609375_latest.zip
