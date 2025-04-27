@@ -28,7 +28,7 @@ jobs:
         run: |
           yarn install
           npx react-native clean
-          yarn build
+          yarn android
 
       - name: Install JDK 18
         uses: actions/setup-java@v4
