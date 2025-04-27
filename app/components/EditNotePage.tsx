@@ -76,6 +76,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   const [tempNoteId] = useState(() => `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [showAiThinkingModal, setShowAiThinkingModal] = useState(false);
+  const [isUserDelete, setIsUserDelete] = useState(false);
   const [textSegments, setTextSegments] = useState<{ text: string; fontSize: number; isBold?: boolean }[]>(
     note.textSegments || [{ text: note.content, fontSize: note.fontSize || 16, isBold: false }]
   );
@@ -145,37 +146,53 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
       invalidMarkers.forEach(marker => {
         newContent = newContent.replace(marker, '');
       });
+      // 清理多余的空行
+      newContent = newContent.replace(/\n\s*\n/g, '\n').trim();
       // 只有在内容确实发生变化时才更新
       if (newContent !== content) {
-        setContent(newContent.trim());
+        setContent(newContent);
       }
     }
 
     // 检查是否有图片没有对应的标记，但只在添加新图片时执行
+    // 注意：这里不处理用户主动删除的情况
     const existingIndices = new Set(
       imageMarkers.map(marker => parseInt(marker.match(/\d+/)?.[0] || '0'))
     );
     
     // 只有当图片数量大于标记数量时才添加新标记
     if (images.length > imageMarkers.length) {
-      let newContent = content;
-      let contentChanged = false;
-      
-      // 为没有标记的图片添加标记
-      images.forEach((_, index) => {
-        if (!existingIndices.has(index)) {
-          const marker = `[图片${index}]`;
-          newContent += (newContent.endsWith('\n') ? '' : '\n') + marker;
-          contentChanged = true;
+      // 检查是否是用户主动删除操作
+      // 如果是用户主动删除，不自动添加图片标记
+      if (!isUserDelete) {
+        let newContent = content;
+        let contentChanged = false;
+        
+        // 为没有标记的图片添加标记
+        images.forEach((_, index) => {
+          if (!existingIndices.has(index)) {
+            const marker = `[图片${index}]`;
+            // 避免在内容末尾添加多余的换行符
+            if (newContent.endsWith('\n')) {
+              newContent += marker;
+            } else if (newContent === '') {
+              newContent = marker;
+            } else {
+              newContent += '\n' + marker;
+            }
+            contentChanged = true;
+          }
+        });
+        
+        if (contentChanged) {
+          console.log("Adding missing image markers");
+          setContent(newContent.trim());
         }
-      });
-      
-      if (contentChanged) {
-        console.log("Adding missing image markers");
-        setContent(newContent.trim());
+      } else {
+        console.log("检测到用户主动删除操作，跳过自动添加图片标记");
       }
     }
-  }, [content, images, setContent]);
+  }, [content, images, setContent, isUserDelete]);
 
   // 在组件挂载和内容变化时同步图片数组和内容
   useEffect(() => {
@@ -335,6 +352,13 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
 
   const handleDeleteImage = async (imageIndex: number) => {
     try {
+      console.log(`开始删除图片，索引: ${imageIndex}`);
+      console.log("当前图片数组:", images);
+      console.log("当前内容:", content);
+      
+      // 设置用户删除标志
+      setIsUserDelete(true);
+      
       // 删除本地图片文件
       const imagePath = getImagePath(imageIndex);
       console.log("尝试删除图片，路径:", imagePath);
@@ -349,31 +373,52 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
         console.log("图片删除成功");
       }
       
-      // 更新图片数组
-      const newImages = images.filter((_, i) => i !== imageIndex);
-      setImages(newImages);
-      
-      // 更新父组件的状态
-      if (onChangeImages) {
-        onChangeImages(newImages);
-      }
+      // 更新图片数组 - 移除指定索引的图片
+      const newImages = [...images];
+      newImages.splice(imageIndex, 1);
+      console.log("更新后的图片数组:", newImages);
       
       // 更新内容中的图片标记
       let newContent = content;
+      
+      // 1. 删除当前图片的标记
       const imagePattern = new RegExp(`\\[图片${imageIndex}\\]`, 'g');
       newContent = newContent.replace(imagePattern, '');
       
-      // 重新编号剩余的图片标记
-      for (let i = imageIndex + 1; i < images.length; i++) {
+      // 2. 重新编号所有大于当前索引的图片标记
+      // 从大到小处理，避免替换过程中的索引冲突
+      for (let i = images.length - 1; i > imageIndex; i--) {
         const oldPattern = new RegExp(`\\[图片${i}\\]`, 'g');
         newContent = newContent.replace(oldPattern, `[图片${i - 1}]`);
       }
       
+      // 3. 清理多余的空行
+      newContent = newContent.replace(/\n\s*\n/g, '\n').trim();
+      
+      console.log("更新后的内容:", newContent);
+      
+      // 5. 先更新内容，再更新图片数组，避免触发syncImagesAndContent的自动添加
       setContent(newContent);
       onChangeContent(newContent);
+      
+      // 6. 延迟更新图片数组，确保内容已更新
+      setTimeout(() => {
+        setImages(newImages);
+        if (onChangeImages) {
+          onChangeImages(newImages);
+        }
+        
+        // 重置用户删除标志
+        setTimeout(() => {
+          setIsUserDelete(false);
+        }, 100);
+      }, 50);
+      
     } catch (error) {
       console.error('删除图片失败:', error);
       Alert.alert('错误', '删除图片时发生错误');
+      // 确保在出错时也重置用户删除标志
+      setIsUserDelete(false);
     }
   };
 
