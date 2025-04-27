@@ -1,8 +1,8 @@
-name: react-native-android-build-apk
+name: React Native Build Android Test ipk
 on:
   push:
     branches:
-      - master
+      - main
 jobs:
   install-and-test:
     runs-on: ubuntu-latest
