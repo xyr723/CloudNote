@@ -17,35 +17,45 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22' # React Native 通常使用 Node.js 18
+          node-version: '22'
           cache: 'yarn'
 
       - name: Install Yarn
         run: |
-          npm install -g yarn  # 安装 Yarn
+          npm install -g yarn
 
       - name: Install dependencies
         run: |
           yarn install
-          npx react-native clean  # 清理缓存
-          yarn build  # 如果有自定义构建命令，可以替换
+          npx react-native clean
+          yarn build
 
       - name: Install JDK 18
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '18' # 使用 JDK 18
+          java-version: '18'
 
-      - name: Install Android SDK
-        uses: r0adkll/setup-android@v1
-        with:
-          android-sdk-version: '35.0.0'
-          android-ndk-version: '27.1.12297006'
+      - name: Install Android SDK and NDK
+        run: |
+          # 安装必需的工具和依赖
+          sudo apt update
+          sudo apt install -y wget unzip openjdk-18-jdk
+
+          # 下载并解压 Android 命令行工具
+          wget https://dl.google.com/android/repository/commandlinetools-linux-6609375_latest.zip
+          unzip commandlinetools-linux-6609375_latest.zip -d $HOME/android-sdk
+
+          # 同意 SDK 许可协议
+          yes | $HOME/android-sdk/cmdline-tools/bin/sdkmanager --licenses
+
+          # 安装必要的 Android SDK 组件
+          $HOME/android-sdk/cmdline-tools/bin/sdkmanager "platform-tools" "platforms;android-33" "build-tools;33.0.0" "ndk;21.4.7075529"
 
       - name: Build APK
         run: |
           cd android
-          ./gradlew assembleRelease  # 构建 release APK
+          ./gradlew assembleRelease
 
       - name: Sign APK
         uses: r0adkll/sign-android-release@v1
