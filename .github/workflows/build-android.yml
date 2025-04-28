@@ -1,8 +1,6 @@
 name: React Native Build Android Test APK
 
 on:
-  push:
-  pull_request:
   workflow_dispatch:
 
 jobs:
