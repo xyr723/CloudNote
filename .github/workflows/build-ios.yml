@@ -1,8 +1,6 @@
 name: React Native Build iOS Test ipk
 
 on:
-  push:
-  pull_request:
   workflow_dispatch:
 
 jobs:
@@ -12,6 +10,17 @@ jobs:
       id-token: write
       contents: read
     steps:
+      - name: Install Apple Certificate
+        uses: apple-actions/import-codesign-certs@v5
+        with:
+          p12-file-base64: ${{ secrets.P12_BASE64 }}
+          p12-password: ${{ secrets.P12_PASSWORD }}
+
+      - name: Install the provisioning profile
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "${{ secrets.PROVISIONING_PROFILE_BASE64 }}" | base64 -d > ~/Library/MobileDevice/Provisioning\ Profiles/build_pp.mobileprovision
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
@@ -52,3 +61,21 @@ jobs:
         run: |
           set -euxo pipefail
           yarn build-ios
+
+      - name: Build resolve Swift dependencies
+        run: |
+          xcodebuild -resolvePackageDependencies -workspace ios/CloudNote.xcworkspace -scheme CloudNote -configuration Release
+
+      - name: Build xArchive
+        run: |
+          xcodebuild -workspace ios/CloudNote.xcworkspace -scheme CloudNote -configuration Release DEVELOPMENT_TEAM="LUAVQGHQ98" -sdk 'iphoneos' -destination 'generic/platform=iOS' -archivePath build-output/app.xcarchive PROVISIONING_PROFILE="5b96a0a2-4792-4278-b375-a44f0de40a4c" clean archive CODE_SIGN_IDENTITY="Apple Distribution: Test (LUAVQGHQ98)"
+
+      - name: Export ipa
+        run: |
+          xcodebuild -exportArchive -archivePath build-output/app.xcarchive -exportPath build-output/ios -exportOptionsPlist ios/ExportOptions.plist
+
+      - name: Publish iOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iOS-release
+          path: build-output/
