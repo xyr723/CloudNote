@@ -83,6 +83,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [deleteSuccessModalVisible, setDeleteSuccessModalVisible] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const theme = useMemo(() => {
     try {
@@ -369,6 +370,21 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
     setUser(prev => ({...prev, avatar: avatarUri}));
   }, [setUser]);
 
+  const handleRefresh = useCallback(async () => {
+    if (!user.username) return;
+    
+    setIsRefreshing(true);
+    try {
+      const loadedNotes = await NoteStorage.loadNotes(user.username);
+      setNotes(loadedNotes);
+      setCachedNotes(loadedNotes);
+    } catch (error) {
+      console.error('刷新笔记失败:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [user.username]);
+
   const renderNoteItem = ({item}: {item: Note}) => {
     // 提取第一张图片（如果有）
     const firstImageMatch = item.content.match(/\[图片(\d+)\]/);
@@ -564,6 +580,8 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
         style={styles.noteList}
         contentContainerStyle={styles.noteListContent}
         ListFooterComponent={renderFooter}
+        refreshing={isRefreshing}
+        onRefresh={handleRefresh}
       />
 
       <TouchableOpacity
