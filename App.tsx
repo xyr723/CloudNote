@@ -17,7 +17,6 @@ import {
   Modal,
   StatusBar,
   Image,
-  Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -86,6 +85,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showSaveSuccessModal, setShowSaveSuccessModal] = useState(false);
   const [showSaveErrorModal, setShowSaveErrorModal] = useState(false);
+  const [showSyncErrorModal, setShowSyncErrorModal] = useState(false);
 
   const theme = useMemo(() => {
     try {
@@ -273,15 +273,29 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
         
         // 异步保存到存储
         if (user.username) {
-          NoteStorage.saveNotes(user.username, updatedNotes).catch(error => {
+          try {
+            await NoteStorage.saveNotes(user.username, updatedNotes);
+            setShowSaveSuccessModal(true);
+            setTimeout(() => {
+              setShowSaveSuccessModal(false);
+            }, 1000);
+          } catch (error) {
             console.error('保存笔记失败:', error);
-          });
+            // 本地保存成功，但云端同步失败
+            setShowSyncErrorModal(true);
+            setTimeout(() => {
+              setShowSyncErrorModal(false);
+            }, 3000);
+          }
         }
 
         handleCloseModal();
       } catch (error) {
         console.error('保存笔记失败:', error);
-        Alert.alert('错误', '保存笔记时发生错误');
+        setShowSaveErrorModal(true);
+        setTimeout(() => {
+          setShowSaveErrorModal(false);
+        }, 3000);
       }
     }
   }, [currentNote, isEditing, notes, user.username]);
@@ -398,7 +412,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
 
     return (
       <TouchableOpacity 
-        style={[styles.noteItem, { borderColor: theme.border }]}
+        style={[styles.noteItem, { backgroundColor: theme.surface }]}
         onPress={() => handleEditNote(item)}
         onLongPress={() => handleDeleteNote(item.id)}
       >
@@ -745,6 +759,19 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
           </View>
         </View>
       </Modal>
+
+      {/* 云端同步失败提示框 */}
+      <Modal
+        visible={showSyncErrorModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSyncErrorModal(false)}>
+        <View style={[styles.saveToastContainer]}>
+          <View style={[styles.saveToastContent, { backgroundColor: theme.error }]}>
+            <Text style={[styles.saveToastText, { color: theme.surface }]}>已保存到本地，云端同步失败</Text>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -896,8 +923,6 @@ const styles = StyleSheet.create({
     padding: 15,
     borderRadius: 16,
     elevation: 2,
-    borderWidth: 1,
-    backgroundColor: '#FFFFFF',
   },
   noteTitle: {
     fontSize: 18,
