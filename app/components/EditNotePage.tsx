@@ -80,6 +80,8 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   const [textSegments, setTextSegments] = useState<{ text: string; fontSize: number; isBold?: boolean }[]>(
     note.textSegments || [{ text: note.content, fontSize: note.fontSize || 16, isBold: false }]
   );
+  const [showValidationModal, setShowValidationModal] = useState(false);
+  const [validationMessage, setValidationMessage] = useState('');
 
   const audioRecorderPlayer = useMemo(() => new AudioRecorderPlayer(), []);
 
@@ -818,6 +820,20 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
     setShowImageModal(true);
   };
 
+  const handleSaveWithValidation = () => {
+    if (!note.title.trim()) {
+      setValidationMessage('标题不能为空');
+      setShowValidationModal(true);
+      return;
+    }
+    if (!content.trim() && images.length === 0 && audios.length === 0) {
+      setValidationMessage('内容不能为空');
+      setShowValidationModal(true);
+      return;
+    }
+    onSave();
+  };
+
   return (
     <Modal
       visible={visible}
@@ -838,7 +854,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
               <Text style={[styles.headerTitle, { color: theme.surface }]}>
                 {isEditing ? '编辑笔记' : '新建笔记'}
               </Text>
-              <TouchableOpacity style={styles.saveButton} onPress={onSave}>
+              <TouchableOpacity style={styles.saveButton} onPress={handleSaveWithValidation}>
                 <Text style={[styles.saveButtonText, { color: theme.surface }]}>保存</Text>
               </TouchableOpacity>
             </View>
@@ -1030,6 +1046,32 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={theme.primary} />
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 验证提示模态框 */}
+      <Modal
+        visible={showValidationModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowValidationModal(false)}
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: theme.primaryTransparent }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+            <View style={[styles.modalIconContainer, { backgroundColor: theme.primary }]}>
+              <Text style={styles.modalIcon}>⚠️</Text>
+            </View>
+            <Text style={[styles.modalTitle, { color: theme.error }]}>提示</Text>
+            <Text style={[styles.modalMessage, { color: theme.text }]}>
+              {validationMessage}
+            </Text>
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: theme.primary }]}
+              onPress={() => setShowValidationModal(false)}
+            >
+              <Text style={[styles.modalButtonText, { color: theme.surface }]}>确定</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -1418,6 +1460,16 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  modalButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  modalButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
 });
 
