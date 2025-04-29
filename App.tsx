@@ -326,7 +326,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
       // 显示删除成功弹窗
       setDeleteSuccessModalVisible(true);
       
-      // 3秒后自动关闭弹窗
+      // 1.5秒后自动关闭弹窗
       setTimeout(() => {
         setDeleteSuccessModalVisible(false);
       }, 1500);
@@ -426,12 +426,16 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
   };
 
   const renderFooter = () => {
-    if (filteredNotes.length === 0) return null;
-    return (
-      <Text style={[styles.footerText, { color: theme.textLight }]}>
-        没有更多笔记了
-      </Text>
-    );
+    if (filteredNotes.length === 0) {
+      return (
+        <View style={styles.emptyContainer}>
+          <Text style={[styles.emptyText, { color: theme.textLight }]}>
+            {searchQuery ? '未找到相关笔记' : '没有更多笔记了'}
+          </Text>
+        </View>
+      );
+    }
+    return null;
   };
 
   return (
@@ -1098,6 +1102,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     paddingVertical: 8,
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    textAlign: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
   },
 });
 
