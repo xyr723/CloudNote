@@ -35,7 +35,7 @@ interface EditNotePageProps {
     fontSize?: number;
     textSegments?: { text: string; fontSize: number; isBold?: boolean }[];
   };
-  onSave: () => void;
+  onSave: () => Promise<void>;
   onClose: () => void;
   onChangeTitle: (text: string) => void;
   onChangeContent: (text: string) => void;
@@ -82,6 +82,9 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   );
   const [showValidationModal, setShowValidationModal] = useState(false);
   const [validationMessage, setValidationMessage] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [showSaveSuccessModal, setShowSaveSuccessModal] = useState(false);
+  const [showSaveErrorModal, setShowSaveErrorModal] = useState(false);
 
   const audioRecorderPlayer = useMemo(() => new AudioRecorderPlayer(), []);
 
@@ -820,7 +823,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
     setShowImageModal(true);
   };
 
-  const handleSaveWithValidation = () => {
+  const handleSaveWithValidation = async () => {
     if (!note.title.trim()) {
       setValidationMessage('标题不能为空');
       setShowValidationModal(true);
@@ -831,7 +834,21 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
       setShowValidationModal(true);
       return;
     }
-    onSave();
+    
+    try {
+      setIsSaving(true);
+      await onSave();
+      setShowSaveSuccessModal(true);
+      setTimeout(() => {
+        setShowSaveSuccessModal(false);
+        onClose(); // 保存成功后关闭编辑页面
+      }, 3000);
+    } catch (error) {
+      console.error('保存笔记失败:', error);
+      setShowSaveErrorModal(true);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -1070,6 +1087,74 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
               style={[styles.modalButton, { backgroundColor: theme.primary }]}
               onPress={() => setShowValidationModal(false)}
             >
+              <Text style={[styles.modalButtonText, { color: theme.surface }]}>确定</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 保存中提示框 */}
+      <Modal
+        visible={isSaving}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.primaryTransparent }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+            <View style={[styles.modalIconContainer, { backgroundColor: theme.primaryLight }]}>
+              <ActivityIndicator size="large" color={theme.primary} />
+            </View>
+            <Text style={[styles.modalTitle, { color: theme.primaryDark }]}>保存中</Text>
+            <Text style={[styles.modalMessage, { color: theme.text }]}>
+              正在保存笔记，请稍候...
+            </Text>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 保存成功提示框 */}
+      <Modal
+        visible={showSaveSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSaveSuccessModal(false)}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.primaryTransparent }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+            <View style={[styles.modalIconContainer, { backgroundColor: theme.primaryLight }]}>
+              <Text style={styles.modalIcon}>✅</Text>
+            </View>
+            <Text style={[styles.modalTitle, { color: theme.primaryDark }]}>保存成功</Text>
+            <Text style={[styles.modalMessage, { color: theme.text }]}>
+              笔记已成功保存
+            </Text>
+            <Text style={[styles.modalSubMessage, { color: theme.accent }]}>
+              可以在笔记列表中查看 (◕‿◕✿)
+            </Text>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 保存失败提示框 */}
+      <Modal
+        visible={showSaveErrorModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSaveErrorModal(false)}>
+        <View style={[styles.modalOverlay, { backgroundColor: theme.primaryTransparent }]}>
+          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
+            <View style={[styles.modalIconContainer, { backgroundColor: theme.primaryLight }]}>
+              <Text style={styles.modalIcon}>❌</Text>
+            </View>
+            <Text style={[styles.modalTitle, { color: theme.error }]}>保存失败</Text>
+            <Text style={[styles.modalMessage, { color: theme.text }]}>
+              保存笔记时发生错误
+            </Text>
+            <Text style={[styles.modalSubMessage, { color: theme.accent }]}>
+              请稍后重试 (｡•́︿•̀｡)
+            </Text>
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: theme.primary }]}
+              onPress={() => setShowSaveErrorModal(false)}>
               <Text style={[styles.modalButtonText, { color: theme.surface }]}>确定</Text>
             </TouchableOpacity>
           </View>

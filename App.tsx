@@ -84,6 +84,8 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [deleteSuccessModalVisible, setDeleteSuccessModalVisible] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showSaveSuccessModal, setShowSaveSuccessModal] = useState(false);
+  const [showSaveErrorModal, setShowSaveErrorModal] = useState(false);
 
   const theme = useMemo(() => {
     try {
@@ -717,6 +719,32 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
           theme={theme}
         />
       )}
+
+      {/* 保存成功提示框 */}
+      <Modal
+        visible={showSaveSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSaveSuccessModal(false)}>
+        <View style={[styles.saveToastContainer]}>
+          <View style={[styles.saveToastContent, { backgroundColor: theme.surface }]}>
+            <Text style={[styles.saveToastText, { color: theme.text }]}>保存成功</Text>
+          </View>
+        </View>
+      </Modal>
+
+      {/* 保存失败提示框 */}
+      <Modal
+        visible={showSaveErrorModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSaveErrorModal(false)}>
+        <View style={[styles.saveToastContainer]}>
+          <View style={[styles.saveToastContent, { backgroundColor: theme.error }]}>
+            <Text style={[styles.saveToastText, { color: theme.surface }]}>保存失败</Text>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1113,6 +1141,30 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 10,
     paddingVertical: 4,
+  },
+  saveToastContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+  },
+  saveToastContent: {
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
+  saveToastText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 
