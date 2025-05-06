@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,35 +8,30 @@ import {
   StatusBar,
   ScrollView,
   Modal,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { generateThemeColors } from '../theme/colors';
+import { OSSClient } from '../utils/ossUpload';
+import RNFetchBlob from 'react-native-blob-util';
+import { Platform } from 'react-native';
+import { NoteStorage } from '../utils/storage';
 
 interface TrashPageProps {
   onClose: () => void;
   theme: ReturnType<typeof generateThemeColors>;
 }
 
-// 示例笔记数据
-const sampleNotes = [
-  {
-    id: '1',
-    title: '长毛象会回来吗？',
-    content: '多亏了基因工程，灭绝可能并不意味着某些物种的终结。\n惠里奥纳·希索利(Eriona Hysolli)在帮助喂养一头小驼鹿时拍打着蚊子。不远处，毛绒绒的雅库特马在高高的草地上吃草。那是2018年8月。海索利离马萨诸塞州的波士顿很远。',
-    deletedAt: '2024-04-28 20:09',
-  },
-  {
-    id: '2',
-    title: '会议记录',
-    content: '讨论了新项目的时间线和资源分配，完善了UI设计以及计划书中的不足和问题，规划了接下来的工作内容，并分配了详细的个人任务',
-    deletedAt: '2024-04-25 14:51',
-  },
-  {
-    id: '3',
-    title: '购物清单',
-    content: '1. 牛奶\n2. 面包\n3. 鸡蛋',
-    deletedAt: '2024-04-25 14:30',
-  },
-];
+interface Note {
+  id: string;
+  title: string;
+  content: string;
+  deletedAt: string;
+  images?: string[];
+  audios?: string[];
+  fontSize?: number;
+  textSegments?: { text: string; fontSize: number; isBold?: boolean }[];
+}
 
 const TrashPage: React.FC<TrashPageProps> = React.memo(({
   onClose,
@@ -45,43 +40,196 @@ const TrashPage: React.FC<TrashPageProps> = React.memo(({
   // 状态管理
   const [restoreModalVisible, setRestoreModalVisible] = useState(false);
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
-  const [selectedNote, setSelectedNote] = useState<typeof sampleNotes[0] | null>(null);
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [restoreSuccessModalVisible, setRestoreSuccessModalVisible] = useState(false);
   const [deleteSuccessModalVisible, setDeleteSuccessModalVisible] = useState(false);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [username, setUsername] = useState<string>('');
+
+  // 初始化OSS客户端
+  const ossClient = new OSSClient({
+    accessKeyId: 'LTAI5tP7uEC3XekfkG4nRp5x',
+    accessKeySecret: 'yLvMJLA9MrfJy4nA0oXwuZSXKBaX2o',
+    bucket: 'native-123',
+    region: 'cn-beijing',
+  });
+
+  // 获取当前登录用户
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      try {
+        console.log('[回收站] 开始获取当前登录用户');
+        const loginState = await NoteStorage.getLoginState();
+        if (loginState && loginState.username) {
+          console.log(`[回收站] 获取到当前用户: ${loginState.username}`);
+          setUsername(loginState.username);
+        } else {
+          console.error('[回收站] 未找到登录用户信息');
+          Alert.alert('错误', '未找到登录用户信息');
+          onClose();
+        }
+      } catch (error) {
+        console.error('[回收站] 获取用户信息失败:', error);
+        Alert.alert('错误', '获取用户信息失败');
+        onClose();
+      }
+    };
+    getCurrentUser();
+  }, [onClose]);
+
+  // 加载回收站笔记
+  const loadRecycleBinNotes = useCallback(async () => {
+    if (!username) {
+      console.log('[回收站] 用户名未设置，跳过加载笔记');
+      return;
+    }
+
+    try {
+      console.log(`[回收站] 开始加载用户 ${username} 的回收站笔记`);
+      setIsLoading(true);
+      const objectKey = `recycle-bin/${username}.json`;
+      const url = `https://native-123.oss-cn-beijing.aliyuncs.com/${objectKey}`;
+      
+      console.log(`[回收站] 请求URL: ${url}`);
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`[回收站] 成功加载笔记，数量: ${data.length}`);
+        setNotes(data);
+      } else {
+        console.log(`[回收站] 未找到回收站笔记，状态码: ${response.status}`);
+        setNotes([]);
+      }
+    } catch (error) {
+      console.error('[回收站] 加载笔记失败:', error);
+      setNotes([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [username]);
 
   // 处理恢复笔记
-  const handleRestore = (note: typeof sampleNotes[0]) => {
+  const handleRestore = (note: Note) => {
+    console.log(`[回收站] 准备恢复笔记: ${note.title} (ID: ${note.id})`);
     setSelectedNote(note);
     setRestoreModalVisible(true);
   };
 
   // 处理彻底删除笔记
-  const handleDelete = (note: typeof sampleNotes[0]) => {
+  const handleDelete = (note: Note) => {
+    console.log(`[回收站] 准备彻底删除笔记: ${note.title} (ID: ${note.id})`);
     setSelectedNote(note);
     setDeleteModalVisible(true);
   };
 
   // 确认恢复笔记
-  const confirmRestore = () => {
-    setRestoreModalVisible(false);
-    setRestoreSuccessModalVisible(true);
+  const confirmRestore = async () => {
+    if (!selectedNote) return;
     
-    // 3秒后自动关闭成功弹窗
-    setTimeout(() => {
-      setRestoreSuccessModalVisible(false);
-    }, 1500);
+    try {
+      console.log(`[回收站] 开始恢复笔记: ${selectedNote.title} (ID: ${selectedNote.id})`);
+      
+      // 1. 从回收站中移除笔记
+      const updatedNotes = notes.filter(note => note.id !== selectedNote.id);
+      console.log(`[回收站] 从回收站移除笔记，剩余笔记数: ${updatedNotes.length}`);
+      
+      // 2. 更新回收站文件
+      const recycleBinObjectKey = `recycle-bin/${username}.json`;
+      const recycleBinLocalPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${username}_recycle_bin.json`;
+      console.log(`[回收站] 更新回收站文件: ${recycleBinObjectKey}`);
+      await RNFetchBlob.fs.writeFile(recycleBinLocalPath, JSON.stringify(updatedNotes), 'utf8');
+      const recycleBinFilePath = Platform.OS === 'android' ? `file://${recycleBinLocalPath}` : recycleBinLocalPath;
+      await ossClient.put(recycleBinObjectKey, recycleBinFilePath);
+      
+      // 3. 将笔记添加回user-notes
+      const sourceObjectKey = `user-notes/${username}.json`;
+      const sourceUrl = `https://native-123.oss-cn-beijing.aliyuncs.com/${sourceObjectKey}`;
+      console.log(`[回收站] 读取源笔记文件: ${sourceObjectKey}`);
+      const response = await fetch(sourceUrl);
+      
+      let allNotes: Note[] = [];
+      if (response.ok) {
+        allNotes = await response.json();
+        console.log(`[回收站] 读取到源笔记数量: ${allNotes.length}`);
+      }
+      
+      // 创建要恢复的笔记对象，不包含deletedAt字段
+      const noteToRestore: Omit<Note, 'deletedAt'> = {
+        id: selectedNote.id,
+        title: selectedNote.title,
+        content: selectedNote.content,
+        images: selectedNote.images,
+        audios: selectedNote.audios,
+        fontSize: selectedNote.fontSize,
+        textSegments: selectedNote.textSegments,
+      };
+      
+      allNotes.push(noteToRestore as Note);
+      console.log(`[回收站] 添加笔记到源文件，更新后笔记数量: ${allNotes.length}`);
+      
+      // 更新源文件
+      const localPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${username}_notes.json`;
+      await RNFetchBlob.fs.writeFile(localPath, JSON.stringify(allNotes), 'utf8');
+      const filePath = Platform.OS === 'android' ? `file://${localPath}` : localPath;
+      await ossClient.put(sourceObjectKey, filePath);
+      console.log(`[回收站] 笔记恢复完成: ${selectedNote.title}`);
+      
+      // 更新本地状态
+      setNotes(updatedNotes);
+      setRestoreModalVisible(false);
+      setRestoreSuccessModalVisible(true);
+      
+      setTimeout(() => {
+        setRestoreSuccessModalVisible(false);
+      }, 1500);
+    } catch (error) {
+      console.error('[回收站] 恢复笔记失败:', error);
+      Alert.alert('错误', '恢复笔记失败');
+    }
   };
 
   // 确认彻底删除笔记
-  const confirmDelete = () => {
-    setDeleteModalVisible(false);
-    setDeleteSuccessModalVisible(true);
+  const confirmDelete = async () => {
+    if (!selectedNote) return;
     
-    // 3秒后自动关闭成功弹窗
-    setTimeout(() => {
-      setDeleteSuccessModalVisible(false);
-    }, 1500);
+    try {
+      console.log(`[回收站] 开始彻底删除笔记: ${selectedNote.title} (ID: ${selectedNote.id})`);
+      
+      // 从回收站中移除笔记
+      const updatedNotes = notes.filter(note => note.id !== selectedNote.id);
+      console.log(`[回收站] 从回收站移除笔记，剩余笔记数: ${updatedNotes.length}`);
+      
+      // 更新回收站文件
+      const recycleBinObjectKey = `recycle-bin/${username}.json`;
+      const recycleBinLocalPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${username}_recycle_bin.json`;
+      console.log(`[回收站] 更新回收站文件: ${recycleBinObjectKey}`);
+      await RNFetchBlob.fs.writeFile(recycleBinLocalPath, JSON.stringify(updatedNotes), 'utf8');
+      const recycleBinFilePath = Platform.OS === 'android' ? `file://${recycleBinLocalPath}` : recycleBinLocalPath;
+      await ossClient.put(recycleBinObjectKey, recycleBinFilePath);
+      console.log(`[回收站] 笔记彻底删除完成: ${selectedNote.title}`);
+      
+      // 更新本地状态
+      setNotes(updatedNotes);
+      setDeleteModalVisible(false);
+      setDeleteSuccessModalVisible(true);
+      
+      setTimeout(() => {
+        setDeleteSuccessModalVisible(false);
+      }, 1500);
+    } catch (error) {
+      console.error('[回收站] 彻底删除笔记失败:', error);
+      Alert.alert('错误', '彻底删除笔记失败');
+    }
   };
+
+  // 组件加载时获取回收站笔记
+  useEffect(() => {
+    if (username) {
+      console.log(`[回收站] 组件加载，用户: ${username}`);
+      loadRecycleBinNotes();
+    }
+  }, [loadRecycleBinNotes, username]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -94,36 +242,42 @@ const TrashPage: React.FC<TrashPageProps> = React.memo(({
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.content}>
-        {sampleNotes.map((note) => (
-          <View 
-            key={note.id} 
-            style={[styles.noteCard, { backgroundColor: theme.surface }]}
-          >
-            <Text style={[styles.noteTitle, { color: theme.text }]}>{note.title}</Text>
-            <Text style={[styles.noteContent, { color: theme.textLight }]} numberOfLines={2}>
-              {note.content}
-            </Text>
-            <Text style={[styles.deletedAt, { color: theme.textLight }]}>
-              删除于: {note.deletedAt}
-            </Text>
-            <View style={styles.actionButtons}>
-              <TouchableOpacity 
-                style={[styles.actionButton, { backgroundColor: theme.primary }]}
-                onPress={() => handleRestore(note)}
-              >
-                <Text style={[styles.actionButtonText, { color: theme.surface }]}>恢复</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.actionButton, { backgroundColor: theme.error }]}
-                onPress={() => handleDelete(note)}
-              >
-                <Text style={[styles.actionButtonText, { color: theme.surface }]}>彻底删除</Text>
-              </TouchableOpacity>
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.primary} />
+        </View>
+      ) : (
+        <ScrollView style={styles.content}>
+          {notes.map((note) => (
+            <View 
+              key={note.id} 
+              style={[styles.noteCard, { backgroundColor: theme.surface }]}
+            >
+              <Text style={[styles.noteTitle, { color: theme.text }]}>{note.title}</Text>
+              <Text style={[styles.noteContent, { color: theme.textLight }]} numberOfLines={2}>
+                {note.content}
+              </Text>
+              <Text style={[styles.deletedAt, { color: theme.textLight }]}>
+                删除于: {new Date(note.deletedAt).toLocaleString()}
+              </Text>
+              <View style={styles.actionButtons}>
+                <TouchableOpacity 
+                  style={[styles.actionButton, { backgroundColor: theme.primary }]}
+                  onPress={() => handleRestore(note)}
+                >
+                  <Text style={[styles.actionButtonText, { color: theme.surface }]}>恢复</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.actionButton, { backgroundColor: theme.error }]}
+                  onPress={() => handleDelete(note)}
+                >
+                  <Text style={[styles.actionButtonText, { color: theme.surface }]}>彻底删除</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        ))}
-      </ScrollView>
+          ))}
+        </ScrollView>
+      )}
 
       {/* 恢复确认弹窗 */}
       <Modal
@@ -402,6 +556,11 @@ const styles = StyleSheet.create({
   confirmButtonText: {
     fontSize: 16,
     fontWeight: '500',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 
