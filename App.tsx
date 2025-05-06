@@ -17,8 +17,12 @@ import {
   Modal,
   StatusBar,
   Image,
+  Alert,
+  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { OSSClient } from './app/utils/ossUpload';
+import RNFetchBlob from 'react-native-blob-util';
 
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -320,32 +324,100 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
   };
 
   const handleDeleteNote = useCallback((noteId: string) => {
+    console.log(`[笔记] 用户触发删除操作，笔记ID: ${noteId}`);
     setNoteToDelete(noteId);
     setDeleteModalVisible(true);
   }, []);
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
+    console.log(`[笔记] 确认删除操作，笔记ID: ${noteToDelete}`);
     if (noteToDelete) {
-      // 从本地状态中删除笔记
-      const updatedNotes = notes.filter(note => note.id !== noteToDelete);
-      setNotes(updatedNotes);
-      setDeleteModalVisible(false);
-      setNoteToDelete(null);
-      
-      // 保存更新后的笔记到云端
-      if (user.username) {
-        NoteStorage.saveNotes(user.username, updatedNotes).catch(error => {
-          console.error('保存笔记失败:', error);
-        });
+      try {
+        console.log(`[笔记] 开始执行删除操作，笔记ID: ${noteToDelete}`);
+        // 获取要删除的笔记
+        const noteToMove = notes.find(note => note.id === noteToDelete);
+        if (!noteToMove) {
+          console.error('[笔记] 未找到要移动的笔记，ID:', noteToDelete);
+          return;
+        }
+        console.log(`[笔记] 找到要移动的笔记: ${noteToMove.title}`);
+
+        // 从本地状态中删除笔记
+        const updatedNotes = notes.filter(note => note.id !== noteToDelete);
+        console.log(`[笔记] 从本地状态移除笔记，剩余笔记数: ${updatedNotes.length}`);
+        setNotes(updatedNotes);
+        setDeleteModalVisible(false);
+        setNoteToDelete(null);
+        
+        // 保存更新后的笔记到云端
+        if (user.username) {
+          console.log(`[笔记] 开始更新用户笔记文件，用户名: ${user.username}`);
+          // 1. 更新用户笔记文件
+          await NoteStorage.saveNotes(user.username, updatedNotes);
+          console.log('[笔记] 用户笔记文件更新成功');
+          
+          // 2. 将笔记添加到回收站
+          const recycleBinObjectKey = `recycle-bin/${user.username}.json`;
+          const recycleBinUrl = `https://native-123.oss-cn-beijing.aliyuncs.com/${recycleBinObjectKey}`;
+          console.log(`[笔记] 准备访问回收站: ${recycleBinUrl}`);
+          
+          // 获取现有回收站笔记
+          let recycleBinNotes = [];
+          try {
+            console.log('[笔记] 尝试获取现有回收站笔记');
+            const response = await fetch(recycleBinUrl);
+            console.log(`[回收站] 未找到回收站笔记，状态码: ${response.status}`);
+            if (response.ok) {
+              recycleBinNotes = await response.json();
+              console.log(`[笔记] 成功获取回收站笔记，当前数量: ${recycleBinNotes.length}`);
+            }
+          } catch (error) {
+            console.log('[笔记] 回收站为空或不存在，将创建新的回收站');
+          }
+          
+          // 添加删除时间戳
+          const noteWithDeletedAt = {
+            ...noteToMove,
+            deletedAt: new Date().toISOString()
+          };
+          console.log(`[笔记] 为笔记添加删除时间戳: ${noteWithDeletedAt.deletedAt}`);
+          
+          // 将笔记添加到回收站
+          recycleBinNotes.push(noteWithDeletedAt);
+          console.log(`[笔记] 笔记已添加到回收站，回收站笔记总数: ${recycleBinNotes.length}`);
+          
+          // 保存到回收站
+          console.log('[笔记] 开始保存回收站内容到OSS');
+          const ossClient = new OSSClient({
+"[REDACTED_ALIYUN_ACCESS_KEY_ID]",
+"[REDACTED_ALIYUN_ACCESS_KEY_SECRET]",
+            bucket: 'native-123',
+            region: 'cn-beijing',
+          });
+          
+          const recycleBinLocalPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${user.username}_recycle_bin.json`;
+          console.log(`[笔记] 准备写入本地临时文件: ${recycleBinLocalPath}`);
+          await RNFetchBlob.fs.writeFile(recycleBinLocalPath, JSON.stringify(recycleBinNotes), 'utf8');
+          const recycleBinFilePath = Platform.OS === 'android' ? `file://${recycleBinLocalPath}` : recycleBinLocalPath;
+          console.log(`[笔记] 开始上传到OSS: ${recycleBinObjectKey}`);
+          await ossClient.put(recycleBinObjectKey, recycleBinFilePath);
+          
+          console.log(`[笔记] 笔记已成功移动到回收站: ${noteToMove.title}`);
+        }
+        
+        // 显示删除成功弹窗
+        console.log('[笔记] 显示删除成功提示');
+        setDeleteSuccessModalVisible(true);
+        
+        // 1.5秒后自动关闭弹窗
+        setTimeout(() => {
+          console.log('[笔记] 关闭删除成功提示');
+          setDeleteSuccessModalVisible(false);
+        }, 1500);
+      } catch (error) {
+        console.error('[笔记] 移动笔记到回收站失败:', error);
+        Alert.alert('错误', '移动笔记到回收站失败');
       }
-      
-      // 显示删除成功弹窗
-      setDeleteSuccessModalVisible(true);
-      
-      // 1.5秒后自动关闭弹窗
-      setTimeout(() => {
-        setDeleteSuccessModalVisible(false);
-      }, 1500);
     }
   };
 
