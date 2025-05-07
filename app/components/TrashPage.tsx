@@ -274,34 +274,46 @@ const TrashPage: React.FC<TrashPageProps> = React.memo(({
         </View>
       ) : (
         <ScrollView style={styles.content}>
-          {notes.map((note) => (
-            <View 
-              key={note.id} 
-              style={[styles.noteCard, { backgroundColor: theme.surface }]}
-            >
-              <Text style={[styles.noteTitle, { color: theme.text }]}>{note.title}</Text>
-              <Text style={[styles.noteContent, { color: theme.textLight }]} numberOfLines={2}>
-                {note.content}
+          {notes.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={[styles.emptyIcon, { color: theme.textLight }]}>🗑️</Text>
+              <Text style={[styles.emptyText, { color: theme.textLight }]}>
+                暂无已删除的笔记
               </Text>
-              <Text style={[styles.deletedAt, { color: theme.textLight }]}>
-                删除于: {new Date(note.deletedAt).toLocaleString()}
+              <Text style={[styles.emptySubText, { color: theme.textLight }]}>
+                删除的笔记将在这里显示
               </Text>
-              <View style={styles.actionButtons}>
-                <TouchableOpacity 
-                  style={[styles.actionButton, { backgroundColor: theme.primary }]}
-                  onPress={() => handleRestore(note)}
-                >
-                  <Text style={[styles.actionButtonText, { color: theme.surface }]}>恢复</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.actionButton, { backgroundColor: theme.error }]}
-                  onPress={() => handleDelete(note)}
-                >
-                  <Text style={[styles.actionButtonText, { color: theme.surface }]}>彻底删除</Text>
-                </TouchableOpacity>
-              </View>
             </View>
-          ))}
+          ) : (
+            notes.map((note) => (
+              <View 
+                key={note.id} 
+                style={[styles.noteCard, { backgroundColor: theme.surface }]}
+              >
+                <Text style={[styles.noteTitle, { color: theme.text }]}>{note.title}</Text>
+                <Text style={[styles.noteContent, { color: theme.textLight }]} numberOfLines={2}>
+                  {note.content}
+                </Text>
+                <Text style={[styles.deletedAt, { color: theme.textLight }]}>
+                  删除于: {new Date(note.deletedAt).toLocaleString()}
+                </Text>
+                <View style={styles.actionButtons}>
+                  <TouchableOpacity 
+                    style={[styles.actionButton, { backgroundColor: theme.primary }]}
+                    onPress={() => handleRestore(note)}
+                  >
+                    <Text style={[styles.actionButtonText, { color: theme.surface }]}>恢复</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.actionButton, { backgroundColor: theme.error }]}
+                    onPress={() => handleDelete(note)}
+                  >
+                    <Text style={[styles.actionButtonText, { color: theme.surface }]}>彻底删除</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )}
         </ScrollView>
       )}
 
@@ -587,6 +599,24 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  emptySubText: {
+    fontSize: 14,
   },
 });
 
