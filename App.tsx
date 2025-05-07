@@ -57,6 +57,9 @@ type RootStackParamList = {
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIsDarkMode}: {
   user: {username: string; isLoggedIn: boolean; avatar?: string}; 
@@ -401,7 +404,9 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
           const recycleBinFilePath = Platform.OS === 'android' ? `file://${recycleBinLocalPath}` : recycleBinLocalPath;
           console.log(`[笔记] 开始上传到OSS: ${recycleBinObjectKey}`);
           await ossClient.put(recycleBinObjectKey, recycleBinFilePath);
-          
+          const waitTime = 10000; // 等待 10 秒，单位为毫秒
+          console.log(`[回收站] 开始等待 ${waitTime / 1000} 秒`);
+          await delay(waitTime);
           console.log(`[笔记] 笔记已成功移动到回收站: ${noteToMove.title}`);
         }
         
