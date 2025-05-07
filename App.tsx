@@ -157,7 +157,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
           
           if (loadedNotes.length === 0) {
             const welcomeNote: Note = {
-              id: '1',
+              id: 'MQ==',
               title: '欢迎使用云笔记',
               content: '这是一个简单的笔记示例：\n\n今天的待办：\n1. 早起晨跑\n2. 准备早餐\n3. 阅读一小时\n4. 整理房间\n\n小贴士：\n- 点击笔记可以编辑内容\n- 点击右下角的"+"按钮创建新笔记\n- 长按笔记可以删除\n- 在顶部搜索框搜索笔记\n- 保持记录的习惯\n- 整理思维，提高效率',
               timestamp: new Date(),
