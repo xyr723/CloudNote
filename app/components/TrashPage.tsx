@@ -16,6 +16,11 @@ import { OSSClient } from '../utils/ossUpload';
 import RNFetchBlob from 'react-native-blob-util';
 import { Platform } from 'react-native';
 import { NoteStorage } from '../utils/storage';
+import { Buffer } from 'buffer';
+
+// 添加 Base64 编码/解码函数
+const btoa = (str: string) => Buffer.from(str, 'binary').toString('base64');
+const atob = (str: string) => Buffer.from(str, 'base64').toString('binary');
 
 interface TrashPageProps {
   onClose: () => void;
@@ -31,6 +36,7 @@ interface Note {
   audios?: string[];
   fontSize?: number;
   textSegments?: { text: string; fontSize: number; isBold?: boolean }[];
+  timestamp: Date;
 }
 
 const TrashPage: React.FC<TrashPageProps> = React.memo(({
@@ -163,9 +169,29 @@ const TrashPage: React.FC<TrashPageProps> = React.memo(({
         audios: selectedNote.audios,
         fontSize: selectedNote.fontSize,
         textSegments: selectedNote.textSegments,
+        timestamp: new Date(),
       };
+
+      // 使用与 storage.ts 相同的加密逻辑
+      console.log('[回收站] 开始加密笔记内容');
+      const encryptText = (text: string) => {
+        console.log(text);
+        const textStr = String(text || '');
+        return btoa(unescape(encodeURIComponent(textStr)));
+      };
+
+      const encryptedNote = {
+        ...noteToRestore,
+        content: encryptText(noteToRestore.content),
+        title: encryptText(noteToRestore.title),
+        textSegments: noteToRestore.textSegments?.map(segment => ({
+          ...segment,
+          text: encryptText(segment.text)
+        }))
+      };
+      console.log('[回收站] 笔记内容加密完成');
       
-      allNotes.push(noteToRestore as Note);
+      allNotes.push(encryptedNote as Note);
       console.log(`[回收站] 添加笔记到源文件，更新后笔记数量: ${allNotes.length}`);
       
       // 更新源文件
