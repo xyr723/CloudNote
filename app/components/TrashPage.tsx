@@ -10,6 +10,7 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { generateThemeColors } from '../theme/colors';
 import { OSSClient } from '../utils/ossUpload';
@@ -52,6 +53,7 @@ const TrashPage: React.FC<TrashPageProps> = React.memo(({
   const [notes, setNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [username, setUsername] = useState<string>('');
+  const [refreshing, setRefreshing] = useState(false);
 
   // 初始化OSS客户端
   const ossClient = new OSSClient({
@@ -249,6 +251,16 @@ const TrashPage: React.FC<TrashPageProps> = React.memo(({
     }
   };
 
+  // 处理下拉刷新
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadRecycleBinNotes();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadRecycleBinNotes]);
+
   // 组件加载时获取回收站笔记
   useEffect(() => {
     if (username) {
@@ -273,7 +285,19 @@ const TrashPage: React.FC<TrashPageProps> = React.memo(({
           <ActivityIndicator size="large" color={theme.primary} />
         </View>
       ) : (
-        <ScrollView style={styles.content}>
+        <ScrollView 
+          style={styles.content}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[theme.primary]}
+              tintColor={theme.primary}
+              title="下拉刷新"
+              titleColor={theme.textLight}
+            />
+          }
+        >
           {notes.length === 0 ? (
             <View style={styles.emptyContainer}>
               <Text style={[styles.emptyIcon, { color: theme.textLight }]}>🗑️</Text>

@@ -14,6 +14,19 @@ import {
 import { uploadJsonToOSS, checkUsernameExists } from '../utils/ossUpload';
 import { generateThemeColors } from '../theme/colors';
 import md5 from 'md5';
+// import { OSSClient } from '../utils/ossUpload';
+// import RNFetchBlob from 'react-native-blob-util';
+
+// interface Note {
+//   id: string;
+//   title: string;
+//   content: string;
+//   timestamp: Date;
+//   images?: string[];
+//   fontSize?: number;
+//   textSegments?: { text: string; fontSize: number }[];
+//   deletedAt?: string;
+// }
 
 interface RegisterPageProps {
   onRegister: (username: string, password: string) => void;
@@ -129,6 +142,34 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onBack, theme, 
       const url = await uploadJsonToOSS(userData);
 
       if (url) {
+        // 创建回收站文件
+        try {
+          console.log('[注册] 开始创建回收站文件');
+          // const recycleBinObjectKey = `recycle-bin/${username}.json`;
+          // const emptyRecycleBin: Note[] = [{
+          //   id: '2',
+          //   title: '欢迎使用云笔记',
+          //   content: '这是一条示例笔记，您可以删除它。\n\n小贴士：\n- 点击笔记可以编辑内容\n- 点击右下角的"+"按钮创建新笔记\n- 长按笔记可以删除\n- 在顶部搜索框搜索笔记\n- 保持记录的习惯\n- 整理思维，提高效率',
+          //   timestamp: new Date(),
+          //   deletedAt: new Date().toISOString()
+          // }];
+          // const recycleBinLocalPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${username}_recycle_bin.json`;
+          // await RNFetchBlob.fs.writeFile(recycleBinLocalPath, JSON.stringify(emptyRecycleBin), 'utf8');
+          // const recycleBinFilePath = Platform.OS === 'android' ? `file://${recycleBinLocalPath}` : recycleBinLocalPath;
+          
+          // const ossClient = new OSSClient({
+          //   accessKeyId: 'LTAI5tP7uEC3XekfkG4nRp5x',
+          //   accessKeySecret: 'yLvMJLA9MrfJy4nA0oXwuZSXKBaX2o',
+          //   bucket: 'native-123',
+          //   region: 'cn-beijing',
+          // });
+          
+          // await ossClient.put(recycleBinObjectKey, recycleBinFilePath);
+          console.log('[注册] 回收站文件创建成功');
+        } catch (error) {
+          console.error('[注册] 创建回收站文件失败:', error);
+        }
+
         showError('注册成功', '您的账号已成功创建！(=✪ᆽ✪=)');
       } else {
         showError('注册失败', '请稍后重试');

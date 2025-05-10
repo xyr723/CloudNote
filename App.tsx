@@ -57,9 +57,6 @@ type RootStackParamList = {
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-function delay(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIsDarkMode}: {
   user: {username: string; isLoggedIn: boolean; avatar?: string}; 
@@ -365,17 +362,34 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
           console.log(`[笔记] 准备访问回收站: ${recycleBinUrl}`);
           
           // 获取现有回收站笔记
-          let recycleBinNotes = [];
+          let recycleBinNotes: Note[] = [];
           try {
             console.log('[笔记] 尝试获取现有回收站笔记');
             const response = await fetch(recycleBinUrl);
-            console.log(`[回收站] 未找到回收站笔记，状态码: ${response.status}`);
             if (response.ok) {
               recycleBinNotes = await response.json();
               console.log(`[笔记] 成功获取回收站笔记，当前数量: ${recycleBinNotes.length}`);
+            } else if (response.status === 404) {
+              console.log('[笔记] 回收站文件不存在，将创建新的回收站');
+              // 创建空的回收站文件
+              const emptyRecycleBin: Note[] = [];
+              const recycleBinLocalPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${user.username}_recycle_bin.json`;
+              await RNFetchBlob.fs.writeFile(recycleBinLocalPath, JSON.stringify(emptyRecycleBin), 'utf8');
+              const recycleBinFilePath = Platform.OS === 'android' ? `file://${recycleBinLocalPath}` : recycleBinLocalPath;
+              
+              const ossClient = new OSSClient({
+                accessKeyId: 'LTAI5tP7uEC3XekfkG4nRp5x',
+                accessKeySecret: 'yLvMJLA9MrfJy4nA0oXwuZSXKBaX2o',
+                bucket: 'native-123',
+                region: 'cn-beijing',
+              });
+              console.log(`[笔记] 开始上传到OSS: ${recycleBinObjectKey}`);
+              await ossClient.put(recycleBinObjectKey, recycleBinFilePath);
+              console.log('[笔记] 成功创建新的回收站文件');
             }
           } catch (error) {
-            console.log('[笔记] 回收站为空或不存在，将创建新的回收站');
+            console.error('[笔记] 访问回收站失败:', error);
+            throw new Error('访问回收站失败');
           }
           
           // 添加删除时间戳
@@ -404,9 +418,6 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
           const recycleBinFilePath = Platform.OS === 'android' ? `file://${recycleBinLocalPath}` : recycleBinLocalPath;
           console.log(`[笔记] 开始上传到OSS: ${recycleBinObjectKey}`);
           await ossClient.put(recycleBinObjectKey, recycleBinFilePath);
-          const waitTime = 10000; // 等待 10 秒，单位为毫秒
-          console.log(`[回收站] 开始等待 ${waitTime / 1000} 秒`);
-          await delay(waitTime);
           console.log(`[笔记] 笔记已成功移动到回收站: ${noteToMove.title}`);
         }
         
