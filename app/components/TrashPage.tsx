@@ -38,6 +38,7 @@ interface Note {
   fontSize?: number;
   textSegments?: { text: string; fontSize: number; isBold?: boolean }[];
   timestamp: Date;
+  isHidden?: boolean;
 }
 
 const TrashPage: React.FC<TrashPageProps> = React.memo(({
@@ -104,7 +105,10 @@ const TrashPage: React.FC<TrashPageProps> = React.memo(({
       if (response.ok) {
         const data = await response.json();
         console.log(`[回收站] 成功加载笔记，数量: ${data.length}`);
-        setNotes(data);
+        // 过滤掉 isHidden 为 true 的笔记
+        const visibleNotes = data.filter((note: Note) => !note.isHidden);
+        console.log(`[回收站] 过滤后可见笔记数量: ${visibleNotes.length}`);
+        setNotes(visibleNotes);
       } else {
         console.log(`[回收站] 未找到回收站笔记，状态码: ${response.status}`);
         setNotes([]);
