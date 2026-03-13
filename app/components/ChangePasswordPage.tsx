@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useState} from 'react';
 import {
   View,
   Text,
@@ -11,17 +11,25 @@ import {
   Platform,
   Modal,
 } from 'react-native';
-import { generateThemeColors } from '../theme/colors';
-import md5 from 'md5';
-import axios from 'axios';
+import {generateThemeColors} from '../theme/colors';
 
 interface ChangePasswordPageProps {
   username: string;
   theme: ReturnType<typeof generateThemeColors>;
   onBack: () => void;
+  onChangePassword: (
+    username: string,
+    currentPassword: string,
+    newPassword: string,
+  ) => Promise<void>;
 }
 
-const ChangePasswordPage: React.FC<ChangePasswordPageProps> = ({ username, theme, onBack }) => {
+const ChangePasswordPage: React.FC<ChangePasswordPageProps> = ({
+  username,
+  theme,
+  onBack,
+  onChangePassword,
+}) => {
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -33,91 +41,79 @@ const ChangePasswordPage: React.FC<ChangePasswordPageProps> = ({ username, theme
   const [errorTitle, setErrorTitle] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
-  const showError = (title: string, message: string) => {
+  const showError = (title: string, message: string): void => {
     setErrorTitle(title);
     setErrorMessage(message);
     setErrorModalVisible(true);
   };
 
-  const validateOldPassword = (text: string) => {
+  const validateOldPassword = (text: string): boolean => {
     if (!text.trim()) {
       setOldPasswordError('请输入当前密码');
       return false;
     }
+
     setOldPasswordError('');
     return true;
   };
 
-  const validateNewPassword = (text: string) => {
+  const validateNewPassword = (text: string): boolean => {
     if (!text.trim()) {
       setNewPasswordError('请输入新密码');
       return false;
     }
+
     if (text.length < 6) {
       setNewPasswordError('密码至少需要6个字符');
       return false;
     }
+
     if (text.length > 20) {
       setNewPasswordError('密码不能超过20个字符');
       return false;
     }
+
     setNewPasswordError('');
     return true;
   };
 
-  const validateConfirmPassword = (text: string) => {
+  const validateConfirmPassword = (text: string): boolean => {
     if (!text.trim()) {
       setConfirmPasswordError('请确认新密码');
       return false;
     }
+
     if (text !== newPassword) {
       setConfirmPasswordError('两次输入的密码不一致');
       return false;
     }
+
     setConfirmPasswordError('');
     return true;
   };
 
-  const handleChangePassword = async () => {
-    if (!validateOldPassword(oldPassword) || 
-        !validateNewPassword(newPassword) || 
-        !validateConfirmPassword(confirmPassword)) {
+  const handleChangePassword = async (): Promise<void> => {
+    if (
+      !validateOldPassword(oldPassword) ||
+      !validateNewPassword(newPassword) ||
+      !validateConfirmPassword(confirmPassword)
+    ) {
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const url = `https://native-123.oss-cn-beijing.aliyuncs.com/user-data/${username}.json`;
-      const res = await axios.get(url, {
-        timeout: 5000,
-      });
-      const userData = res.data;
-
-      // 将用户输入的当前密码进行MD5加密后再比较
-      const encryptedOldPassword = md5(oldPassword);
-      if (userData.password !== encryptedOldPassword) {
-        showError('修改失败', '当前密码错误');
-        return;
-      }
-
-      // 更新用户数据，对新密码进行MD5加密
-      const updatedUserData = {
-        ...userData,
-        password: md5(newPassword),
-        updatedAt: new Date().toISOString(),
-      };
-
-      // 上传更新后的用户数据
-      const uploadUrl = `https://native-123.oss-cn-beijing.aliyuncs.com/user-data/${username}.json`;
-      await axios.put(uploadUrl, updatedUserData);
-
+      await onChangePassword(username, oldPassword, newPassword);
       showError('修改成功', '密码已成功修改！(=✪ᆽ✪=)');
       setTimeout(() => {
         onBack();
       }, 2000);
     } catch (error) {
-      showError('修改失败', '发生未知错误，请稍后重试');
+      const message =
+        error instanceof Error ? error.message : '发生未知错误，请稍后重试';
+
+      showError('修改失败', message);
       console.error('Change password error:', error);
     } finally {
       setIsLoading(false);
@@ -125,13 +121,15 @@ const ChangePasswordPage: React.FC<ChangePasswordPageProps> = ({ username, theme
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.container, {backgroundColor: theme.background}]}>
       <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
-      <View style={[styles.header, { backgroundColor: theme.primary }]}>
+      <View style={[styles.header, {backgroundColor: theme.primary}]}>
         <TouchableOpacity style={styles.closeButton} onPress={onBack}>
-          <Text style={[styles.closeButtonText, { color: theme.surface }]}>×</Text>
+          <Text style={[styles.closeButtonText, {color: theme.surface}]}>×</Text>
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.surface }]}>修改密码</Text>
+        <Text style={[styles.headerTitle, {color: theme.surface}]}>
+          修改密码
+        </Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -140,16 +138,20 @@ const ChangePasswordPage: React.FC<ChangePasswordPageProps> = ({ username, theme
         style={styles.keyboardAvoidingView}>
         <View style={styles.content}>
           <View style={styles.inputContainer}>
-            <View style={[styles.inputWrapper, { 
-              backgroundColor: theme.surface,
-              borderColor: theme.border 
-            }]}>
+            <View
+              style={[
+                styles.inputWrapper,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                },
+              ]}>
               <Text style={styles.inputIcon}>🔒</Text>
               <TextInput
-                style={[styles.input, { color: theme.text }]}
+                style={[styles.input, {color: theme.text}]}
                 placeholder="当前密码"
                 value={oldPassword}
-                onChangeText={(text) => {
+                onChangeText={text => {
                   setOldPassword(text);
                   validateOldPassword(text);
                 }}
@@ -160,19 +162,25 @@ const ChangePasswordPage: React.FC<ChangePasswordPageProps> = ({ username, theme
               />
             </View>
             {oldPasswordError ? (
-              <Text style={[styles.errorText, { color: theme.error }]}>{oldPasswordError}</Text>
+              <Text style={[styles.errorText, {color: theme.error}]}>
+                {oldPasswordError}
+              </Text>
             ) : null}
 
-            <View style={[styles.inputWrapper, { 
-              backgroundColor: theme.surface,
-              borderColor: theme.border 
-            }]}>
+            <View
+              style={[
+                styles.inputWrapper,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                },
+              ]}>
               <Text style={styles.inputIcon}>🔒</Text>
               <TextInput
-                style={[styles.input, { color: theme.text }]}
+                style={[styles.input, {color: theme.text}]}
                 placeholder="新密码"
                 value={newPassword}
-                onChangeText={(text) => {
+                onChangeText={text => {
                   setNewPassword(text);
                   validateNewPassword(text);
                   validateConfirmPassword(confirmPassword);
@@ -184,19 +192,25 @@ const ChangePasswordPage: React.FC<ChangePasswordPageProps> = ({ username, theme
               />
             </View>
             {newPasswordError ? (
-              <Text style={[styles.errorText, { color: theme.error }]}>{newPasswordError}</Text>
+              <Text style={[styles.errorText, {color: theme.error}]}>
+                {newPasswordError}
+              </Text>
             ) : null}
 
-            <View style={[styles.inputWrapper, { 
-              backgroundColor: theme.surface,
-              borderColor: theme.border 
-            }]}>
+            <View
+              style={[
+                styles.inputWrapper,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                },
+              ]}>
               <Text style={styles.inputIcon}>🔒</Text>
               <TextInput
-                style={[styles.input, { color: theme.text }]}
+                style={[styles.input, {color: theme.text}]}
                 placeholder="确认新密码"
                 value={confirmPassword}
-                onChangeText={(text) => {
+                onChangeText={text => {
                   setConfirmPassword(text);
                   validateConfirmPassword(text);
                 }}
@@ -207,24 +221,31 @@ const ChangePasswordPage: React.FC<ChangePasswordPageProps> = ({ username, theme
               />
             </View>
             {confirmPasswordError ? (
-              <Text style={[styles.errorText, { color: theme.error }]}>{confirmPasswordError}</Text>
+              <Text style={[styles.errorText, {color: theme.error}]}>
+                {confirmPasswordError}
+              </Text>
             ) : null}
 
-            <Text style={[styles.passwordTip, { color: theme.primaryLight }]}>
+            <Text style={[styles.passwordTip, {color: theme.primaryLight}]}>
               密码长度至少为6位，建议使用字母、数字和符号的组合
             </Text>
 
             <TouchableOpacity
               style={[
-                styles.changeButton, 
-                { 
+                styles.changeButton,
+                {
                   backgroundColor: theme.primary,
-                  opacity: isLoading ? 0.7 : 1
-                }
+                  opacity: isLoading ? 0.7 : 1,
+                },
               ]}
               onPress={handleChangePassword}
-              disabled={isLoading || !oldPassword.trim() || !newPassword.trim() || !confirmPassword.trim()}>
-              <Text style={[styles.changeButtonText, { color: theme.surface }]}>
+              disabled={
+                isLoading ||
+                !oldPassword.trim() ||
+                !newPassword.trim() ||
+                !confirmPassword.trim()
+              }>
+              <Text style={[styles.changeButtonText, {color: theme.surface}]}>
                 {isLoading ? '修改中...' : '确认修改'}
               </Text>
             </TouchableOpacity>
@@ -234,18 +255,24 @@ const ChangePasswordPage: React.FC<ChangePasswordPageProps> = ({ username, theme
 
       <Modal
         visible={errorModalVisible}
-        transparent={true}
+        transparent
         animationType="fade"
         onRequestClose={() => setErrorModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.errorTitle, { color: theme.primaryDark }]}>{errorTitle}</Text>
-            <Text style={[styles.errorMessage, { color: theme.text }]}>{errorMessage}</Text>
+          <View style={[styles.modalContent, {backgroundColor: theme.surface}]}>
+            <Text style={[styles.errorTitle, {color: theme.primaryDark}]}>
+              {errorTitle}
+            </Text>
+            <Text style={[styles.errorMessage, {color: theme.text}]}>
+              {errorMessage}
+            </Text>
             <View style={styles.errorButtons}>
               <TouchableOpacity
-                style={[styles.errorButton, { backgroundColor: theme.primary }]}
+                style={[styles.errorButton, {backgroundColor: theme.primary}]}
                 onPress={() => setErrorModalVisible(false)}>
-                <Text style={[styles.errorButtonText, { color: theme.surface }]}>知道了</Text>
+                <Text style={[styles.errorButtonText, {color: theme.surface}]}>
+                  知道了
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -394,4 +421,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ChangePasswordPage; 
+export default ChangePasswordPage;

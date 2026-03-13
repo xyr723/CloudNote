@@ -18,11 +18,8 @@ import {
   StatusBar,
   Image,
   Alert,
-  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { OSSClient } from './app/utils/ossUpload';
-import RNFetchBlob from 'react-native-blob-util';
 
 import { NavigationContainer, useNavigation } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -33,20 +30,13 @@ import LoginPage from './app/components/LoginPage';
 import RegisterPage from './app/components/RegisterPage';
 import SettingsPage from './app/components/SettingsPage';
 import { generateThemeColors } from './app/theme/colors';
-import { NoteStorage } from './app/utils/storage';
-
-interface Note {
-  id: string;
-  title: string;
-  content: string;
-  timestamp: Date;
-  images?: string[];
-  fontSize?: number;
-  textSegments?: { text: string; fontSize: number }[];
-}
-
-type SortType = 'editDate' | 'createDate' | 'title';
-type SortOrder = 'asc' | 'desc';
+import type {
+  Note,
+  SortOrder,
+  SortType,
+  TextSegment,
+} from './src/entities/note/types';
+import { providerRegistry } from './src/providers/providerRegistry';
 
 type RootStackParamList = {
   Login: undefined;
@@ -71,7 +61,15 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
   const [isLoading, setIsLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [cachedNotes, setCachedNotes] = useState<Note[]>([]);
-  const [currentNote, setCurrentNote] = useState<{id?: string; title: string; content: string; images?: string[]; fontSize?: number; textSegments?: { text: string; fontSize: number }[]}>({
+  const [currentNote, setCurrentNote] = useState<{
+    id?: string;
+    title: string;
+    content: string;
+    images?: string[];
+    audios?: string[];
+    fontSize?: number;
+    textSegments?: TextSegment[];
+  }>({
     title: '',
     content: '',
   });
@@ -90,6 +88,9 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
   const [showSaveSuccessModal, setShowSaveSuccessModal] = useState(false);
   const [showSaveErrorModal, setShowSaveErrorModal] = useState(false);
   const [showSyncErrorModal, setShowSyncErrorModal] = useState(false);
+  const authProvider = useMemo(() => providerRegistry.getAuthProvider(), []);
+  const noteSyncProvider = useMemo(() => providerRegistry.getNoteSyncProvider(), []);
+  const trashProvider = useMemo(() => providerRegistry.getTrashProvider(), []);
 
   const theme = useMemo(() => {
     try {
@@ -125,12 +126,12 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
   // 预加载笔记数据
   const preloadNotes = useCallback(async (username: string) => {
     try {
-      const loadedNotes = await NoteStorage.loadNotes(username);
+      const loadedNotes = await noteSyncProvider.pullNotes(username);
       setCachedNotes(loadedNotes);
     } catch (error) {
       console.error('预加载笔记失败:', error);
     }
-  }, []);
+  }, [noteSyncProvider]);
 
   // 在用户登录时预加载笔记
   useEffect(() => {
@@ -153,7 +154,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
             return;
           }
 
-          const loadedNotes = await NoteStorage.loadNotes(user.username);
+          const loadedNotes = await noteSyncProvider.pullNotes(user.username);
           
           if (loadedNotes.length === 0) {
             const welcomeNote: Note = {
@@ -163,7 +164,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
               timestamp: new Date(),
             };
             setNotes([welcomeNote]);
-            await NoteStorage.saveNotes(user.username, [welcomeNote]);
+            await noteSyncProvider.pushNotes(user.username, [welcomeNote]);
           } else {
             setNotes(loadedNotes);
           }
@@ -176,7 +177,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
     };
 
     loadNotes();
-  }, [user.isLoggedIn, user.username, cachedNotes]);
+  }, [user.isLoggedIn, user.username, cachedNotes, noteSyncProvider]);
 
   // 当笔记发生变化时自动保存
   useEffect(() => {
@@ -192,11 +193,13 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
 
       if (hasChanges) {
         console.log(`笔记变更，正在保存: ${user.username}, 笔记数量: ${notes.length}`);
-        NoteStorage.saveNotes(user.username, notes);
+        void noteSyncProvider.pushNotes(user.username, notes).catch(error => {
+          console.error('自动保存笔记失败:', error);
+        });
         setCachedNotes(notes);
       }
     }
-  }, [notes, user.isLoggedIn, user.username, cachedNotes]);
+  }, [notes, user.isLoggedIn, user.username, cachedNotes, noteSyncProvider]);
 
   // 测试AsyncStorage是否正常工作
   useEffect(() => {
@@ -221,19 +224,15 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
 
   const handleLogout = async () => {
     try {
-      // 先关闭确认弹窗
       setShowLogoutConfirm(false);
-      // 立即关闭个人资料页面
       setShowProfile(false);
-      // 保存笔记
+
       if (user.username) {
-        await NoteStorage.saveNotes(user.username, notes);
-        // 清除头像缓存
-        await NoteStorage.clearAvatar(user.username);
+        await noteSyncProvider.pushNotes(user.username, notes);
       }
-      // 立即重置用户状态
+
+      await authProvider.signOut();
       setUser({username: '', isLoggedIn: false});
-      // 导航到登录页面
       navigation.navigate('Login');
     } catch (error) {
       console.error('Logout error:', error);
@@ -253,6 +252,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
                   content: currentNote.content, 
                   timestamp: new Date(), 
                   images: currentNote.images, 
+                  audios: currentNote.audios,
                   fontSize: currentNote.fontSize,
                   textSegments: currentNote.textSegments
                 }
@@ -265,6 +265,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
             content: currentNote.content,
             timestamp: new Date(),
             images: currentNote.images,
+            audios: currentNote.audios,
             fontSize: currentNote.fontSize,
             textSegments: currentNote.textSegments,
           };
@@ -278,7 +279,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
         // 异步保存到存储
         if (user.username) {
           try {
-            await NoteStorage.saveNotes(user.username, updatedNotes);
+            await noteSyncProvider.pushNotes(user.username, updatedNotes);
             setShowSaveSuccessModal(true);
             setTimeout(() => {
               setShowSaveSuccessModal(false);
@@ -302,7 +303,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
         }, 3000);
       }
     }
-  }, [currentNote, isEditing, notes, user.username]);
+  }, [currentNote, isEditing, notes, user.username, noteSyncProvider]);
 
   const handleCloseModal = () => {
     setModalVisible(false);
@@ -316,6 +317,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
       title: note.title,
       content: note.content,
       images: note.images,
+      audios: note.audios,
       fontSize: note.fontSize,
       textSegments: note.textSegments,
     });
@@ -330,110 +332,34 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
   }, []);
 
   const confirmDelete = async () => {
-    console.log(`[笔记] 确认删除操作，笔记ID: ${noteToDelete}`);
-    if (noteToDelete) {
-      try {
-        console.log(`[笔记] 开始执行删除操作，笔记ID: ${noteToDelete}`);
-        // 获取要删除的笔记
-        const noteToMove = notes.find(note => note.id === noteToDelete);
-        if (!noteToMove) {
-          console.error('[笔记] 未找到要移动的笔记，ID:', noteToDelete);
-          return;
-        }
-        console.log(`[笔记] 找到要移动的笔记: ${noteToMove.title}`);
+    if (!noteToDelete || !user.username) {
+      return;
+    }
 
-        // 从本地状态中删除笔记
-        const updatedNotes = notes.filter(note => note.id !== noteToDelete);
-        console.log(`[笔记] 从本地状态移除笔记，剩余笔记数: ${updatedNotes.length}`);
-        setNotes(updatedNotes);
-        setDeleteModalVisible(false);
-        setNoteToDelete(null);
-        
-        // 保存更新后的笔记到云端
-        if (user.username) {
-          console.log(`[笔记] 开始更新用户笔记文件，用户名: ${user.username}`);
-          // 1. 更新用户笔记文件
-          await NoteStorage.saveNotes(user.username, updatedNotes);
-          console.log('[笔记] 用户笔记文件更新成功');
-          
-          // 2. 将笔记添加到回收站
-          const recycleBinObjectKey = `recycle-bin/${user.username}.json`;
-          const recycleBinUrl = `https://native-123.oss-cn-beijing.aliyuncs.com/${recycleBinObjectKey}`;
-          console.log(`[笔记] 准备访问回收站: ${recycleBinUrl}`);
-          
-          // 获取现有回收站笔记
-          let recycleBinNotes: Note[] = [];
-          try {
-            console.log('[笔记] 尝试获取现有回收站笔记');
-            const response = await fetch(recycleBinUrl);
-            if (response.ok) {
-              recycleBinNotes = await response.json();
-              console.log(`[笔记] 成功获取回收站笔记，当前数量: ${recycleBinNotes.length}`);
-            } else if (response.status === 404) {
-              console.log('[笔记] 回收站文件不存在，将创建新的回收站');
-              // 创建空的回收站文件
-              const emptyRecycleBin: Note[] = [];
-              const recycleBinLocalPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${user.username}_recycle_bin.json`;
-              await RNFetchBlob.fs.writeFile(recycleBinLocalPath, JSON.stringify(emptyRecycleBin), 'utf8');
-              const recycleBinFilePath = Platform.OS === 'android' ? `file://${recycleBinLocalPath}` : recycleBinLocalPath;
-              
-              const ossClient = new OSSClient({
-"[REDACTED_ALIYUN_ACCESS_KEY_ID]",
-"[REDACTED_ALIYUN_ACCESS_KEY_SECRET]",
-                bucket: 'native-123',
-                region: 'cn-beijing',
-              });
-              console.log(`[笔记] 开始上传到OSS: ${recycleBinObjectKey}`);
-              await ossClient.put(recycleBinObjectKey, recycleBinFilePath);
-              console.log('[笔记] 成功创建新的回收站文件');
-            }
-          } catch (error) {
-            console.error('[笔记] 访问回收站失败:', error);
-            throw new Error('访问回收站失败');
-          }
-          
-          // 添加删除时间戳
-          const noteWithDeletedAt = {
-            ...noteToMove,
-            deletedAt: new Date().toISOString()
-          };
-          console.log(`[笔记] 为笔记添加删除时间戳: ${noteWithDeletedAt.deletedAt}`);
-          
-          // 将笔记添加到回收站
-          recycleBinNotes.push(noteWithDeletedAt);
-          console.log(`[笔记] 笔记已添加到回收站，回收站笔记总数: ${recycleBinNotes.length}`);
-          
-          // 保存到回收站
-          console.log('[笔记] 开始保存回收站内容到OSS');
-          const ossClient = new OSSClient({
-"[REDACTED_ALIYUN_ACCESS_KEY_ID]",
-"[REDACTED_ALIYUN_ACCESS_KEY_SECRET]",
-            bucket: 'native-123',
-            region: 'cn-beijing',
-          });
-          
-          const recycleBinLocalPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${user.username}_recycle_bin.json`;
-          console.log(`[笔记] 准备写入本地临时文件: ${recycleBinLocalPath}`);
-          await RNFetchBlob.fs.writeFile(recycleBinLocalPath, JSON.stringify(recycleBinNotes), 'utf8');
-          const recycleBinFilePath = Platform.OS === 'android' ? `file://${recycleBinLocalPath}` : recycleBinLocalPath;
-          console.log(`[笔记] 开始上传到OSS: ${recycleBinObjectKey}`);
-          await ossClient.put(recycleBinObjectKey, recycleBinFilePath);
-          console.log(`[笔记] 笔记已成功移动到回收站: ${noteToMove.title}`);
-        }
-        
-        // 显示删除成功弹窗
-        console.log('[笔记] 显示删除成功提示');
-        setDeleteSuccessModalVisible(true);
-        
-        // 1.5秒后自动关闭弹窗
-        setTimeout(() => {
-          console.log('[笔记] 关闭删除成功提示');
-          setDeleteSuccessModalVisible(false);
-        }, 1500);
-      } catch (error) {
-        console.error('[笔记] 移动笔记到回收站失败:', error);
-        Alert.alert('错误', '移动笔记到回收站失败');
+    try {
+      const noteToMove = notes.find(note => note.id === noteToDelete);
+
+      if (!noteToMove) {
+        console.error('[笔记] 未找到要移动的笔记，ID:', noteToDelete);
+        return;
       }
+
+      const updatedNotes = notes.filter(note => note.id !== noteToDelete);
+      await noteSyncProvider.pushNotes(user.username, updatedNotes);
+      await trashProvider.moveToTrash(user.username, noteToMove);
+
+      setNotes(updatedNotes);
+      setCachedNotes(updatedNotes);
+      setDeleteModalVisible(false);
+      setNoteToDelete(null);
+      setDeleteSuccessModalVisible(true);
+
+      setTimeout(() => {
+        setDeleteSuccessModalVisible(false);
+      }, 1500);
+    } catch (error) {
+      console.error('[笔记] 移动笔记到回收站失败:', error);
+      Alert.alert('错误', '移动笔记到回收站失败');
     }
   };
 
@@ -479,7 +405,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
     
     setIsRefreshing(true);
     try {
-      const loadedNotes = await NoteStorage.loadNotes(user.username);
+      const loadedNotes = await noteSyncProvider.pullNotes(user.username);
       setNotes(loadedNotes);
       setCachedNotes(loadedNotes);
     } catch (error) {
@@ -487,7 +413,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
     } finally {
       setIsRefreshing(false);
     }
-  }, [user.username]);
+  }, [user.username, noteSyncProvider]);
 
   const renderNoteItem = ({item}: {item: Note}) => {
     // 提取第一张图片（如果有）
@@ -757,7 +683,9 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
           username={user.username}
           avatar={user.avatar}
           notesCount={notes.length}
-          onLogout={() => setShowLogoutConfirm(true)}
+          onLogout={async () => {
+            setShowLogoutConfirm(true);
+          }}
           onClose={() => setShowProfile(false)}
           onOpenSettings={handleOpenSettings}
           onUpdateAvatar={handleUpdateAvatar}
@@ -816,6 +744,7 @@ function AppContent({user, setUser, themeColor, setThemeColor, isDarkMode, setIs
           onChangeTitle={(text) => setCurrentNote({...currentNote, title: text})}
           onChangeContent={(text) => setCurrentNote({...currentNote, content: text})}
           onChangeImages={(images) => setCurrentNote({...currentNote, images})}
+          onChangeAudios={(audios) => setCurrentNote({...currentNote, audios})}
           onChangeFontSize={(size) => setCurrentNote({...currentNote, fontSize: size})}
           onChangeTextSegments={(segments) => setCurrentNote({...currentNote, textSegments: segments})}
           theme={theme}
@@ -871,6 +800,7 @@ function App(): React.JSX.Element {
     username: '',
     isLoggedIn: false
   });
+  const authProvider = useMemo(() => providerRegistry.getAuthProvider(), []);
 
   const theme = useMemo(() => generateThemeColors(themeColor, isDarkMode), [themeColor, isDarkMode]);
 
@@ -878,12 +808,13 @@ function App(): React.JSX.Element {
   useEffect(() => {
     const checkLoginState = async () => {
       try {
-        const loginState = await NoteStorage.getLoginState();
-        if (loginState) {
+        const session = await authProvider.getSession();
+        if (session.isLoggedIn && session.user) {
           console.log('检测到已保存的登录状态，自动登录');
           setUser({
-            username: loginState.username,
-            isLoggedIn: true
+            username: session.user.username,
+            isLoggedIn: true,
+            avatar: session.user.avatar,
           });
         }
       } catch (error) {
@@ -892,11 +823,12 @@ function App(): React.JSX.Element {
     };
 
     checkLoginState();
-  }, []);
+  }, [authProvider]);
 
   return (
     <NavigationContainer>
       <Stack.Navigator
+        key={user.isLoggedIn ? 'authenticated' : 'guest'}
         initialRouteName={user.isLoggedIn ? "Home" : "Login"}
         screenOptions={{
           headerShown: false,
@@ -907,16 +839,16 @@ function App(): React.JSX.Element {
           name="Login" 
           component={({ navigation }: { navigation: NavigationProp }) => (
             <LoginPage
-              onLogin={async (username, _password) => {
-                // 保存登录状态
-                await NoteStorage.saveLoginState(username);
-                // 获取用户头像
-                const avatarUrl = await NoteStorage.getAvatar(username);
-                // 先导航到主页
+              onLogin={async (username, password) => {
+                const account = await authProvider.signIn({username, password});
                 navigation.navigate('Home');
-                // 然后在下一个事件循环中更新用户状态
+
                 setTimeout(() => {
-                  setUser({username, isLoggedIn: true, avatar: avatarUrl || undefined});
+                  setUser({
+                    username: account.username,
+                    isLoggedIn: true,
+                    avatar: account.avatar,
+                  });
                 }, 0);
               }}
               onRegister={() => navigation.navigate('Register')}
@@ -928,10 +860,11 @@ function App(): React.JSX.Element {
           name="Register" 
           component={({ navigation }: { navigation: NavigationProp }) => (
             <RegisterPage
-              onRegister={() => navigation.navigate('Login')}
+              onRegister={async (username, password) => {
+                await authProvider.signUp({username, password});
+              }}
               onBack={() => navigation.navigate('Login')}
               theme={theme}
-              navigation={navigation}
             />
           )}
         />

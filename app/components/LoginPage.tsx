@@ -11,13 +11,10 @@ import {
   Platform,
   Modal,
 } from 'react-native';
-import { WebView } from 'react-native-webview';
-import axios from 'axios';
 import { generateThemeColors } from '../theme/colors';
-import md5 from 'md5';
 
 interface LoginPageProps {
-  onLogin: (username: string, password: string) => void;
+  onLogin: (username: string, password: string) => Promise<void>;
   onRegister: () => void;
   theme: ReturnType<typeof generateThemeColors>;
 }
@@ -31,7 +28,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin: onLoginProp, onRegister,
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [errorTitle, setErrorTitle] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [showOSSConsole, setShowOSSConsole] = useState(false);
 
   const showError = (title: string, message: string) => {
     setErrorTitle(title);
@@ -78,74 +74,19 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin: onLoginProp, onRegister,
       return;
     }
 
-    // 检查是否是管理员账号
-    if (username === 'admin' && password === 'admin123') {
-      setShowOSSConsole(true);
-      return;
-    }
-
     setIsLoading(true);
     try {
-      const url = `https://native-123.oss-cn-beijing.aliyuncs.com/user-data/${username}.json`;
-      const res = await axios.get(url, {
-        timeout: 5000,
-      });
-      const userData = res.data;
-
-      const encryptedPassword = md5(password);
-      if (userData.password === encryptedPassword) {
-        console.log('登录成功');
-        onLoginProp(username, password);
-      } else {
-        showError('登录失败', '密码错误，请重试 (｡•́︿•̀｡)');
-      }
+      await onLoginProp(username, password);
     } catch (error) {
-      if (axios.isAxiosError(error)) {
-        if (error.code === 'ECONNABORTED') {
-          showError('登录失败', '网络请求超时，请检查网络连接 (｡•́︿•̀｡)');
-        } else if (error.response?.status === 404) {
-          showError('登录失败', '用户不存在 (｡•́︿•̀｡)');
-        } else {
-          showError('登录失败', '网络连接异常，请稍后重试 (｡•́︿•̀｡)');
-        }
-      } else {
-        showError('登录失败', '发生未知错误，请稍后重试 (｡•́︿•̀｡)');
-      }
+      const message =
+        error instanceof Error ? error.message : '发生未知错误，请稍后重试 (｡•́︿•̀｡)';
+
+      showError('登录失败', message);
       console.error('Login error:', error);
     } finally {
       setIsLoading(false);
     }
   };
-
-  if (showOSSConsole) {
-    return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-        <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
-        <View style={[styles.header, { backgroundColor: theme.primary }]}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => {
-              setShowOSSConsole(false);
-              setUsername('');
-              setPassword('');
-              setUsernameError('');
-              setPasswordError('');
-            }}
-          >
-            <Text style={[styles.backButtonText, { color: theme.surface }]}>返回</Text>
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.surface }]}>OSS控制台</Text>
-        </View>
-        <WebView
-          source={{ uri: 'https://oss.console.aliyun.com/bucket/oss-cn-beijing/native-123/object?path=note-audios%2F' }}
-          style={styles.webview}
-          javaScriptEnabled={true}
-          domStorageEnabled={true}
-          startInLoadingState={true}
-        />
-      </SafeAreaView>
-    );
-  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>

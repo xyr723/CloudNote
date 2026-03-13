@@ -14,14 +14,14 @@ import {
 import { generateThemeColors } from '../theme/colors';
 import * as ImagePicker from 'react-native-image-picker';
 import ChangePasswordPage from './ChangePasswordPage';
-import { NoteStorage } from '../utils/storage';
 import TrashPage from './TrashPage';
+import {providerRegistry} from '../../src/providers/providerRegistry';
 
 interface ProfilePageProps {
   username: string;
   avatar?: string;
   notesCount: number;
-  onLogout: () => void;
+  onLogout: () => Promise<void>;
   onClose: () => void;
   onOpenSettings: () => void;
   onUpdateAvatar: (avatarUri: string) => void;
@@ -42,6 +42,7 @@ const ProfilePage: React.FC<ProfilePageProps> = React.memo(({
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [showTrash, setShowTrash] = useState(false);
+  const authProvider = useMemo(() => providerRegistry.getAuthProvider(), []);
 
   const handleImagePicker = useCallback(() => {
     setShowConfirmModal(true);
@@ -74,11 +75,10 @@ const ProfilePage: React.FC<ProfilePageProps> = React.memo(({
       }
       if (response.assets && response.assets[0].uri) {
         try {
-          console.log('选择的图片 URI:', response.assets[0].uri);
-          // 上传头像到云端
-          const avatarUrl = await NoteStorage.saveAvatar(username, response.assets[0].uri);
-          console.log('上传后的头像 URL:', avatarUrl);
-          // 更新头像显示
+          const avatarUrl = await authProvider.updateAvatar(
+            username,
+            response.assets[0].uri,
+          );
           onUpdateAvatar(avatarUrl);
         } catch (error) {
           console.error('上传头像失败:', error);
@@ -97,19 +97,31 @@ const ProfilePage: React.FC<ProfilePageProps> = React.memo(({
         }
       }
     });
-  }, [username, onUpdateAvatar]);
+  }, [authProvider, onUpdateAvatar, username]);
 
   const handleLogout = useCallback(async () => {
     try {
-      // 清除登录状态
-      await NoteStorage.clearLoginState();
-      // 调用父组件的登出处理函数
-      onLogout();
+      await onLogout();
     } catch (error) {
       console.error('登出失败:', error);
       Alert.alert('错误', '登出时发生错误，请重试');
     }
   }, [onLogout]);
+
+  const handleChangePassword = useCallback(
+    async (
+      targetUsername: string,
+      currentPassword: string,
+      newPassword: string,
+    ) => {
+      await authProvider.updatePassword({
+        username: targetUsername,
+        currentPassword,
+        newPassword,
+      });
+    },
+    [authProvider],
+  );
 
   const handleOpenChangePassword = useCallback(() => {
     setShowChangePassword(true);
@@ -133,7 +145,12 @@ const ProfilePage: React.FC<ProfilePageProps> = React.memo(({
 
   const avatarSource = useMemo(() => {
     if (!avatar) return undefined;
-    return { uri: avatar + '?timestamp=' + Date.now() };
+    if (/^https?:\/\//.test(avatar)) {
+      const separator = avatar.includes('?') ? '&' : '?';
+      return {uri: `${avatar}${separator}timestamp=${Date.now()}`};
+    }
+
+    return {uri: avatar};
   }, [avatar]);
 
   return (
@@ -229,6 +246,7 @@ const ProfilePage: React.FC<ProfilePageProps> = React.memo(({
             username={username}
             theme={theme}
             onBack={handleCloseChangePassword}
+            onChangePassword={handleChangePassword}
           />
         </Modal>
 
@@ -266,6 +284,7 @@ const ProfilePage: React.FC<ProfilePageProps> = React.memo(({
         onRequestClose={handleCloseTrash}
         transparent={false}>
         <TrashPage
+          username={username}
           onClose={handleCloseTrash}
           theme={theme}
         />
