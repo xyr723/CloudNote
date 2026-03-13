@@ -19,9 +19,9 @@ import {
 import { generateThemeColors } from '../theme/colors';
 import * as ImagePicker from 'react-native-image-picker';
 import RNFetchBlob from 'react-native-blob-util';
-import { OSSClient } from '../utils/ossUpload';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import { completeTextWithLLM } from '../utils/chatComplete';
+import { providerRegistry } from '../../src/providers/providerRegistry';
 
 interface EditNotePageProps {
   visible: boolean;
@@ -87,49 +87,36 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   const [showSaveErrorModal, setShowSaveErrorModal] = useState(false);
 
   const audioRecorderPlayer = useMemo(() => new AudioRecorderPlayer(), []);
+  const attachmentProvider = useMemo(() => providerRegistry.getAttachmentProvider(), []);
 
-  const uploadAudioToOSS = useCallback(async (audioUri: string, noteId: string | undefined, audioIndex: number): Promise<string> => {
-    // 使用临时ID或实际ID
+  const storeAudioAttachment = useCallback(async (
+    audioUri: string,
+    noteId: string | undefined,
+    audioIndex: number,
+  ): Promise<string> => {
     const effectiveNoteId = noteId || tempNoteId;
 
-    const client = new OSSClient({
-      accessKeyId: 'LTAI5tP7uEC3XekfkG4nRp5x',
-      accessKeySecret: 'yLvMJLA9MrfJy4nA0oXwuZSXKBaX2o',
-      bucket: 'native-123',
-      region: 'cn-beijing',
+    return attachmentProvider.saveAttachment({
+      uri: audioUri,
+      noteId: effectiveNoteId,
+      kind: 'audio',
+      index: audioIndex,
+      preferredExtension: 'mp3',
     });
-
-    try {
-      const timestamp = Date.now();
-      const objectKey = `note-audios/${effectiveNoteId}_${timestamp}_${audioIndex}.mp3`;
-      const localPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${effectiveNoteId}_${timestamp}_${audioIndex}.mp3`;
-
-      // 复制音频到本地临时文件
-      await RNFetchBlob.fs.cp(audioUri, localPath);
-      
-      const filePath = Platform.OS === 'android' ? `file://${localPath}` : localPath;
-      await client.put(objectKey, filePath);
-      
-      // 获取音频的 OSS URL，添加时间戳参数避免缓存
-      const audioUrl = `https://native-123.oss-cn-beijing.aliyuncs.com/${objectKey}?t=${timestamp}`;
-      
-      return audioUrl;
-    } catch (error) {
-      console.error('❌ 音频上传到云端失败:', error);
-      throw error;
-    }
-  }, [tempNoteId]);
+  }, [attachmentProvider, tempNoteId]);
 
   // const doChatComplete = useCallback(async);
 
   // 当note改变时更新状态
   useEffect(() => {
-    if (note.images) {
-      setImages(note.images);
-    }
+    setImages(note.images || []);
+    setAudios(note.audios || []);
     setContent(note.content);
     setFontSize(note.fontSize || 16);
-  }, [note.content, note.images, note.fontSize]);
+    setTextSegments(
+      note.textSegments || [{ text: note.content, fontSize: note.fontSize || 16, isBold: false }]
+    );
+  }, [note.audios, note.content, note.fontSize, note.images, note.textSegments]);
 
   const syncImagesAndContent = useCallback(() => {
     console.log("Current images:", images);
@@ -209,50 +196,20 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
     onChangeFontSize?.(newSize);
   };
 
-  const getImagePath = useCallback((imageIndex: number): string => {
-    const timestamp = Date.now();
-    const basePath = `${RNFetchBlob.fs.dirs.DocumentDir}/images`;
-    const fileName = `${note.id}_${timestamp}_${imageIndex}.jpg`;
-    return `${basePath}/${fileName}`;
-  }, [note.id]);
-
-  const uploadImageToOSS = async (imageUri: string, noteId: string | undefined, imageIndex: number): Promise<string> => {
-    // 使用临时ID或实际ID
+  const storeImageAttachment = useCallback(async (
+    imageUri: string,
+    noteId: string | undefined,
+    imageIndex: number,
+  ): Promise<string> => {
     const effectiveNoteId = noteId || tempNoteId;
 
-    const client = new OSSClient({
-      accessKeyId: 'LTAI5tP7uEC3XekfkG4nRp5x',
-      accessKeySecret: 'yLvMJLA9MrfJy4nA0oXwuZSXKBaX2o',
-      bucket: 'native-123',
-      region: 'cn-beijing',
+    return attachmentProvider.saveAttachment({
+      uri: imageUri,
+      noteId: effectiveNoteId,
+      kind: 'image',
+      index: imageIndex,
     });
-
-    try {
-      const timestamp = Date.now();
-      const objectKey = `note-images/${effectiveNoteId}_${timestamp}_${imageIndex}.jpg`;
-      const localPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${effectiveNoteId}_${timestamp}_${imageIndex}.jpg`;
-
-      // 复制图片到本地临时文件
-      await RNFetchBlob.fs.cp(imageUri, localPath);
-      
-      const filePath = Platform.OS === 'android' ? `file://${localPath}` : localPath;
-      await client.put(objectKey, filePath);
-      
-      // 获取图片的 OSS URL，添加时间戳参数避免缓存
-      const imageUrl = `https://native-123.oss-cn-beijing.aliyuncs.com/${objectKey}?t=${timestamp}`;
-      
-      // 验证 URL 是否可以访问
-      const response = await fetch(imageUrl);
-      if (!response.ok) {
-        throw new Error(`图片 URL 无法访问: ${response.status}`);
-      }
-      
-      return imageUrl;
-    } catch (error) {
-      console.error('❌ 图片上传到云端失败:', error);
-      throw error;
-    }
-  };
+  }, [attachmentProvider, tempNoteId]);
 
   const handleImagePicker = () => {
     console.log("开始选择图片");
@@ -283,9 +240,8 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
             if (asset.uri) {
               console.log("新图片路径:", asset.uri);
               
-              // 上传图片到 OSS
-              const imageUrl = await uploadImageToOSS(asset.uri, note.id, newImages.length);
-              console.log("上传后的图片 URL:", imageUrl);
+              const imageUrl = await storeImageAttachment(asset.uri, note.id, newImages.length);
+              console.log("保存后的图片 URL:", imageUrl);
               
               newImages.push(imageUrl);
               
@@ -334,9 +290,8 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
         try {
           const newImage = response.assets[0].uri;
           
-          // 上传图片到 OSS
-          const imageUrl = await uploadImageToOSS(newImage, note.id, images.length);
-          console.log("上传后的图片 URL:", imageUrl);
+          const imageUrl = await storeImageAttachment(newImage, note.id, images.length);
+          console.log("保存后的图片 URL:", imageUrl);
           
           const newImages = [...images, imageUrl];
           setImages(newImages);
@@ -363,20 +318,6 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
       
       // 设置用户删除标志
       setIsUserDelete(true);
-      
-      // 删除本地图片文件
-      const imagePath = getImagePath(imageIndex);
-      console.log("尝试删除图片，路径:", imagePath);
-      
-      // 检查文件是否存在
-      const exists = await RNFetchBlob.fs.exists(imagePath);
-      if (!exists) {
-        console.log("图片文件不存在，跳过删除");
-      } else {
-        console.log("图片文件存在，开始删除");
-        await RNFetchBlob.fs.unlink(imagePath);
-        console.log("图片删除成功");
-      }
       
       // 更新图片数组 - 移除指定索引的图片
       const newImages = [...images];
@@ -476,8 +417,9 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
       const audioDir = `${RNFetchBlob.fs.dirs.DocumentDir}/audios`;
       try {
         await RNFetchBlob.fs.mkdir(audioDir);
-      } catch (error: any) {
-        if (!error.message.includes('already exists')) {
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : '';
+        if (!message.includes('already exists')) {
           throw error;
         }
       }
@@ -526,9 +468,8 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
         throw new Error('录音文件不存在');
       }
 
-      // 上传录音文件
-      const audioUrl = await uploadAudioToOSS(currentAudioPath, note.id, audios.length);
-      console.log('上传后的音频 URL:', audioUrl);
+      const audioUrl = await storeAudioAttachment(currentAudioPath, note.id, audios.length);
+      console.log('保存后的音频 URL:', audioUrl);
       
       const newAudios = [...audios, audioUrl];
       setAudios(newAudios);
@@ -549,7 +490,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
       setCurrentAudioPath(null);
       Alert.alert('错误', '停止录音失败');
     }
-  }, [isRecording, note.id, audios, cursorPosition, content, onChangeAudios, onChangeContent, audioRecorderPlayer, currentAudioPath, uploadAudioToOSS]);
+  }, [isRecording, note.id, audios, cursorPosition, content, onChangeAudios, onChangeContent, audioRecorderPlayer, currentAudioPath, storeAudioAttachment]);
 
   // 组件卸载时停止录音
   useEffect(() => {
@@ -727,16 +668,12 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
               return (
                 <View key={`image-${imageIndex}-${index}`} style={styles.imageContainer}>
                   <Image
-                    source={{ uri: images[imageIndex] + '?t=' + Date.now() }}
+                    source={{ uri: images[imageIndex] }}
                     style={[styles.noteImage, { backgroundColor: '#f0f0f0' }]}
                     resizeMode="contain"
                     onError={(error) => {
                       console.log("图片加载错误:", error.nativeEvent.error);
                       console.log("图片URL:", images[imageIndex]);
-                      // 尝试重新加载图片
-                      const newImages = [...images];
-                      newImages[imageIndex] = images[imageIndex] + '?t=' + Date.now();
-                      setImages(newImages);
                     }}
                     onLoadStart={() => console.log("开始加载图片:", images[imageIndex])}
                     onLoad={() => console.log("图片加载成功:", images[imageIndex])}
