@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, {useState} from 'react';
 import {
   View,
   Text,
@@ -11,32 +11,19 @@ import {
   Platform,
   Modal,
 } from 'react-native';
-import { uploadJsonToOSS, checkUsernameExists } from '../utils/ossUpload';
-import { generateThemeColors } from '../theme/colors';
-import md5 from 'md5';
-import { OSSClient } from '../utils/ossUpload';
-import RNFetchBlob from 'react-native-blob-util';
-
-interface Note {
-  id: string;
-  title: string;
-  content: string;
-  timestamp: Date;
-  images?: string[];
-  fontSize?: number;
-  textSegments?: { text: string; fontSize: number }[];
-  deletedAt?: string;
-  isHidden?: boolean;
-}
+import {generateThemeColors} from '../theme/colors';
 
 interface RegisterPageProps {
-  onRegister: (username: string, password: string) => void;
+  onRegister: (username: string, password: string) => Promise<void>;
   onBack: () => void;
   theme: ReturnType<typeof generateThemeColors>;
-  navigation: any;
 }
 
-const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onBack, theme, navigation: _navigation }) => {
+const RegisterPage: React.FC<RegisterPageProps> = ({
+  onRegister,
+  onBack,
+  theme,
+}) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -49,167 +36,144 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onBack, theme, 
   const [errorMessage, setErrorMessage] = useState('');
   const [countdown, setCountdown] = useState(3);
 
-  const showError = (title: string, message: string) => {
+  const showError = (title: string, message: string): void => {
     setErrorTitle(title);
     setErrorMessage(message);
     setErrorModalVisible(true);
-    if (title === '注册成功') {
-      setCountdown(3);
-      const timer = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
+
+    if (title !== '注册成功') {
+      return;
     }
+
+    setCountdown(3);
+    const timer = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+
+        return prev - 1;
+      });
+    }, 1000);
   };
 
-  const validateUsername = (text: string) => {
+  const validateUsername = (text: string): boolean => {
     if (!text.trim()) {
       setUsernameError('用户名不能为空');
       return false;
     }
+
     if (text.length < 3) {
       setUsernameError('用户名至少需要3个字符');
       return false;
     }
+
     if (text.length > 20) {
       setUsernameError('用户名不能超过20个字符');
       return false;
     }
+
     setUsernameError('');
     return true;
   };
 
-  const validatePassword = (text: string) => {
+  const validatePassword = (text: string): boolean => {
     if (!text.trim()) {
       setPasswordError('密码不能为空');
       return false;
     }
+
     if (text.length < 6) {
       setPasswordError('密码至少需要6个字符');
       return false;
     }
+
     if (text.length > 20) {
       setPasswordError('密码不能超过20个字符');
       return false;
     }
+
     setPasswordError('');
     return true;
   };
 
-  const validateConfirmPassword = (text: string) => {
+  const validateConfirmPassword = (text: string): boolean => {
     if (!text.trim()) {
       setConfirmPasswordError('请确认密码');
       return false;
     }
+
     if (text !== password) {
       setConfirmPasswordError('两次输入的密码不一致');
       return false;
     }
+
     setConfirmPasswordError('');
     return true;
   };
 
-  const handleRegister = async () => {
-    if (!validateUsername(username) || 
-        !validatePassword(password) || 
-        !validateConfirmPassword(confirmPassword)) {
+  const handleRegister = async (): Promise<void> => {
+    if (
+      !validateUsername(username) ||
+      !validatePassword(password) ||
+      !validateConfirmPassword(confirmPassword)
+    ) {
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // 检查用户名是否已存在
-      const exists = await checkUsernameExists(username);
-      if (exists) {
-        showError('注册失败', '该用户名已被注册，请更换其他用户名');
-        setIsLoading(false);
-        return;
-      }
-
-      // 用户注册信息对象
-      const userData = {
-        username,
-        password: md5(password), // 对密码进行MD5加密
-        createdAt: new Date().toISOString(),
-      };
-      console.log('userData:', userData);
-      // 调用上传函数
-      const url = await uploadJsonToOSS(userData);
-
-      if (url) {
-        // 创建回收站文件
-        try {
-          console.log('[注册] 开始创建回收站文件');
-          const recycleBinObjectKey = `recycle-bin/${username}.json`;
-          const emptyRecycleBin: Note[] = [{
-            id: '2',
-            title: '欢迎使用云笔记',
-            content: '这是一条示例笔记，您可以删除它。\n\n小贴士：\n- 点击笔记可以编辑内容\n- 点击右下角的"+"按钮创建新笔记\n- 长按笔记可以删除\n- 在顶部搜索框搜索笔记\n- 保持记录的习惯\n- 整理思维，提高效率',
-            timestamp: new Date(),
-            deletedAt: new Date().toISOString(),
-            isHidden: true
-          }];
-          const recycleBinLocalPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${username}_recycle_bin.json`;
-          await RNFetchBlob.fs.writeFile(recycleBinLocalPath, JSON.stringify(emptyRecycleBin), 'utf8');
-          const recycleBinFilePath = Platform.OS === 'android' ? `file://${recycleBinLocalPath}` : recycleBinLocalPath;
-          
-          const ossClient = new OSSClient({
-            accessKeyId: 'LTAI5tP7uEC3XekfkG4nRp5x',
-            accessKeySecret: 'yLvMJLA9MrfJy4nA0oXwuZSXKBaX2o',
-            bucket: 'native-123',
-            region: 'cn-beijing',
-          });
-          
-          await ossClient.put(recycleBinObjectKey, recycleBinFilePath);
-          console.log('[注册] 回收站文件创建成功');
-        } catch (error) {
-          console.error('[注册] 创建回收站文件失败:', error);
-        }
-
-        showError('注册成功', '您的账号已成功创建！(=✪ᆽ✪=)');
-      } else {
-        showError('注册失败', '请稍后重试');
-      }
+      await onRegister(username, password);
+      showError('注册成功', '您的账号已成功创建！(=✪ᆽ✪=)');
     } catch (error) {
-      showError('注册失败', '发生未知错误，请稍后重试');
+      const message =
+        error instanceof Error ? error.message : '发生未知错误，请稍后重试';
+
+      showError('注册失败', message);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+    <SafeAreaView style={[styles.container, {backgroundColor: theme.background}]}>
       <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardAvoidingView}>
         <View style={styles.content}>
           <TouchableOpacity style={styles.backButton} onPress={onBack}>
-            <Text style={[styles.backButtonText, { color: theme.primaryDark }]}>← 返回登录</Text>
+            <Text style={[styles.backButtonText, {color: theme.primaryDark}]}>
+              ← 返回登录
+            </Text>
           </TouchableOpacity>
 
           <View style={styles.headerContainer}>
-            <Text style={[styles.headerTitle, { color: theme.primaryDark }]}>创建账号</Text>
-            <Text style={[styles.headerSubtitle, { color: theme.primaryLight }]}>开始你的云笔记之旅</Text>
+            <Text style={[styles.headerTitle, {color: theme.primaryDark}]}>
+              创建账号
+            </Text>
+            <Text style={[styles.headerSubtitle, {color: theme.primaryLight}]}>
+              开始你的云笔记之旅
+            </Text>
           </View>
 
           <View style={styles.inputContainer}>
-            <View style={[styles.inputWrapper, { 
-              backgroundColor: theme.surface,
-              borderColor: theme.border 
-            }]}>
+            <View
+              style={[
+                styles.inputWrapper,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                },
+              ]}>
               <Text style={styles.inputIcon}>👤</Text>
               <TextInput
-                style={[styles.input, { color: theme.text }]}
+                style={[styles.input, {color: theme.text}]}
                 placeholder="设置用户名"
                 value={username}
-                onChangeText={(text) => {
+                onChangeText={text => {
                   setUsername(text);
                   validateUsername(text);
                 }}
@@ -219,19 +183,25 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onBack, theme, 
               />
             </View>
             {usernameError ? (
-              <Text style={[styles.errorText, { color: theme.error }]}>{usernameError}</Text>
+              <Text style={[styles.errorText, {color: theme.error}]}>
+                {usernameError}
+              </Text>
             ) : null}
 
-            <View style={[styles.inputWrapper, { 
-              backgroundColor: theme.surface,
-              borderColor: theme.border 
-            }]}>
+            <View
+              style={[
+                styles.inputWrapper,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                },
+              ]}>
               <Text style={styles.inputIcon}>🔒</Text>
               <TextInput
-                style={[styles.input, { color: theme.text }]}
+                style={[styles.input, {color: theme.text}]}
                 placeholder="设置密码"
                 value={password}
-                onChangeText={(text) => {
+                onChangeText={text => {
                   setPassword(text);
                   validatePassword(text);
                   validateConfirmPassword(confirmPassword);
@@ -243,19 +213,25 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onBack, theme, 
               />
             </View>
             {passwordError ? (
-              <Text style={[styles.errorText, { color: theme.error }]}>{passwordError}</Text>
+              <Text style={[styles.errorText, {color: theme.error}]}>
+                {passwordError}
+              </Text>
             ) : null}
 
-            <View style={[styles.inputWrapper, { 
-              backgroundColor: theme.surface,
-              borderColor: theme.border 
-            }]}>
+            <View
+              style={[
+                styles.inputWrapper,
+                {
+                  backgroundColor: theme.surface,
+                  borderColor: theme.border,
+                },
+              ]}>
               <Text style={styles.inputIcon}>🔒</Text>
               <TextInput
-                style={[styles.input, { color: theme.text }]}
+                style={[styles.input, {color: theme.text}]}
                 placeholder="确认密码"
                 value={confirmPassword}
-                onChangeText={(text) => {
+                onChangeText={text => {
                   setConfirmPassword(text);
                   validateConfirmPassword(text);
                 }}
@@ -266,24 +242,31 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onBack, theme, 
               />
             </View>
             {confirmPasswordError ? (
-              <Text style={[styles.errorText, { color: theme.error }]}>{confirmPasswordError}</Text>
+              <Text style={[styles.errorText, {color: theme.error}]}>
+                {confirmPasswordError}
+              </Text>
             ) : null}
 
-            <Text style={[styles.passwordTip, { color: theme.primaryLight }]}>
+            <Text style={[styles.passwordTip, {color: theme.primaryLight}]}>
               密码长度至少为6位，建议使用字母、数字和符号的组合
             </Text>
 
             <TouchableOpacity
               style={[
-                styles.registerButton, 
-                { 
+                styles.registerButton,
+                {
                   backgroundColor: theme.primary,
-                  opacity: isLoading ? 0.7 : 1
-                }
+                  opacity: isLoading ? 0.7 : 1,
+                },
               ]}
               onPress={handleRegister}
-              disabled={isLoading || !username.trim() || !password.trim() || !confirmPassword.trim()}>
-              <Text style={[styles.registerButtonText, { color: theme.surface }]}>
+              disabled={
+                isLoading ||
+                !username.trim() ||
+                !password.trim() ||
+                !confirmPassword.trim()
+              }>
+              <Text style={[styles.registerButtonText, {color: theme.surface}]}>
                 {isLoading ? '注册中...' : '注 册'}
               </Text>
             </TouchableOpacity>
@@ -292,24 +275,28 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onBack, theme, 
       </KeyboardAvoidingView>
       <Modal
         visible={errorModalVisible}
-        transparent={true}
+        transparent
         animationType="fade"
         onRequestClose={() => setErrorModalVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-            <Text style={[styles.errorTitle, { color: theme.primaryDark }]}>{errorTitle}</Text>
-            <Text style={[styles.errorMessage, { color: theme.text }]}>{errorMessage}</Text>
+          <View style={[styles.modalContent, {backgroundColor: theme.surface}]}>
+            <Text style={[styles.errorTitle, {color: theme.primaryDark}]}>
+              {errorTitle}
+            </Text>
+            <Text style={[styles.errorMessage, {color: theme.text}]}>
+              {errorMessage}
+            </Text>
             <View style={styles.errorButtons}>
               <TouchableOpacity
-                style={[styles.errorButton, { backgroundColor: theme.primary }]}
+                style={[styles.errorButton, {backgroundColor: theme.primary}]}
                 onPress={() => {
                   setErrorModalVisible(false);
+
                   if (errorTitle === '注册成功') {
-                    onRegister(username, password);
-                    _navigation.navigate('Login');
+                    onBack();
                   }
                 }}>
-                <Text style={[styles.errorButtonText, { color: theme.surface }]}>
+                <Text style={[styles.errorButtonText, {color: theme.surface}]}>
                   {errorTitle === '注册成功' ? `返回登录 (${countdown}s)` : '好嘟'}
                 </Text>
               </TouchableOpacity>
@@ -446,4 +433,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default RegisterPage; 
+export default RegisterPage;

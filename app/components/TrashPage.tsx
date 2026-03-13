@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, {useState, useEffect, useCallback, useMemo} from 'react';
 import {
   View,
   Text,
@@ -13,35 +13,17 @@ import {
   RefreshControl,
 } from 'react-native';
 import { generateThemeColors } from '../theme/colors';
-import { OSSClient } from '../utils/ossUpload';
-import RNFetchBlob from 'react-native-blob-util';
-import { Platform } from 'react-native';
-import { NoteStorage } from '../utils/storage';
-import { Buffer } from 'buffer';
-
-// 添加 Base64 编码/解码函数
-const btoa = (str: string) => Buffer.from(str, 'binary').toString('base64');
-const atob = (str: string) => Buffer.from(str, 'base64').toString('binary');
+import type {Note} from '../../src/entities/note/types';
+import {providerRegistry} from '../../src/providers/providerRegistry';
 
 interface TrashPageProps {
+  username: string;
   onClose: () => void;
   theme: ReturnType<typeof generateThemeColors>;
 }
 
-interface Note {
-  id: string;
-  title: string;
-  content: string;
-  deletedAt: string;
-  images?: string[];
-  audios?: string[];
-  fontSize?: number;
-  textSegments?: { text: string; fontSize: number; isBold?: boolean }[];
-  timestamp: Date;
-  isHidden?: boolean;
-}
-
 const TrashPage: React.FC<TrashPageProps> = React.memo(({
+  username,
   onClose,
   theme,
 }) => {
@@ -53,39 +35,9 @@ const TrashPage: React.FC<TrashPageProps> = React.memo(({
   const [deleteSuccessModalVisible, setDeleteSuccessModalVisible] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [username, setUsername] = useState<string>('');
   const [refreshing, setRefreshing] = useState(false);
-
-  // 初始化OSS客户端
-  const ossClient = new OSSClient({
-    accessKeyId: 'LTAI5tP7uEC3XekfkG4nRp5x',
-    accessKeySecret: 'yLvMJLA9MrfJy4nA0oXwuZSXKBaX2o',
-    bucket: 'native-123',
-    region: 'cn-beijing',
-  });
-
-  // 获取当前登录用户
-  useEffect(() => {
-    const getCurrentUser = async () => {
-      try {
-        console.log('[回收站] 开始获取当前登录用户');
-        const loginState = await NoteStorage.getLoginState();
-        if (loginState && loginState.username) {
-          console.log(`[回收站] 获取到当前用户: ${loginState.username}`);
-          setUsername(loginState.username);
-        } else {
-          console.error('[回收站] 未找到登录用户信息');
-          Alert.alert('错误', '未找到登录用户信息');
-          onClose();
-        }
-      } catch (error) {
-        console.error('[回收站] 获取用户信息失败:', error);
-        Alert.alert('错误', '获取用户信息失败');
-        onClose();
-      }
-    };
-    getCurrentUser();
-  }, [onClose]);
+  const noteSyncProvider = useMemo(() => providerRegistry.getNoteSyncProvider(), []);
+  const trashProvider = useMemo(() => providerRegistry.getTrashProvider(), []);
 
   // 加载回收站笔记
   const loadRecycleBinNotes = useCallback(async () => {
@@ -95,31 +47,16 @@ const TrashPage: React.FC<TrashPageProps> = React.memo(({
     }
 
     try {
-      console.log(`[回收站] 开始加载用户 ${username} 的回收站笔记`);
       setIsLoading(true);
-      const objectKey = `recycle-bin/${username}.json`;
-      const url = `https://native-123.oss-cn-beijing.aliyuncs.com/${objectKey}`;
-      
-      console.log(`[回收站] 请求URL: ${url}`);
-      const response = await fetch(url);
-      if (response.ok) {
-        const data = await response.json();
-        console.log(`[回收站] 成功加载笔记，数量: ${data.length}`);
-        // 过滤掉 isHidden 为 true 的笔记
-        const visibleNotes = data.filter((note: Note) => !note.isHidden);
-        console.log(`[回收站] 过滤后可见笔记数量: ${visibleNotes.length}`);
-        setNotes(visibleNotes);
-      } else {
-        console.log(`[回收站] 未找到回收站笔记，状态码: ${response.status}`);
-        setNotes([]);
-      }
+      const trashNotes = await trashProvider.listNotes(username);
+      setNotes(trashNotes);
     } catch (error) {
       console.error('[回收站] 加载笔记失败:', error);
       setNotes([]);
     } finally {
       setIsLoading(false);
     }
-  }, [username]);
+  }, [trashProvider, username]);
 
   // 处理恢复笔记
   const handleRestore = (note: Note) => {
@@ -140,74 +77,16 @@ const TrashPage: React.FC<TrashPageProps> = React.memo(({
     if (!selectedNote) return;
     
     try {
-      console.log(`[回收站] 开始恢复笔记: ${selectedNote.title} (ID: ${selectedNote.id})`);
-      
-      // 1. 从回收站中移除笔记
-      const updatedNotes = notes.filter(note => note.id !== selectedNote.id);
-      console.log(`[回收站] 从回收站移除笔记，剩余笔记数: ${updatedNotes.length}`);
-      
-      // 2. 更新回收站文件
-      const recycleBinObjectKey = `recycle-bin/${username}.json`;
-      const recycleBinLocalPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${username}_recycle_bin.json`;
-      console.log(`[回收站] 更新回收站文件: ${recycleBinObjectKey}`);
-      await RNFetchBlob.fs.writeFile(recycleBinLocalPath, JSON.stringify(updatedNotes), 'utf8');
-      const recycleBinFilePath = Platform.OS === 'android' ? `file://${recycleBinLocalPath}` : recycleBinLocalPath;
-      await ossClient.put(recycleBinObjectKey, recycleBinFilePath);
-      
-      // 3. 将笔记添加回user-notes
-      const sourceObjectKey = `user-notes/${username}.json`;
-      const sourceUrl = `https://native-123.oss-cn-beijing.aliyuncs.com/${sourceObjectKey}`;
-      console.log(`[回收站] 读取源笔记文件: ${sourceObjectKey}`);
-      const response = await fetch(sourceUrl);
-      
-      let allNotes: Note[] = [];
-      if (response.ok) {
-        allNotes = await response.json();
-        console.log(`[回收站] 读取到源笔记数量: ${allNotes.length}`);
+      const restoredNote = await trashProvider.restoreNote(username, selectedNote.id);
+
+      if (!restoredNote) {
+        throw new Error('未找到要恢复的笔记');
       }
-      
-      // 创建要恢复的笔记对象，不包含deletedAt字段
-      const noteToRestore: Omit<Note, 'deletedAt'> = {
-        id: selectedNote.id,
-        title: selectedNote.title,
-        content: selectedNote.content,
-        images: selectedNote.images,
-        audios: selectedNote.audios,
-        fontSize: selectedNote.fontSize,
-        textSegments: selectedNote.textSegments,
-        timestamp: new Date(),
-      };
 
-      // 使用与 storage.ts 相同的加密逻辑
-      console.log('[回收站] 开始加密笔记内容');
-      const encryptText = (text: string) => {
-        console.log(text);
-        const textStr = String(text || '');
-        return btoa(unescape(encodeURIComponent(textStr)));
-      };
+      const sourceNotes = await noteSyncProvider.pullNotes(username);
+      await noteSyncProvider.pushNotes(username, [restoredNote, ...sourceNotes]);
 
-      const encryptedNote = {
-        ...noteToRestore,
-        content: encryptText(noteToRestore.content),
-        title: encryptText(noteToRestore.title),
-        textSegments: noteToRestore.textSegments?.map(segment => ({
-          ...segment,
-          text: encryptText(segment.text)
-        }))
-      };
-      console.log('[回收站] 笔记内容加密完成');
-      
-      allNotes.push(encryptedNote as Note);
-      console.log(`[回收站] 添加笔记到源文件，更新后笔记数量: ${allNotes.length}`);
-      
-      // 更新源文件
-      const localPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${username}_notes.json`;
-      await RNFetchBlob.fs.writeFile(localPath, JSON.stringify(allNotes), 'utf8');
-      const filePath = Platform.OS === 'android' ? `file://${localPath}` : localPath;
-      await ossClient.put(sourceObjectKey, filePath);
-      console.log(`[回收站] 笔记恢复完成: ${selectedNote.title}`);
-      
-      // 更新本地状态
+      const updatedNotes = notes.filter(note => note.id !== selectedNote.id);
       setNotes(updatedNotes);
       setRestoreModalVisible(false);
       setRestoreSuccessModalVisible(true);
@@ -226,22 +105,9 @@ const TrashPage: React.FC<TrashPageProps> = React.memo(({
     if (!selectedNote) return;
     
     try {
-      console.log(`[回收站] 开始彻底删除笔记: ${selectedNote.title} (ID: ${selectedNote.id})`);
-      
-      // 从回收站中移除笔记
+      await trashProvider.deleteNote(username, selectedNote.id);
       const updatedNotes = notes.filter(note => note.id !== selectedNote.id);
-      console.log(`[回收站] 从回收站移除笔记，剩余笔记数: ${updatedNotes.length}`);
-      
-      // 更新回收站文件
-      const recycleBinObjectKey = `recycle-bin/${username}.json`;
-      const recycleBinLocalPath = `${RNFetchBlob.fs.dirs.DocumentDir}/${username}_recycle_bin.json`;
-      console.log(`[回收站] 更新回收站文件: ${recycleBinObjectKey}`);
-      await RNFetchBlob.fs.writeFile(recycleBinLocalPath, JSON.stringify(updatedNotes), 'utf8');
-      const recycleBinFilePath = Platform.OS === 'android' ? `file://${recycleBinLocalPath}` : recycleBinLocalPath;
-      await ossClient.put(recycleBinObjectKey, recycleBinFilePath);
-      console.log(`[回收站] 笔记彻底删除完成: ${selectedNote.title}`);
-      
-      // 更新本地状态
+
       setNotes(updatedNotes);
       setDeleteModalVisible(false);
       setDeleteSuccessModalVisible(true);
@@ -323,7 +189,7 @@ const TrashPage: React.FC<TrashPageProps> = React.memo(({
                   {note.content}
                 </Text>
                 <Text style={[styles.deletedAt, { color: theme.textLight }]}>
-                  删除于: {new Date(note.deletedAt).toLocaleString()}
+                  删除于: {note.deletedAt ? new Date(note.deletedAt).toLocaleString() : '未知时间'}
                 </Text>
                 <View style={styles.actionButtons}>
                   <TouchableOpacity 
