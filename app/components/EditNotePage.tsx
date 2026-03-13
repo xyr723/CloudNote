@@ -3,18 +3,15 @@ import {
   View,
   Text,
   TextInput,
-  StyleSheet,
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
   KeyboardAvoidingView,
   Platform,
   Modal,
-  Image,
   ScrollView,
   Alert,
   PermissionsAndroid,
-  ActivityIndicator,
 } from 'react-native';
 import { generateThemeColors } from '../theme/colors';
 import * as ImagePicker from 'react-native-image-picker';
@@ -22,6 +19,14 @@ import RNFetchBlob from 'react-native-blob-util';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import { completeTextWithLLM } from '../utils/chatComplete';
 import { providerRegistry } from '../../src/providers/providerRegistry';
+import { EditNoteAuxiliaryModals } from '../../src/features/note-editor/ui/EditNoteAuxiliaryModals';
+import { EditNoteContent } from '../../src/features/note-editor/ui/EditNoteContent';
+import { EditNoteToolbar } from '../../src/features/note-editor/ui/EditNoteToolbar';
+import { styles } from '../../src/features/note-editor/ui/styles';
+import type {
+  EditableTextSegment,
+  EditorSelection,
+} from '../../src/features/note-editor/ui/types';
 
 interface EditNotePageProps {
   visible: boolean;
@@ -33,7 +38,7 @@ interface EditNotePageProps {
     images?: string[];
     audios?: string[];
     fontSize?: number;
-    textSegments?: { text: string; fontSize: number; isBold?: boolean }[];
+    textSegments?: EditableTextSegment[];
   };
   onSave: () => Promise<void>;
   onClose: () => void;
@@ -42,7 +47,7 @@ interface EditNotePageProps {
   onChangeImages?: (images: string[]) => void;
   onChangeAudios?: (audios: string[]) => void;
   onChangeFontSize?: (size: number) => void;
-  onChangeTextSegments?: (segments: { text: string; fontSize: number; isBold?: boolean }[]) => void;
+  onChangeTextSegments?: (segments: EditableTextSegment[]) => void;
   theme: ReturnType<typeof generateThemeColors>;
 }
 
@@ -68,7 +73,10 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   const [content, setContent] = useState(note.content);
   const [showImageModal, setShowImageModal] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
-  const [selection, setSelection] = useState({ start: 0, end: 0 });
+  const [selection, setSelection] = useState<EditorSelection>({
+    start: 0,
+    end: 0,
+  });
   const [isRecording, setIsRecording] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentAudioIndex, setCurrentAudioIndex] = useState(-1);
@@ -77,7 +85,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
   const [isAiThinking, setIsAiThinking] = useState(false);
   const [showAiThinkingModal, setShowAiThinkingModal] = useState(false);
   const [isUserDelete, setIsUserDelete] = useState(false);
-  const [textSegments, setTextSegments] = useState<{ text: string; fontSize: number; isBold?: boolean }[]>(
+  const [textSegments, setTextSegments] = useState<EditableTextSegment[]>(
     note.textSegments || [{ text: note.content, fontSize: note.fontSize || 16, isBold: false }]
   );
   const [showValidationModal, setShowValidationModal] = useState(false);
@@ -196,6 +204,29 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
     onChangeFontSize?.(newSize);
   };
 
+  const applyContentChange = useCallback((nextContent: string) => {
+    setContent(nextContent);
+    onChangeContent(nextContent);
+  }, [onChangeContent]);
+
+  const applyImagesChange = useCallback((nextImages: string[]) => {
+    setImages(nextImages);
+    onChangeImages?.(nextImages);
+  }, [onChangeImages]);
+
+  const applyAudiosChange = useCallback((nextAudios: string[]) => {
+    setAudios(nextAudios);
+    onChangeAudios?.(nextAudios);
+  }, [onChangeAudios]);
+
+  const handleEditorSelectionChange = useCallback((
+    nextSelection: EditorSelection,
+    nextCursorPosition: number,
+  ) => {
+    setSelection(nextSelection);
+    setCursorPosition(nextCursorPosition);
+  }, []);
+
   const storeImageAttachment = useCallback(async (
     imageUri: string,
     noteId: string | undefined,
@@ -252,17 +283,8 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
           }
           
           console.log("更新后的图片数组:", newImages);
-          setImages(newImages);
-          setContent(currentContent);
-          onChangeContent(currentContent);
-          
-          // 立即更新父组件的状态，保存完整的图片路径
-          if (onChangeImages) {
-            console.log("调用onChangeImages更新图片数组");
-            onChangeImages(newImages);
-          } else {
-            console.log("onChangeImages未定义");
-          }
+          applyImagesChange(newImages);
+          applyContentChange(currentContent);
         } catch (error) {
           console.error('处理图片失败:', error);
           Alert.alert('错误', '保存图片时发生错误');
@@ -294,14 +316,12 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
           console.log("保存后的图片 URL:", imageUrl);
           
           const newImages = [...images, imageUrl];
-          setImages(newImages);
-          onChangeImages?.(newImages);
+          applyImagesChange(newImages);
           console.log("图片", newImages);
           
           // 在光标位置插入图片标记
           const newContent = content.slice(0, cursorPosition) + `[图片${newImages.length - 1}]` + content.slice(cursorPosition);
-          setContent(newContent);
-          onChangeContent(newContent);
+          applyContentChange(newContent);
         } catch (error) {
           console.error('处理图片失败:', error);
           Alert.alert('错误', '保存图片时发生错误');
@@ -344,15 +364,11 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
       console.log("更新后的内容:", newContent);
       
       // 5. 先更新内容，再更新图片数组，避免触发syncImagesAndContent的自动添加
-      setContent(newContent);
-      onChangeContent(newContent);
+      applyContentChange(newContent);
       
       // 6. 延迟更新图片数组，确保内容已更新
       setTimeout(() => {
-        setImages(newImages);
-        if (onChangeImages) {
-          onChangeImages(newImages);
-        }
+        applyImagesChange(newImages);
         
         // 重置用户删除标志
         setTimeout(() => {
@@ -472,14 +488,12 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
       console.log('保存后的音频 URL:', audioUrl);
       
       const newAudios = [...audios, audioUrl];
-      setAudios(newAudios);
-      onChangeAudios?.(newAudios);
+      applyAudiosChange(newAudios);
       
       // 在光标位置插入音频标记
       const audioMarker = `[音频${newAudios.length - 1}]`;
       const newContent = content.slice(0, cursorPosition) + audioMarker + content.slice(cursorPosition);
-      setContent(newContent);
-      onChangeContent(newContent);
+      applyContentChange(newContent);
       
       // 重置当前录音路径
       setCurrentAudioPath(null);
@@ -531,12 +545,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
     try {
       // 更新音频数组
       const newAudios = audios.filter((_, i) => i !== audioIndex);
-      setAudios(newAudios);
-      
-      // 更新父组件的状态
-      if (onChangeAudios) {
-        onChangeAudios(newAudios);
-      }
+      applyAudiosChange(newAudios);
       
       // 更新内容中的音频标记
       let newContent = content;
@@ -549,8 +558,7 @@ const EditNotePage: React.FC<EditNotePageProps> = ({
         newContent = newContent.replace(oldPattern, `[音频${i - 1}]`);
       }
       
-      setContent(newContent);
-      onChangeContent(newContent);
+      applyContentChange(newContent);
     } catch (error) {
       console.error('删除音频失败:', error);
       Alert.alert('错误', '删除音频失败');
