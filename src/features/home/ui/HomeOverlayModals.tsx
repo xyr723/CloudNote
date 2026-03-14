@@ -1,6 +1,6 @@
 import React from 'react';
 import {Modal, Text, TouchableOpacity, View} from 'react-native';
-import {generateThemeColors} from '../../../../app/theme/colors';
+import {generateThemeColors} from '../../../shared/theme/colors';
 import {homeFeedbackStyles} from './homeFeedbackStyles';
 
 type HomeOverlayModalsProps = {

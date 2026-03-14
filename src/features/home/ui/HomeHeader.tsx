@@ -1,6 +1,6 @@
 import React from 'react';
 import {Image, Text, TouchableOpacity, View} from 'react-native';
-import {generateThemeColors} from '../../../../app/theme/colors';
+import {generateThemeColors} from '../../../shared/theme/colors';
 import {homeScreenStyles} from './homeScreenStyles';
 
 type HomeHeaderProps = {
