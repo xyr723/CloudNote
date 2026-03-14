@@ -1,10 +1,7 @@
-import type {generateThemeColors} from '../../../../app/theme/colors';
+import type {generateThemeColors} from '../../../shared/theme/colors';
+import type {TextSegment} from '../../../entities/note/types';
 
-export type EditableTextSegment = {
-  text: string;
-  fontSize: number;
-  isBold?: boolean;
-};
+export type EditableTextSegment = TextSegment;
 
 export type EditorSelection = {
   start: number;

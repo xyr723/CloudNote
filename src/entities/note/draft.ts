@@ -1,4 +1,4 @@
-import type {Note, TextSegment} from '../../../entities/note/types';
+import type {Note, TextSegment} from './types';
 
 export interface NoteDraft {
   id?: string;

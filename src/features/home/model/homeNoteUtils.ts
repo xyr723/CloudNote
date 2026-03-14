@@ -1,6 +1,6 @@
+import type {NoteDraft} from '../../../entities/note/draft';
 import type {Dispatch, SetStateAction} from 'react';
 import type {Note} from '../../../entities/note/types';
-import type {NoteDraft} from './noteDraft';
 
 export const SAVE_SUCCESS_DURATION = 1000;
 export const DELETE_SUCCESS_DURATION = 1500;

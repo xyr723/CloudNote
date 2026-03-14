@@ -1,8 +1,8 @@
 import React from 'react';
-import EditNotePage from '../../../../app/components/EditNotePage';
-import {generateThemeColors} from '../../../../app/theme/colors';
+import type {NoteDraft} from '../../../entities/note/draft';
+import {generateThemeColors} from '../../../shared/theme/colors';
 import type {TextSegment} from '../../../entities/note/types';
-import type {NoteDraft} from '../model/noteDraft';
+import NoteEditorModal from '../../note-editor/ui/NoteEditorModal';
 
 type HomeEditorModalProps = {
   currentNote: NoteDraft;
@@ -38,7 +38,7 @@ export const HomeEditorModal: React.FC<HomeEditorModalProps> = ({
   }
 
   return (
-    <EditNotePage
+    <NoteEditorModal
       visible={modalVisible}
       isEditing={isEditing}
       note={currentNote}

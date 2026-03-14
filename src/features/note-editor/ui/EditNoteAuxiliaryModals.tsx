@@ -6,14 +6,11 @@ import type {NoteEditorTheme} from './types';
 type EditNoteAuxiliaryModalsProps = {
   isSaving: boolean;
   onCloseImageOptions: () => void;
-  onCloseSaveError: () => void;
   onCloseValidation: () => void;
   onOpenCamera: () => void;
   onOpenImagePicker: () => void;
   showAiThinkingModal: boolean;
   showImageModal: boolean;
-  showSaveErrorModal: boolean;
-  showSaveSuccessModal: boolean;
   showValidationModal: boolean;
   theme: NoteEditorTheme;
   validationMessage: string;
@@ -22,14 +19,11 @@ type EditNoteAuxiliaryModalsProps = {
 export const EditNoteAuxiliaryModals: React.FC<EditNoteAuxiliaryModalsProps> = ({
   isSaving,
   onCloseImageOptions,
-  onCloseSaveError,
   onCloseValidation,
   onOpenCamera,
   onOpenImagePicker,
   showAiThinkingModal,
   showImageModal,
-  showSaveErrorModal,
-  showSaveSuccessModal,
   showValidationModal,
   theme,
   validationMessage,
@@ -191,67 +185,6 @@ export const EditNoteAuxiliaryModals: React.FC<EditNoteAuxiliaryModalsProps> = (
             <Text style={[styles.modalMessage, {color: theme.text}]}>
               正在保存笔记，请稍候...
             </Text>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={showSaveSuccessModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {}}>
-        <View style={[styles.modalOverlay, {backgroundColor: theme.primaryTransparent}]}>
-          <View style={[styles.modalContent, {backgroundColor: theme.surface}]}>
-            <View
-              style={[
-                styles.modalIconContainer,
-                {backgroundColor: theme.primaryLight},
-              ]}>
-              <Text style={styles.modalIcon}>✅</Text>
-            </View>
-            <Text style={[styles.modalTitle, {color: theme.primaryDark}]}>
-              保存成功
-            </Text>
-            <Text style={[styles.modalMessage, {color: theme.text}]}>
-              笔记已成功保存
-            </Text>
-            <Text style={[styles.modalSubMessage, {color: theme.accent}]}>
-              可以在笔记列表中查看 (◕‿◕✿)
-            </Text>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={showSaveErrorModal}
-        transparent
-        animationType="fade"
-        onRequestClose={onCloseSaveError}>
-        <View style={[styles.modalOverlay, {backgroundColor: theme.primaryTransparent}]}>
-          <View style={[styles.modalContent, {backgroundColor: theme.surface}]}>
-            <View
-              style={[
-                styles.modalIconContainer,
-                {backgroundColor: theme.primaryLight},
-              ]}>
-              <Text style={styles.modalIcon}>❌</Text>
-            </View>
-            <Text style={[styles.modalTitle, {color: theme.error}]}>
-              保存失败
-            </Text>
-            <Text style={[styles.modalMessage, {color: theme.text}]}>
-              保存笔记时发生错误
-            </Text>
-            <Text style={[styles.modalSubMessage, {color: theme.accent}]}>
-              请稍后重试 (｡•́︿•̀｡)
-            </Text>
-            <TouchableOpacity
-              style={[styles.modalButton, {backgroundColor: theme.primary}]}
-              onPress={onCloseSaveError}>
-              <Text style={[styles.modalButtonText, {color: theme.surface}]}>
-                确定
-              </Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
