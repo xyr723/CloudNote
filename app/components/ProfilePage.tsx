@@ -14,8 +14,8 @@ import {
 import { generateThemeColors } from '../theme/colors';
 import * as ImagePicker from 'react-native-image-picker';
 import ChangePasswordPage from './ChangePasswordPage';
-import TrashPage from './TrashPage';
 import {providerRegistry} from '../../src/providers/providerRegistry';
+import {TrashModal} from '../../src/features/trash/ui/TrashModal';
 
 interface ProfilePageProps {
   username: string;
@@ -283,7 +283,7 @@ const ProfilePage: React.FC<ProfilePageProps> = React.memo(({
         animationType="slide"
         onRequestClose={handleCloseTrash}
         transparent={false}>
-        <TrashPage
+        <TrashModal
           username={username}
           onClose={handleCloseTrash}
           theme={theme}
