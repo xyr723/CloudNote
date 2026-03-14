@@ -1,5 +1,10 @@
 import {Alert} from 'react-native';
 import {useCallback, useEffect, useMemo, useState} from 'react';
+import {
+  createDraftFromNote,
+  createEmptyNoteDraft,
+  type NoteDraft,
+} from '../../../entities/note/draft';
 import type {Note, SortOrder, SortType} from '../../../entities/note/types';
 import {providerRegistry} from '../../../providers/providerRegistry';
 import {
@@ -13,11 +18,6 @@ import {
   showTemporaryModal,
   SYNC_ERROR_DURATION,
 } from './homeNoteUtils';
-import {
-  createDraftFromNote,
-  createEmptyNoteDraft,
-  type NoteDraft,
-} from './noteDraft';
 
 type UseHomeNotesInput = {
   isLoggedIn: boolean;
@@ -167,7 +167,7 @@ export const useHomeNotes = ({
       return;
     }
 
-    void noteSyncProvider.pushNotes(username, notes).catch(error => {
+    noteSyncProvider.pushNotes(username, notes).catch(error => {
       console.error('自动保存笔记失败:', error);
     });
     setCachedNotes(notes);
