@@ -4,7 +4,7 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import LoginPage from './app/components/LoginPage';
 import RegisterPage from './app/components/RegisterPage';
-import {generateThemeColors} from './app/theme/colors';
+import {generateThemeColors} from './src/shared/theme/colors';
 import {HomeScreen} from './src/features/home/ui/HomeScreen';
 import {providerRegistry} from './src/providers/providerRegistry';
 
@@ -67,9 +67,8 @@ function App(): React.JSX.Element {
           animation: 'none',
           presentation: 'card',
         }}>
-        <Stack.Screen
-          name="Login"
-          component={({navigation}: {navigation: NavigationProp}) => (
+        <Stack.Screen name="Login">
+          {({navigation}: {navigation: NavigationProp}) => (
             <LoginPage
               onLogin={async (username, password) => {
                 const account = await authProvider.signIn({username, password});
@@ -87,10 +86,9 @@ function App(): React.JSX.Element {
               theme={theme}
             />
           )}
-        />
-        <Stack.Screen
-          name="Register"
-          component={({navigation}: {navigation: NavigationProp}) => (
+        </Stack.Screen>
+        <Stack.Screen name="Register">
+          {({navigation}: {navigation: NavigationProp}) => (
             <RegisterPage
               onRegister={async (username, password) => {
                 await authProvider.signUp({username, password});
@@ -99,10 +97,9 @@ function App(): React.JSX.Element {
               theme={theme}
             />
           )}
-        />
-        <Stack.Screen
-          name="Home"
-          component={() => (
+        </Stack.Screen>
+        <Stack.Screen name="Home">
+          {() => (
             <HomeScreen
               user={user}
               setUser={setUser}
@@ -112,7 +109,7 @@ function App(): React.JSX.Element {
               setIsDarkMode={setIsDarkMode}
             />
           )}
-        />
+        </Stack.Screen>
       </Stack.Navigator>
     </NavigationContainer>
   );

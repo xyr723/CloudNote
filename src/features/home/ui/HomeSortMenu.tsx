@@ -1,6 +1,6 @@
 import React from 'react';
 import {Text, TouchableOpacity, View} from 'react-native';
-import {generateThemeColors} from '../../../../app/theme/colors';
+import {generateThemeColors} from '../../../shared/theme/colors';
 import type {SortOrder, SortType} from '../../../entities/note/types';
 import {homeScreenStyles} from './homeScreenStyles';
 

@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import ProfilePage from '../../../../app/components/ProfilePage';
 import SettingsPage from '../../../../app/components/SettingsPage';
-import {generateThemeColors} from '../../../../app/theme/colors';
+import {generateThemeColors} from '../../../shared/theme/colors';
 import type {Note} from '../../../entities/note/types';
 import {useHomeNotes} from '../model/useHomeNotes';
 import {providerRegistry} from '../../../providers/providerRegistry';
