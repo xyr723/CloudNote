@@ -1,18 +1,19 @@
-import {useCallback, useEffect, useMemo, useState} from 'react';
+import {useCallback, useEffect, useState} from 'react';
 import {Alert} from 'react-native';
-import * as ImagePicker from 'react-native-image-picker';
 import type {NoteDraft} from '../../../entities/note/draft';
-import {providerRegistry} from '../../../providers/providerRegistry';
 import {
-  insertMarkerAtCursor,
-  insertMarkerIntoTextSegments,
+  captureImage,
+  pickImagesFromLibrary,
+} from '../../../shared/media/imagePicker';
+import {
   removeAudioMarkerFromTextSegments,
   removeAudioMarker,
   removeImageMarkerFromTextSegments,
   removeImageMarker,
-  syncImageMarkersInTextSegments,
   syncImageMarkers,
+  syncImageMarkersInTextSegments,
 } from './noteEditorMediaUtils';
+import {appendSelectedImages} from './noteEditorImageInsertion';
 import type {EditableTextSegment} from '../ui/types';
 
 type UseNoteMediaInput = {
@@ -43,22 +44,15 @@ export const useNoteMedia = ({
   const [images, setImages] = useState<string[]>(note.images || []);
   const [audios, setAudios] = useState<string[]>(note.audios || []);
   const [content, setContent] = useState(externalContent);
-  const [showImageModal, setShowImageModal] = useState(false);
   const [isUserDelete, setIsUserDelete] = useState(false);
-  const attachmentProvider = useMemo(
-    () => providerRegistry.getAttachmentProvider(),
-    [],
-  );
 
   useEffect(() => {
     setImages(note.images || []);
     setAudios(note.audios || []);
   }, [note.audios, note.images]);
-
   useEffect(() => {
     setContent(externalContent);
   }, [externalContent]);
-
   const applyContentChange = useCallback(
     (nextContent: string) => {
       setContent(nextContent);
@@ -90,27 +84,6 @@ export const useNoteMedia = ({
     [onChangeTextSegments],
   );
 
-  const storeAttachment = useCallback(
-    async (
-      uri: string,
-      noteId: string | undefined,
-      index: number,
-      kind: 'image' | 'audio',
-      preferredExtension?: string,
-    ): Promise<string> => {
-      const effectiveNoteId = noteId || tempNoteId;
-
-      return attachmentProvider.saveAttachment({
-        uri,
-        noteId: effectiveNoteId,
-        kind,
-        index,
-        preferredExtension,
-      });
-    },
-    [attachmentProvider, tempNoteId],
-  );
-
   useEffect(() => {
     const nextContent = syncImageMarkers({
       content,
@@ -140,74 +113,36 @@ export const useNoteMedia = ({
     textSegments,
   ]);
 
-  const handleImagePicker = useCallback(() => {
-    ImagePicker.launchImageLibrary(
-      {
-        mediaType: 'photo',
-        includeBase64: true,
-        quality: 0.8,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        selectionLimit: 0,
-      },
-      async response => {
-        if (response.didCancel) {
-          return;
-        }
-        if (response.errorCode) {
-          Alert.alert('错误', '选择图片时发生错误');
-          return;
-        }
-        if (!response.assets || response.assets.length === 0) {
-          return;
-        }
+  const handleImagePicker = useCallback(async () => {
+    try {
+      const selectedImages = await pickImagesFromLibrary();
+      if (selectedImages.length === 0) {
+        return;
+      }
 
-        try {
-          const nextImages = [...images];
-          let nextContent = content;
-          let nextTextSegments = textSegments;
-          let nextCursorPosition = cursorPosition;
-
-          for (const asset of response.assets) {
-            if (!asset.uri) {
-              continue;
-            }
-
-            const imageUrl = await storeAttachment(
-              asset.uri,
-              note.id,
-              nextImages.length,
-              'image',
-            );
-            const marker = `[图片${nextImages.length}]`;
-            const previousContent = nextContent;
-            nextImages.push(imageUrl);
-            nextContent = insertMarkerAtCursor(
-              previousContent,
-              nextCursorPosition,
-              marker,
-            );
-            nextTextSegments = insertMarkerIntoTextSegments({
-              content: previousContent,
-              cursorPosition: nextCursorPosition,
-              fontSize,
-              marker,
-              textSegments: nextTextSegments,
-            });
-            nextCursorPosition += marker.length;
-          }
-
-          applyImagesChange(nextImages);
-          applyContentChange(nextContent);
-          if (nextTextSegments) {
-            applyTextSegmentsChange(nextTextSegments);
-          }
-        } catch (error) {
-          console.error('处理图片失败:', error);
-          Alert.alert('错误', '保存图片时发生错误');
-        }
-      },
-    );
+      const nextState = await appendSelectedImages({
+        assets: selectedImages,
+        content,
+        cursorPosition,
+        fontSize,
+        images,
+        noteId: note.id,
+        tempNoteId,
+        textSegments,
+      });
+      applyImagesChange(nextState.images);
+      applyContentChange(nextState.content);
+      if (nextState.textSegments) {
+        applyTextSegmentsChange(nextState.textSegments);
+      }
+    } catch (error) {
+      console.error('处理图片失败:', error);
+      const message =
+        error instanceof Error && error.message === '选择图片时发生错误'
+          ? error.message
+          : '保存图片时发生错误';
+      Alert.alert('错误', message);
+    }
   }, [
     applyContentChange,
     applyImagesChange,
@@ -216,62 +151,41 @@ export const useNoteMedia = ({
     fontSize,
     images,
     note.id,
+    tempNoteId,
     applyTextSegmentsChange,
-    storeAttachment,
     textSegments,
   ]);
 
-  const handleCamera = useCallback(() => {
-    ImagePicker.launchCamera(
-      {
-        mediaType: 'photo',
-        includeBase64: true,
-        quality: 0.8,
-        maxWidth: 1024,
-        maxHeight: 1024,
-      },
-      async response => {
-        if (response.didCancel) {
-          return;
-        }
-        if (response.errorCode) {
-          Alert.alert('错误', '拍照时发生错误');
-          return;
-        }
-        if (!response.assets?.[0]?.uri) {
-          return;
-        }
+  const handleCamera = useCallback(async () => {
+    try {
+      const image = await captureImage();
+      if (!image?.uri) {
+        return;
+      }
 
-        try {
-          const imageUrl = await storeAttachment(
-            response.assets[0].uri,
-            note.id,
-            images.length,
-            'image',
-          );
-          const nextImages = [...images, imageUrl];
-          const nextContent = insertMarkerAtCursor(
-            content,
-            cursorPosition,
-            `[图片${nextImages.length - 1}]`,
-          );
-          const nextTextSegments = insertMarkerIntoTextSegments({
-            content,
-            cursorPosition,
-            fontSize,
-            marker: `[图片${nextImages.length - 1}]`,
-            textSegments,
-          });
-
-          applyImagesChange(nextImages);
-          applyContentChange(nextContent);
-          applyTextSegmentsChange(nextTextSegments);
-        } catch (error) {
-          console.error('处理图片失败:', error);
-          Alert.alert('错误', '保存图片时发生错误');
-        }
-      },
-    );
+      const nextState = await appendSelectedImages({
+        assets: [image],
+        content,
+        cursorPosition,
+        fontSize,
+        images,
+        noteId: note.id,
+        tempNoteId,
+        textSegments,
+      });
+      applyImagesChange(nextState.images);
+      applyContentChange(nextState.content);
+      if (nextState.textSegments) {
+        applyTextSegmentsChange(nextState.textSegments);
+      }
+    } catch (error) {
+      console.error('处理图片失败:', error);
+      const message =
+        error instanceof Error && error.message === '拍照时发生错误'
+          ? error.message
+          : '保存图片时发生错误';
+      Alert.alert('错误', message);
+    }
   }, [
     applyContentChange,
     applyImagesChange,
@@ -280,8 +194,8 @@ export const useNoteMedia = ({
     fontSize,
     images,
     note.id,
+    tempNoteId,
     applyTextSegmentsChange,
-    storeAttachment,
     textSegments,
   ]);
 
@@ -378,8 +292,5 @@ export const useNoteMedia = ({
     handleDeleteImage,
     handleImagePicker,
     images,
-    setShowImageModal,
-    showImageModal,
-    storeAttachment,
   };
 };

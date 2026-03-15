@@ -17,11 +17,13 @@ import {generateThemeColors} from '../../../shared/theme/colors';
 import {useNoteEditorActions} from '../model/useNoteEditorActions';
 import {useNoteFormatting} from '../model/useNoteFormatting';
 import {useNoteMedia} from '../model/useNoteMedia';
+import {useAudioPlayback} from '../model/useAudioPlayback';
 import {useNoteRecording} from '../model/useNoteRecording';
 import {getTextSegmentsContent} from '../model/noteEditorTextSegments';
 import {EditNoteAuxiliaryModals} from './EditNoteAuxiliaryModals';
 import {EditNoteContent} from './EditNoteContent';
 import {EditNoteToolbar} from './EditNoteToolbar';
+import {NoteImageEntryFlow} from './NoteImageEntryFlow';
 import {styles} from './styles';
 
 export interface NoteEditorModalProps {
@@ -88,6 +90,9 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
     textSegments: formatting.textSegments,
     tempNoteId,
   });
+  const playback = useAudioPlayback({
+    audios: media.audios,
+  });
   const actions = useNoteEditorActions({
     audiosCount: media.audios.length,
     content: editorContent,
@@ -152,16 +157,16 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
                   <EditNoteContent
                     audios={media.audios}
                     content={editorContent}
-                    currentAudioIndex={recording.currentAudioIndex}
+                    currentAudioIndex={playback.currentAudioIndex}
                     fontSize={formatting.fontSize}
                     images={media.images}
                     isBold={formatting.isBold}
                     isItalic={formatting.isItalic}
-                    isPlaying={recording.isPlaying}
+                    isPlaying={playback.isPlaying}
                     onContentChange={media.applyContentChange}
                     onDeleteAudio={media.handleDeleteAudio}
                     onDeleteImage={media.handleDeleteImage}
-                    onPlayAudio={recording.handlePlayAudio}
+                    onPlayAudio={playback.handlePlayAudio}
                     onSelectionChange={formatting.handleEditorSelectionChange}
                     onTextSegmentsChange={formatting.applyTextSegmentsChange}
                     textSegments={formatting.textSegments}
@@ -170,22 +175,29 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
                 </View>
               </ScrollView>
 
-              <EditNoteToolbar
-                isAiThinking={actions.isAiThinking}
-                isBold={formatting.isBold}
-                isItalic={formatting.isItalic}
-                isRecording={recording.isRecording}
-                onAiComplete={actions.handleAiComplete}
-                onBoldToggle={formatting.handleBoldToggle}
-                onDecreaseFontSize={formatting.handleDecreaseFontSize}
-                onIncreaseFontSize={formatting.handleIncreaseFontSize}
-                onRecordingToggle={recording.handleRecordingToggle}
-                onShowImageOptions={() => media.setShowImageModal(true)}
-                onToggleItalic={formatting.handleToggleItalic}
-                selection={formatting.selection}
-                textSegments={formatting.textSegments}
-                theme={theme}
-              />
+              <NoteImageEntryFlow
+                onCaptureImage={media.handleCamera}
+                onPickImage={media.handleImagePicker}
+                theme={theme}>
+                {openImageOptions => (
+                  <EditNoteToolbar
+                    isAiThinking={actions.isAiThinking}
+                    isBold={formatting.isBold}
+                    isItalic={formatting.isItalic}
+                    isRecording={recording.isRecording}
+                    onAiComplete={actions.handleAiComplete}
+                    onBoldToggle={formatting.handleBoldToggle}
+                    onDecreaseFontSize={formatting.handleDecreaseFontSize}
+                    onIncreaseFontSize={formatting.handleIncreaseFontSize}
+                    onRecordingToggle={recording.handleRecordingToggle}
+                    onShowImageOptions={openImageOptions}
+                    onToggleItalic={formatting.handleToggleItalic}
+                    selection={formatting.selection}
+                    textSegments={formatting.textSegments}
+                    theme={theme}
+                  />
+                )}
+              </NoteImageEntryFlow>
             </View>
           </KeyboardAvoidingView>
         </SafeAreaView>
@@ -193,18 +205,8 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
 
       <EditNoteAuxiliaryModals
         isSaving={actions.isSaving}
-        onCloseImageOptions={() => media.setShowImageModal(false)}
         onCloseValidation={actions.handleCloseValidation}
-        onOpenCamera={() => {
-          media.setShowImageModal(false);
-          media.handleCamera();
-        }}
-        onOpenImagePicker={() => {
-          media.setShowImageModal(false);
-          media.handleImagePicker();
-        }}
         showAiThinkingModal={actions.showAiThinkingModal}
-        showImageModal={media.showImageModal}
         showValidationModal={actions.showValidationModal}
         theme={theme}
         validationMessage={actions.validationMessage}
