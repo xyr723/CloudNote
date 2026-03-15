@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, {useCallback, useMemo, useState} from 'react';
 import {
   FlatList,
@@ -8,21 +7,20 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import ProfilePage from '../../../../app/components/ProfilePage';
-import SettingsPage from '../../../../app/components/SettingsPage';
 import {generateThemeColors} from '../../../shared/theme/colors';
 import type {Note} from '../../../entities/note/types';
 import {useHomeNotes} from '../model/useHomeNotes';
-import {providerRegistry} from '../../../providers/providerRegistry';
 import {HomeEditorModal} from './HomeEditorModal';
 import {HomeHeader} from './HomeHeader';
 import {HomeNoteItem} from './HomeNoteItem';
 import {HomeOverlayModals} from './HomeOverlayModals';
 import {HomeSearchPanel} from './HomeSearchPanel';
 import {homeScreenStyles} from './homeScreenStyles';
+import {ProfileEntry} from '../../profile/ui/ProfileEntry';
 
 type HomeScreenProps = {
   isDarkMode: boolean;
+  onSignOut: () => Promise<void>;
   setIsDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
   setThemeColor: React.Dispatch<React.SetStateAction<string>>;
   setUser: React.Dispatch<
@@ -42,16 +40,14 @@ type HomeScreenProps = {
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   isDarkMode,
+  onSignOut,
   setIsDarkMode,
   setThemeColor,
   setUser,
   themeColor,
   user,
 }) => {
-  const [showProfile, setShowProfile] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const authProvider = useMemo(() => providerRegistry.getAuthProvider(), []);
   const {
     confirmDelete,
     currentNote,
@@ -104,49 +100,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const handleLogout = useCallback(async () => {
     try {
       setShowLogoutConfirm(false);
-      setShowProfile(false);
       await syncNotesNow();
-      await authProvider.signOut();
-      setUser({username: '', isLoggedIn: false});
+      await onSignOut();
     } catch (error) {
       console.error('Logout error:', error);
     }
-  }, [authProvider, setUser, syncNotesNow]);
-
-  const handleThemeColorChange = useCallback(
-    (color: string) => {
-      const themeMap: {[key: string]: string} = {
-        '#DCC6EA': '葡萄冰萃',
-        '#B7CCDF': '清冽冰川',
-        '#938368': '流金岁月',
-        '#BBE1E4': '薄荷生巧',
-        '#FBD7D7': '桃桃乌龙',
-      };
-      const nextThemeColor = themeMap[color] || '薄荷生巧';
-      setThemeColor(nextThemeColor);
-      AsyncStorage.setItem('themeColor', nextThemeColor).catch(error => {
-        console.error('保存主题颜色失败:', error);
-      });
-    },
-    [setThemeColor],
-  );
-
-  const handleToggleDarkMode = useCallback(
-    (value: boolean) => {
-      setIsDarkMode(value);
-      AsyncStorage.setItem('isDarkMode', value.toString()).catch(error => {
-        console.error('保存深色模式设置失败:', error);
-      });
-    },
-    [setIsDarkMode],
-  );
-
-  const handleUpdateAvatar = useCallback(
-    (avatarUri: string) => {
-      setUser(previousUser => ({...previousUser, avatar: avatarUri}));
-    },
-    [setUser],
-  );
+  }, [onSignOut, syncNotesNow]);
 
   const footerContent = useMemo(() => {
     if (filteredNotes.length > 0) {
@@ -178,11 +137,20 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     <SafeAreaView
       style={[homeScreenStyles.container, {backgroundColor: theme.background}]}>
       <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
-      <HomeHeader
-        onOpenProfile={() => setShowProfile(true)}
+      <ProfileEntry
+        isDarkMode={isDarkMode}
+        notesCount={notes.length}
+        onRequestLogout={() => setShowLogoutConfirm(true)}
+        setIsDarkMode={setIsDarkMode}
+        setThemeColor={setThemeColor}
+        setUser={setUser}
         theme={theme}
-        user={user}
-      />
+        themeColor={themeColor}
+        user={user}>
+        {openProfile => (
+          <HomeHeader onOpenProfile={openProfile} theme={theme} user={user} />
+        )}
+      </ProfileEntry>
       <HomeSearchPanel
         isLoading={isLoading}
         onChangeSearchQuery={setSearchQuery}
@@ -235,34 +203,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         showSyncErrorModal={showSyncErrorModal}
         theme={theme}
       />
-
-      {showProfile && (
-        <ProfilePage
-          visible={showProfile}
-          username={user.username}
-          avatar={user.avatar}
-          notesCount={notes.length}
-          onLogout={async () => {
-            setShowLogoutConfirm(true);
-          }}
-          onClose={() => setShowProfile(false)}
-          onOpenSettings={() => setShowSettings(true)}
-          onUpdateAvatar={handleUpdateAvatar}
-          theme={theme}
-        />
-      )}
-
-      {showSettings && (
-        <SettingsPage
-          visible={showSettings}
-          onClose={() => setShowSettings(false)}
-          isDarkMode={isDarkMode}
-          onToggleDarkMode={handleToggleDarkMode}
-          themeColor={themeColor}
-          onThemeColorChange={handleThemeColorChange}
-          theme={theme}
-        />
-      )}
       <HomeEditorModal
         currentNote={currentNote}
         isEditing={isEditing}
