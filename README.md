@@ -2,12 +2,12 @@
 
 CloudNote 是一个面向多端的云笔记应用，当前代码基于 React Native CLI 构建，已经具备登录注册、笔记编辑、图片/音频附件、头像、主题切换、回收站和简单 AI 文本补全等能力。
 
-当前项目可以运行，但架构已经明显失衡：
+当前项目可以运行，但架构仍处于重构过渡期：
 
-- `App.tsx` 同时承担路由、状态、同步、页面编排和业务逻辑。
-- `EditNotePage.tsx`、`storage.ts` 等文件体量过大，职责混杂。
+- `App.tsx` 仍承担认证态切换和页面编排入口。
+- `ProfilePage.tsx`、`storage.ts` 等文件体量仍偏大，职责混杂。
 - 客户端直接持有对象存储密钥，存在明显安全问题。
-- 登录、用户数据、附件上传、回收站、AI 调用都直接耦合在页面里，不可替换、不可扩展。
+- 用户资料、附件上传、部分设置流程以及部分 AI 调用仍直接耦合在页面里，不可替换、不可扩展。
 - 编辑器仍以原生输入为主，不适合后续的富文本、动态组件和 Agent Widget 演进。
 
 因此本项目后续不继续围绕旧 OSS 方案修补，而是按“本地优先、可插拔、可多端扩展”的方向重构。
@@ -347,25 +347,39 @@ yarn test
 
 ## 当前状态
 
-当前已完成的第一轮重构工作：
+当前已完成的重构工作：
 
 - README 已替换为项目专用架构文档。
 - 已建立 `src/` 目录下的实体类型与 provider 骨架。
-- 已引入 `providerRegistry`，作为 AI 和笔记同步的统一入口。
+- 已引入 `providerRegistry`，作为认证、AI、同步、附件、回收站等能力的统一入口。
 - 旧的 `chatComplete.ts` 已改为通过 AI provider 调用，不再硬编码 API Key。
-- `App.tsx` 中的笔记读写已开始通过 `NoteSyncProvider` 过渡，不再直接在主流程里调用底层同步实现。
+- 首页主业务已迁到 `src/features/home/**`。
+- 旧 `EditNotePage.tsx` 已删除，编辑器入口已切到 `src/features/note-editor/**`。
+- 旧 `TrashPage.tsx` 已删除，回收站已切到 `src/features/trash/**`。
+- 登录 / 注册页已迁到 `src/features/auth/**`。
+- 个人中心 / 设置 / 修改密码已迁到 `src/features/profile/**`。
+- 头像选择、图片选择与附件保存已收口到 `src/shared/account/**` 和 `src/shared/media/**` 边界。
+- `HomeScreen` 中 profile / settings 的显隐编排与设置持久化已下沉到 `src/features/profile/**`。
+- `App.tsx` 中认证导航、session 恢复和用户状态管理已下沉到 `src/features/auth/**`。
+- `ProfileModal` 中头像确认弹层与上传编排已下沉到 `src/features/profile/**`。
+- note-editor 的图片入口弹层与相册 / 拍照动作编排已下沉到 `src/features/note-editor/**`。
+- note-editor 的录音权限、临时路径与 start / stop session 编排已下沉到 `src/features/note-editor/**`。
+- note-editor 的音频播放状态与音频块 UI 已进一步收口到 `src/features/note-editor/**`。
+- note-editor 的图片块 UI 已进一步收口到 `src/features/note-editor/**`。
+- note-editor 的内容 token 编排已进一步收口到 `src/features/note-editor/**`。
+- note-editor 的文本输入块与内容区渲染接线已进一步收口到 `src/features/note-editor/**`。
+- note-editor 的空态输入块与内容区空态切换已进一步收口到 `src/features/note-editor/**`。
+- note-editor 的最终内容分发已进一步收口到 `src/features/note-editor/**`。
 
 仍未完成的高风险遗留项：
 
-- 登录、注册、回收站、附件上传仍直接耦合旧 OSS 逻辑。
-- `App.tsx`、`EditNotePage.tsx`、`TrashPage.tsx` 仍然是大文件。
+- 全局 theme / app-shell 状态仍集中在 `App.tsx`，边界还可以继续收紧。
 - H5 富文本编辑器、Widget Registry、Expo 迁移尚未落地。
 
 后续建议按以下顺序推进：
 
-1. 先建新目录与 provider 接口
-2. 再迁认证和同步
-3. 再替换编辑器
-4. 最后接 AI widget
+1. 再评估是否需要继续抽离全局 theme / app-shell 状态
+2. 再评估 H5 富文本编辑器与 Widget Registry
+3. 最后推进 Expo 迁移
 
 这样成本最低，回滚也最容易。
