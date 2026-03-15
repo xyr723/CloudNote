@@ -5,6 +5,7 @@ import {Text, TextInput, TouchableOpacity} from 'react-native';
 import {generateThemeColors} from '../../../shared/theme/colors';
 import NoteEditorModal from './NoteEditorModal';
 import {completeNoteEditorTextWithAi} from '../model/noteEditorAi';
+import {useAudioPlayback} from '../model/useAudioPlayback';
 
 const mockSaveAttachment = jest.fn();
 
@@ -20,8 +21,21 @@ jest.mock('../model/noteEditorAi', () => ({
   completeNoteEditorTextWithAi: jest.fn(),
 }));
 
+jest.mock('../model/useAudioPlayback', () => ({
+  useAudioPlayback: jest.fn(),
+}));
+
+const mockUseAudioPlayback = useAudioPlayback as jest.MockedFunction<
+  typeof useAudioPlayback
+>;
+
 beforeEach(() => {
   jest.clearAllMocks();
+  mockUseAudioPlayback.mockReturnValue({
+    currentAudioIndex: -1,
+    handlePlayAudio: jest.fn(),
+    isPlaying: false,
+  });
 });
 
 test('renders note editor modal from feature entry', async () => {
@@ -329,4 +343,33 @@ test('keeps inserted audio marker when ai completion runs before parent note rer
   expect(onChangeTextSegments).toHaveBeenLastCalledWith([
     {text: '[音频0]abcd续写内容', fontSize: 18, isBold: true},
   ]);
+});
+
+test('wires audio playback through useAudioPlayback', async () => {
+  await ReactTestRenderer.act(() => {
+    ReactTestRenderer.create(
+      <NoteEditorModal
+        visible
+        isEditing={false}
+        note={{
+          title: '标题',
+          content: '[音频0]',
+          audios: ['file:///audio-0.mp3'],
+        }}
+        onSave={async () => {}}
+        onClose={() => {}}
+        onChangeTitle={() => {}}
+        onChangeContent={() => {}}
+        onChangeImages={() => {}}
+        onChangeAudios={() => {}}
+        onChangeFontSize={() => {}}
+        onChangeTextSegments={() => {}}
+        theme={generateThemeColors('薄荷生巧', false)}
+      />,
+    );
+  });
+
+  expect(mockUseAudioPlayback).toHaveBeenCalledWith({
+    audios: ['file:///audio-0.mp3'],
+  });
 });

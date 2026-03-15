@@ -1,17 +1,24 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import * as ImagePicker from 'react-native-image-picker';
+import {pickImagesFromLibrary} from '../../../shared/media/imagePicker';
+import {saveNoteAttachment} from '../../../shared/media/noteAttachmentStore';
 import {useNoteMedia} from './useNoteMedia';
 
-const mockSaveAttachment = jest.fn();
-
-jest.mock('../../../providers/providerRegistry', () => ({
-  providerRegistry: {
-    getAttachmentProvider: () => ({
-      saveAttachment: mockSaveAttachment,
-    }),
-  },
+jest.mock('../../../shared/media/imagePicker', () => ({
+  pickImagesFromLibrary: jest.fn(),
+  captureImage: jest.fn(),
 }));
+
+jest.mock('../../../shared/media/noteAttachmentStore', () => ({
+  saveNoteAttachment: jest.fn(),
+}));
+
+const mockPickImagesFromLibrary = pickImagesFromLibrary as jest.MockedFunction<
+  typeof pickImagesFromLibrary
+>;
+const mockSaveNoteAttachment = saveNoteAttachment as jest.MockedFunction<
+  typeof saveNoteAttachment
+>;
 
 describe('useNoteMedia', () => {
   beforeEach(() => {
@@ -19,17 +26,13 @@ describe('useNoteMedia', () => {
   });
 
   test('keeps image markers in selection order when inserting multiple images', async () => {
-    mockSaveAttachment
+    mockSaveNoteAttachment
       .mockResolvedValueOnce('file:///image-0.jpg')
       .mockResolvedValueOnce('file:///image-1.jpg');
-    jest
-      .spyOn(ImagePicker, 'launchImageLibrary')
-      .mockImplementation((_options, callback) => {
-        callback?.({
-          assets: [{uri: 'file:///source-0.jpg'}, {uri: 'file:///source-1.jpg'}],
-        });
-        return Promise.resolve({});
-      });
+    mockPickImagesFromLibrary.mockResolvedValue([
+      {uri: 'file:///source-0.jpg'},
+      {uri: 'file:///source-1.jpg'},
+    ]);
 
     const onChangeContent = jest.fn();
     const onChangeImages = jest.fn();
@@ -64,9 +67,7 @@ describe('useNoteMedia', () => {
     });
 
     await ReactTestRenderer.act(async () => {
-      latestMedia?.handleImagePicker();
-      await Promise.resolve();
-      await Promise.resolve();
+      await latestMedia?.handleImagePicker();
     });
 
     expect(onChangeImages).toHaveBeenCalledWith([
@@ -77,6 +78,13 @@ describe('useNoteMedia', () => {
     expect(onChangeTextSegments).toHaveBeenCalledWith([
       {text: 'ab[图片0][图片1]cd', fontSize: 18, isBold: true},
     ]);
+    expect(mockSaveNoteAttachment).toHaveBeenNthCalledWith(1, {
+      index: 0,
+      kind: 'image',
+      noteId: undefined,
+      tempNoteId: 'temp-note-id',
+      uri: 'file:///source-0.jpg',
+    });
   });
 
   test('syncs auto-added image markers back to parent content and segments', async () => {

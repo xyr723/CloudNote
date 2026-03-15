@@ -5,12 +5,8 @@ import type {NoteEditorTheme} from './types';
 
 type EditNoteAuxiliaryModalsProps = {
   isSaving: boolean;
-  onCloseImageOptions: () => void;
   onCloseValidation: () => void;
-  onOpenCamera: () => void;
-  onOpenImagePicker: () => void;
   showAiThinkingModal: boolean;
-  showImageModal: boolean;
   showValidationModal: boolean;
   theme: NoteEditorTheme;
   validationMessage: string;
@@ -18,98 +14,14 @@ type EditNoteAuxiliaryModalsProps = {
 
 export const EditNoteAuxiliaryModals: React.FC<EditNoteAuxiliaryModalsProps> = ({
   isSaving,
-  onCloseImageOptions,
   onCloseValidation,
-  onOpenCamera,
-  onOpenImagePicker,
   showAiThinkingModal,
-  showImageModal,
   showValidationModal,
   theme,
   validationMessage,
 }) => {
   return (
     <>
-      <Modal
-        visible={showImageModal}
-        transparent
-        animationType="fade"
-        onRequestClose={onCloseImageOptions}>
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={onCloseImageOptions}>
-          <View style={[styles.imageOptionsModal, {backgroundColor: theme.surface}]}>
-            <View
-              style={[
-                styles.imageOptionsHeader,
-                {borderBottomColor: theme.border},
-              ]}>
-              <Text style={[styles.imageOptionsTitle, {color: theme.text}]}>
-                添加图片
-              </Text>
-              <TouchableOpacity
-                style={styles.closeModalButton}
-                onPress={onCloseImageOptions}>
-                <Text style={[styles.closeModalText, {color: theme.text}]}>×</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.imageOptionsContent}>
-              <TouchableOpacity
-                style={[styles.imageOptionButton, {backgroundColor: theme.primary}]}
-                onPress={onOpenImagePicker}>
-                <View
-                  style={[styles.imageOptionIcon, {backgroundColor: theme.surface}]}>
-                  <View
-                    style={[styles.galleryIcon, {backgroundColor: theme.primary}]}>
-                    <View
-                      style={[
-                        styles.galleryIconInner,
-                        {backgroundColor: theme.primary},
-                      ]}
-                    />
-                    <View
-                      style={[
-                        styles.galleryIconInner,
-                        {backgroundColor: theme.primary},
-                      ]}
-                    />
-                  </View>
-                </View>
-                <Text style={[styles.imageOptionText, {color: theme.surface}]}>
-                  从相册选择
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.imageOptionButton, {backgroundColor: theme.primary}]}
-                onPress={onOpenCamera}>
-                <View
-                  style={[styles.imageOptionIcon, {backgroundColor: theme.surface}]}>
-                  <View
-                    style={[styles.cameraIcon, {borderColor: theme.primary}]}>
-                    <View
-                      style={[
-                        styles.cameraLensIcon,
-                        {backgroundColor: theme.primary},
-                      ]}
-                    />
-                    <View
-                      style={[
-                        styles.cameraFlashIcon,
-                        {backgroundColor: theme.primary},
-                      ]}
-                    />
-                  </View>
-                </View>
-                <Text style={[styles.imageOptionText, {color: theme.surface}]}>
-                  拍照
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
       <Modal
         visible={showAiThinkingModal}
         transparent
