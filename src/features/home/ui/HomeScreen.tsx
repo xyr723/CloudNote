@@ -7,8 +7,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import {generateThemeColors} from '../../../shared/theme/colors';
 import type {Note} from '../../../entities/note/types';
+import type {
+  ThemePreferencesController,
+  ThemePreferencesInput,
+} from '../../../shared/theme/useThemePreferences';
 import {useHomeNotes} from '../model/useHomeNotes';
 import {HomeEditorModal} from './HomeEditorModal';
 import {HomeHeader} from './HomeHeader';
@@ -19,10 +22,7 @@ import {homeScreenStyles} from './homeScreenStyles';
 import {ProfileEntry} from '../../profile/ui/ProfileEntry';
 
 type HomeScreenProps = {
-  isDarkMode: boolean;
   onSignOut: () => Promise<void>;
-  setIsDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
-  setThemeColor: React.Dispatch<React.SetStateAction<string>>;
   setUser: React.Dispatch<
     React.SetStateAction<{
       avatar?: string;
@@ -30,7 +30,8 @@ type HomeScreenProps = {
       username: string;
     }>
   >;
-  themeColor: string;
+  theme: ThemePreferencesController['theme'];
+  themePreferences: ThemePreferencesInput;
   user: {
     avatar?: string;
     isLoggedIn: boolean;
@@ -39,12 +40,10 @@ type HomeScreenProps = {
 };
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
-  isDarkMode,
   onSignOut,
-  setIsDarkMode,
-  setThemeColor,
   setUser,
-  themeColor,
+  theme,
+  themePreferences,
   user,
 }) => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -88,15 +87,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     username: user.username,
   });
 
-  const theme = useMemo(() => {
-    try {
-      return generateThemeColors(themeColor, isDarkMode);
-    } catch (error) {
-      console.error('Theme generation error:', error);
-      return generateThemeColors('薄荷生巧', isDarkMode);
-    }
-  }, [isDarkMode, themeColor]);
-
   const handleLogout = useCallback(async () => {
     try {
       setShowLogoutConfirm(false);
@@ -138,14 +128,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       style={[homeScreenStyles.container, {backgroundColor: theme.background}]}>
       <StatusBar backgroundColor={theme.primary} barStyle="light-content" />
       <ProfileEntry
-        isDarkMode={isDarkMode}
+        isDarkMode={themePreferences.isDarkMode}
         notesCount={notes.length}
         onRequestLogout={() => setShowLogoutConfirm(true)}
-        setIsDarkMode={setIsDarkMode}
-        setThemeColor={setThemeColor}
+        onThemeColorChange={themePreferences.onThemeColorChange}
+        onToggleDarkMode={themePreferences.onToggleDarkMode}
         setUser={setUser}
         theme={theme}
-        themeColor={themeColor}
+        themeColor={themePreferences.themeColor}
         user={user}>
         {openProfile => (
           <HomeHeader onOpenProfile={openProfile} theme={theme} user={user} />
