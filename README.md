@@ -367,8 +367,11 @@ yarn test
 - H5 只读预览壳已落到 `src/features/h5-editor/**`，当前已支持“HTML 片段 WebView + 原生 widget”混合预览宿主。
 - `src/features/widget-renderer/**` 已落地，开始承载受控 widget 白名单渲染。
 - Widget Registry 已接入 H5 预览链路，`todo-list` 可真实预览，其他 widget 类型当前走 fallback 卡片。
+- `Note` / `NoteDraft` 已新增可选 `document` 持久化字段，当前会随现有本地同步链保存和读取 widget blocks。
 - `NoteEditorModal` 已接入“编辑 / 预览”模式切换，H5 预览开始进入正式编辑入口。
 - `NoteEditorModal` 已新增 H5 正文编辑模式，当前可通过 `WebView` 回写 `content + textSegments` 到 RN 状态。
+- AI provider 返回的 `widgets` 已接入 note editor 草稿文档状态，当前会统一追加到正文尾部并参与后续预览与同步。
+- `NoteEditorPreviewPane` 预览态已优先合并当前文本解析结果与草稿中的 widget blocks，不再只依赖纯文本 parse。
 - 含图片 / 音频的笔记当前也可进入 H5 编辑模式，媒体 marker 会作为不可编辑占位块保留。
 - H5 编辑态里的 widget 当前仍保持只读占位，不支持插入、编辑或删除。
 - H5 模式下，已有 `textSegments` 样式在本地同步回写时可继续保留，不再退化成单段纯文本。
@@ -390,14 +393,13 @@ yarn test
 仍未完成的高风险遗留项：
 
 - H5 编辑器内部仍未提供独立媒体上传入口。
-- AI provider 返回的 `widgets` 尚未接入 note editor / 文档状态。
 - H5 编辑态里的 widget 仍然只支持占位，不支持真实编辑。
 - Expo 迁移尚未开始。
 
 后续建议按以下顺序推进：
 
-1. 先把 AI 返回的 `widgets` 接到 note editor / 文档状态
-2. 再评估 H5 编辑态是否需要补 widget 编辑协议或独立媒体上传入口
+1. 先评估 H5 编辑态是否需要补 widget 编辑协议或独立媒体上传入口
+2. 再决定是否把 `document` 继续收口为唯一事实来源，逐步替代当前 `content + textSegments` 镜像关系
 3. 最后推进 Expo 迁移
 
 这样成本最低，回滚也最容易。
