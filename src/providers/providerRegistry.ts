@@ -6,6 +6,8 @@ import type {AttachmentProvider} from './attachment/attachmentProvider';
 import {LocalAttachmentProvider} from './attachment/local/localAttachmentProvider';
 import type {AuthProvider} from './auth/authProvider';
 import {LocalAuthProvider} from './auth/local/localAuthProvider';
+import type {EditorProvider} from './editor/editorProvider';
+import {LocalHtmlEditorProvider} from './editor/local/localHtmlEditorProvider';
 import {LocalNoteSyncProvider} from './sync/local/localNoteSyncProvider';
 import type {NoteSyncProvider} from './sync/noteSyncProvider';
 import {LocalTrashProvider} from './trash/local/localTrashProvider';
@@ -14,6 +16,7 @@ import type {TrashProvider} from './trash/trashProvider';
 let aiProvider: AiProvider | null = null;
 let attachmentProvider: AttachmentProvider | null = null;
 let authProvider: AuthProvider | null = null;
+let editorProvider: EditorProvider | null = null;
 let noteSyncProvider: NoteSyncProvider | null = null;
 let trashProvider: TrashProvider | null = null;
 
@@ -57,6 +60,14 @@ export const providerRegistry = {
     }
 
     return authProvider;
+  },
+
+  getEditorProvider(): EditorProvider {
+    if (!editorProvider) {
+      editorProvider = new LocalHtmlEditorProvider();
+    }
+
+    return editorProvider;
   },
 
   getNoteSyncProvider(): NoteSyncProvider {
