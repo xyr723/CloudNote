@@ -359,8 +359,24 @@ yarn test
 - 登录 / 注册页已迁到 `src/features/auth/**`。
 - 个人中心 / 设置 / 修改密码已迁到 `src/features/profile/**`。
 - 头像选择、图片选择与附件保存已收口到 `src/shared/account/**` 和 `src/shared/media/**` 边界。
-- `HomeScreen` 中 profile / settings 的显隐编排与设置持久化已下沉到 `src/features/profile/**`。
+- `HomeScreen` 中 profile / settings 的显隐编排已下沉到 `src/features/profile/**`。
+- 全局 theme 偏好状态与持久化已进一步收口到 `src/shared/theme/**`。
+- `App.tsx` 的页面编排已进一步收口到 `src/features/app-shell/**`。
 - `App.tsx` 中认证导航、session 恢复和用户状态管理已下沉到 `src/features/auth/**`。
+- 默认 `EditorProvider` 已落到 `src/providers/editor/**`，最小 `RichDocument -> HTML` 转换链路已打通。
+- H5 只读预览壳已落到 `src/features/h5-editor/**`，当前已支持“HTML 片段 WebView + 原生 widget”混合预览宿主。
+- `src/features/widget-renderer/**` 已落地，开始承载受控 widget 白名单渲染。
+- Widget Registry 已接入 H5 预览链路，`todo-list` 可真实预览，其他 widget 类型当前走 fallback 卡片。
+- `NoteEditorModal` 已接入“编辑 / 预览”模式切换，H5 预览开始进入正式编辑入口。
+- `NoteEditorModal` 已新增 H5 正文编辑模式，当前可通过 `WebView` 回写 `content + textSegments` 到 RN 状态。
+- 含图片 / 音频的笔记当前也可进入 H5 编辑模式，媒体 marker 会作为不可编辑占位块保留。
+- H5 编辑态里的 widget 当前仍保持只读占位，不支持插入、编辑或删除。
+- H5 模式下，已有 `textSegments` 样式在本地同步回写时可继续保留，不再退化成单段纯文本。
+- H5 模式下，原生工具栏已可桥接粗体 / 斜体命令到 `WebView`，并继续复用 `content + textSegments` 回写。
+- H5 模式下，`A+ / A-` 已通过现有 `fontSize + textSegments` 同步链支持全局字号调整。
+- H5 模式下，已支持删除已存在的图片 / 音频 marker，并复用 RN 侧媒体删除链同步 content、segments 与附件数组。
+- H5 模式下，已支持通过 RN 工具栏复用现有相册 / 拍照 / 录音入口，在当前光标位置新增图片 / 音频 marker。
+- H5 编辑器内部当前仍没有独立文件选择器、拖拽上传或粘贴上传能力。
 - `ProfileModal` 中头像确认弹层与上传编排已下沉到 `src/features/profile/**`。
 - note-editor 的图片入口弹层与相册 / 拍照动作编排已下沉到 `src/features/note-editor/**`。
 - note-editor 的录音权限、临时路径与 start / stop session 编排已下沉到 `src/features/note-editor/**`。
@@ -373,13 +389,15 @@ yarn test
 
 仍未完成的高风险遗留项：
 
-- 全局 theme / app-shell 状态仍集中在 `App.tsx`，边界还可以继续收紧。
-- H5 富文本编辑器、Widget Registry、Expo 迁移尚未落地。
+- H5 编辑器内部仍未提供独立媒体上传入口。
+- AI provider 返回的 `widgets` 尚未接入 note editor / 文档状态。
+- H5 编辑态里的 widget 仍然只支持占位，不支持真实编辑。
+- Expo 迁移尚未开始。
 
 后续建议按以下顺序推进：
 
-1. 再评估是否需要继续抽离全局 theme / app-shell 状态
-2. 再评估 H5 富文本编辑器与 Widget Registry
+1. 先把 AI 返回的 `widgets` 接到 note editor / 文档状态
+2. 再评估 H5 编辑态是否需要补 widget 编辑协议或独立媒体上传入口
 3. 最后推进 Expo 迁移
 
 这样成本最低，回滚也最容易。
