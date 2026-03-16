@@ -75,6 +75,78 @@ export const appendTextToTextSegments = (
   return nextTextSegments;
 };
 
+export const replaceTextSegmentsContent = ({
+  textSegments,
+  nextContent,
+  fallbackFontSize,
+}: {
+  textSegments: EditableTextSegment[];
+  nextContent: string;
+  fallbackFontSize: number;
+}): EditableTextSegment[] => {
+  if (textSegments.length === 0) {
+    return [
+      {
+        text: nextContent,
+        fontSize: fallbackFontSize,
+        isBold: false,
+      },
+    ];
+  }
+
+  const [firstSegment] = textSegments;
+
+  return [
+    {
+      ...firstSegment,
+      text: nextContent,
+      fontSize: fallbackFontSize,
+    },
+  ];
+};
+
+export const replaceRichTextSegmentsState = ({
+  content,
+  fallbackFontSize,
+  textSegments,
+}: {
+  content: string;
+  fallbackFontSize: number;
+  textSegments?: EditableTextSegment[];
+}): EditableTextSegment[] => {
+  if (hasSyncedTextSegments(textSegments, content)) {
+    return textSegments;
+  }
+
+  return [
+    {
+      text: content,
+      fontSize: fallbackFontSize,
+      isBold: false,
+    },
+  ];
+};
+
+export const setGlobalTextSegmentsFontSize = (
+  textSegments: EditableTextSegment[],
+  nextFontSize: number,
+): EditableTextSegment[] => {
+  if (textSegments.length === 0) {
+    return [
+      {
+        text: '',
+        fontSize: nextFontSize,
+        isBold: false,
+      },
+    ];
+  }
+
+  return textSegments.map(segment => ({
+    ...segment,
+    fontSize: nextFontSize,
+  }));
+};
+
 const toggleGlobalStyle = (
   textSegments: EditableTextSegment[],
   styleKey: ToggleableStyleKey,

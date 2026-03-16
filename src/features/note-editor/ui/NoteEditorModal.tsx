@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -24,6 +24,9 @@ import {EditNoteAuxiliaryModals} from './EditNoteAuxiliaryModals';
 import {EditNoteContent} from './EditNoteContent';
 import {EditNoteToolbar} from './EditNoteToolbar';
 import {NoteImageEntryFlow} from './NoteImageEntryFlow';
+import {NoteEditorPreviewPane} from './NoteEditorPreviewPane';
+import {H5TextDocumentEditor} from '../../h5-editor/ui/H5TextDocumentEditor';
+import type {H5TextEditorFormatCommand} from '../../h5-editor/model/h5TextEditorBridge';
 import {styles} from './styles';
 
 export interface NoteEditorModalProps {
@@ -58,6 +61,29 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
   const [tempNoteId] = useState(
     () => `temp_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
   );
+  const [editorMode, setEditorMode] = useState<'native' | 'h5' | 'preview'>(
+    'native',
+  );
+  const [h5FormatCommand, setH5FormatCommand] =
+    useState<H5TextEditorFormatCommand | null>(null);
+
+  useEffect(() => {
+    if (!visible) {
+      setEditorMode('native');
+      setH5FormatCommand(null);
+    }
+  }, [visible]);
+
+  const handleQueueH5FormatCommand = useCallback(
+    (type: H5TextEditorFormatCommand['type']) => {
+      setH5FormatCommand(currentCommand => ({
+        id: (currentCommand?.id ?? 0) + 1,
+        type,
+      }));
+    },
+    [],
+  );
+  const handleNoopAsync = useCallback(async () => {}, []);
 
   const formatting = useNoteFormatting({
     note,
@@ -145,7 +171,106 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
                 onChangeText={onChangeTitle}
               />
 
-              <ScrollView style={styles.contentScroll}>
+              <View
+                style={[
+                  styles.modeSwitch,
+                  {
+                    backgroundColor: theme.surface,
+                    borderColor: theme.border,
+                  },
+                ]}>
+                <TouchableOpacity
+                  style={[
+                    styles.modeSwitchButton,
+                    editorMode === 'native' && {
+                      backgroundColor: theme.primary,
+                    },
+                  ]}
+                  onPress={() => setEditorMode('native')}>
+                  <Text
+                    style={[
+                      styles.modeSwitchButtonText,
+                      {
+                        color:
+                          editorMode === 'native' ? theme.surface : theme.text,
+                      },
+                    ]}>
+                    原生
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.modeSwitchButton,
+                    editorMode === 'h5' && {
+                      backgroundColor: theme.primary,
+                    },
+                  ]}
+                  onPress={() => setEditorMode('h5')}>
+                  <Text
+                    style={[
+                      styles.modeSwitchButtonText,
+                      {
+                        color:
+                          editorMode === 'h5' ? theme.surface : theme.text,
+                      },
+                    ]}>
+                    H5
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.modeSwitchButton,
+                    editorMode === 'preview' && {
+                      backgroundColor: theme.primary,
+                    },
+                  ]}
+                  onPress={() => setEditorMode('preview')}>
+                  <Text
+                    style={[
+                      styles.modeSwitchButtonText,
+                      {
+                        color:
+                          editorMode === 'preview'
+                            ? theme.surface
+                            : theme.text,
+                      },
+                    ]}>
+                    预览
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {editorMode === 'native' ? (
+                <ScrollView style={styles.contentScroll}>
+                  <View
+                    style={[
+                      styles.contentContainer,
+                      {
+                        backgroundColor: theme.surface,
+                        borderColor: theme.border,
+                      },
+                    ]}>
+                    <EditNoteContent
+                      audios={media.audios}
+                      content={editorContent}
+                      currentAudioIndex={playback.currentAudioIndex}
+                      fontSize={formatting.fontSize}
+                      images={media.images}
+                      isBold={formatting.isBold}
+                      isItalic={formatting.isItalic}
+                      isPlaying={playback.isPlaying}
+                      onContentChange={media.applyContentChange}
+                      onDeleteAudio={media.handleDeleteAudio}
+                      onDeleteImage={media.handleDeleteImage}
+                      onPlayAudio={playback.handlePlayAudio}
+                      onSelectionChange={formatting.handleEditorSelectionChange}
+                      onTextSegmentsChange={formatting.applyTextSegmentsChange}
+                      textSegments={formatting.textSegments}
+                      theme={theme}
+                    />
+                  </View>
+                </ScrollView>
+              ) : editorMode === 'h5' ? (
                 <View
                   style={[
                     styles.contentContainer,
@@ -154,50 +279,87 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
                       borderColor: theme.border,
                     },
                   ]}>
-                  <EditNoteContent
-                    audios={media.audios}
+                  <H5TextDocumentEditor
                     content={editorContent}
-                    currentAudioIndex={playback.currentAudioIndex}
+                    formatCommand={h5FormatCommand ?? undefined}
                     fontSize={formatting.fontSize}
-                    images={media.images}
-                    isBold={formatting.isBold}
-                    isItalic={formatting.isItalic}
-                    isPlaying={playback.isPlaying}
-                    onContentChange={media.applyContentChange}
-                    onDeleteAudio={media.handleDeleteAudio}
-                    onDeleteImage={media.handleDeleteImage}
-                    onPlayAudio={playback.handlePlayAudio}
+                    onChangeState={formatting.handleReplaceRichTextContent}
                     onSelectionChange={formatting.handleEditorSelectionChange}
-                    onTextSegmentsChange={formatting.applyTextSegmentsChange}
+                    onDeleteMedia={({kind, index}) => {
+                      if (kind === 'image') {
+                        media.handleDeleteImage(index);
+                        return;
+                      }
+
+                      media.handleDeleteAudio(index);
+                    }}
                     textSegments={formatting.textSegments}
                     theme={theme}
                   />
                 </View>
-              </ScrollView>
+              ) : (
+                <View
+                  style={[
+                    styles.contentContainer,
+                    {
+                      backgroundColor: theme.surface,
+                      borderColor: theme.border,
+                    },
+                  ]}>
+                  <NoteEditorPreviewPane content={editorContent} theme={theme} />
+                </View>
+              )}
 
-              <NoteImageEntryFlow
-                onCaptureImage={media.handleCamera}
-                onPickImage={media.handleImagePicker}
-                theme={theme}>
-                {openImageOptions => (
-                  <EditNoteToolbar
-                    isAiThinking={actions.isAiThinking}
-                    isBold={formatting.isBold}
-                    isItalic={formatting.isItalic}
-                    isRecording={recording.isRecording}
-                    onAiComplete={actions.handleAiComplete}
-                    onBoldToggle={formatting.handleBoldToggle}
-                    onDecreaseFontSize={formatting.handleDecreaseFontSize}
-                    onIncreaseFontSize={formatting.handleIncreaseFontSize}
-                    onRecordingToggle={recording.handleRecordingToggle}
-                    onShowImageOptions={openImageOptions}
-                    onToggleItalic={formatting.handleToggleItalic}
-                    selection={formatting.selection}
-                    textSegments={formatting.textSegments}
-                    theme={theme}
-                  />
-                )}
-              </NoteImageEntryFlow>
+              {editorMode === 'native' ? (
+                <NoteImageEntryFlow
+                  onCaptureImage={media.handleCamera}
+                  onPickImage={media.handleImagePicker}
+                  theme={theme}>
+                  {openImageOptions => (
+                    <EditNoteToolbar
+                      isAiThinking={actions.isAiThinking}
+                      isBold={formatting.isBold}
+                      isItalic={formatting.isItalic}
+                      isRecording={recording.isRecording}
+                      onAiComplete={actions.handleAiComplete}
+                      onBoldToggle={formatting.handleBoldToggle}
+                      onDecreaseFontSize={formatting.handleDecreaseFontSize}
+                      onIncreaseFontSize={formatting.handleIncreaseFontSize}
+                      onRecordingToggle={recording.handleRecordingToggle}
+                      onShowImageOptions={openImageOptions}
+                      onToggleItalic={formatting.handleToggleItalic}
+                      selection={formatting.selection}
+                      textSegments={formatting.textSegments}
+                      theme={theme}
+                    />
+                  )}
+                </NoteImageEntryFlow>
+              ) : editorMode === 'h5' ? (
+                <NoteImageEntryFlow
+                  onCaptureImage={media.handleCamera}
+                  onPickImage={media.handleImagePicker}
+                  theme={theme}>
+                  {openImageOptions => (
+                    <EditNoteToolbar
+                      disableAiComplete
+                      isAiThinking={actions.isAiThinking}
+                      isBold={formatting.isBold}
+                      isItalic={formatting.isItalic}
+                      isRecording={recording.isRecording}
+                      onAiComplete={handleNoopAsync}
+                      onBoldToggle={() => handleQueueH5FormatCommand('bold')}
+                      onDecreaseFontSize={formatting.handleDecreaseFontSize}
+                      onIncreaseFontSize={formatting.handleIncreaseFontSize}
+                      onRecordingToggle={recording.handleRecordingToggle}
+                      onShowImageOptions={openImageOptions}
+                      onToggleItalic={() => handleQueueH5FormatCommand('italic')}
+                      selection={formatting.selection}
+                      textSegments={formatting.textSegments}
+                      theme={theme}
+                    />
+                  )}
+                </NoteImageEntryFlow>
+              ) : null}
             </View>
           </KeyboardAvoidingView>
         </SafeAreaView>

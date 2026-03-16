@@ -8,6 +8,10 @@ import type {
 } from './types';
 
 type EditNoteToolbarProps = {
+  disableAiComplete?: boolean;
+  disableFontSizeControls?: boolean;
+  disableImageOptions?: boolean;
+  disableRecordingToggle?: boolean;
   isAiThinking: boolean;
   isBold: boolean;
   isItalic: boolean;
@@ -25,6 +29,10 @@ type EditNoteToolbarProps = {
 };
 
 export const EditNoteToolbar: React.FC<EditNoteToolbarProps> = ({
+  disableAiComplete = false,
+  disableFontSizeControls = false,
+  disableImageOptions = false,
+  disableRecordingToggle = false,
   isAiThinking,
   isBold,
   isItalic,
@@ -80,21 +88,34 @@ export const EditNoteToolbar: React.FC<EditNoteToolbarProps> = ({
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.toolbarButton}
+          style={[
+            styles.toolbarButton,
+            disableFontSizeControls && styles.toolbarButtonDisabled,
+          ]}
+          disabled={disableFontSizeControls}
           onPress={onIncreaseFontSize}>
           <Text style={[styles.toolbarButtonText, {color: theme.text}]}>
             𝐀+
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.toolbarButton}
+          style={[
+            styles.toolbarButton,
+            disableFontSizeControls && styles.toolbarButtonDisabled,
+          ]}
+          disabled={disableFontSizeControls}
           onPress={onDecreaseFontSize}>
           <Text style={[styles.toolbarButtonText, {color: theme.text}]}>
             𝐀-
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.toolbarButton, styles.cameraButton]}
+          style={[
+            styles.toolbarButton,
+            styles.cameraButton,
+            disableImageOptions && styles.toolbarButtonDisabled,
+          ]}
+          disabled={disableImageOptions}
           onPress={onShowImageOptions}>
           <View style={styles.cameraIconContainer}>
             <View
@@ -106,7 +127,12 @@ export const EditNoteToolbar: React.FC<EditNoteToolbarProps> = ({
           </View>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.toolbarButton, isRecording && styles.recordingButton]}
+          style={[
+            styles.toolbarButton,
+            isRecording && styles.recordingButton,
+            disableRecordingToggle && styles.toolbarButtonDisabled,
+          ]}
+          disabled={disableRecordingToggle}
           onPress={onRecordingToggle}>
           <Text
             style={[
@@ -117,11 +143,14 @@ export const EditNoteToolbar: React.FC<EditNoteToolbarProps> = ({
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.toolbarButton}
+          style={[
+            styles.toolbarButton,
+            disableAiComplete && styles.toolbarButtonDisabled,
+          ]}
           onPress={() => {
             void onAiComplete();
           }}
-          disabled={isAiThinking}>
+          disabled={isAiThinking || disableAiComplete}>
           {isAiThinking ? (
             <ActivityIndicator size="small" color={theme.primary} />
           ) : (
