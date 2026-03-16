@@ -89,12 +89,12 @@ const findButtonByText = (
 };
 
 const renderProfileEntry = (overrides?: {
-  setIsDarkMode?: jest.Mock;
-  setThemeColor?: jest.Mock;
+  onThemeColorChange?: jest.Mock;
+  onToggleDarkMode?: jest.Mock;
   setUser?: jest.Mock;
 }) => {
-  const setIsDarkMode = overrides?.setIsDarkMode ?? jest.fn();
-  const setThemeColor = overrides?.setThemeColor ?? jest.fn();
+  const onThemeColorChange = overrides?.onThemeColorChange ?? jest.fn();
+  const onToggleDarkMode = overrides?.onToggleDarkMode ?? jest.fn();
   const setUser = overrides?.setUser ?? jest.fn();
 
   const renderer = ReactTestRenderer.create(
@@ -102,8 +102,8 @@ const renderProfileEntry = (overrides?: {
       isDarkMode={false}
       notesCount={3}
       onRequestLogout={() => {}}
-      setIsDarkMode={setIsDarkMode}
-      setThemeColor={setThemeColor}
+      onThemeColorChange={onThemeColorChange}
+      onToggleDarkMode={onToggleDarkMode}
       setUser={setUser}
       theme={theme}
       themeColor="薄荷生巧"
@@ -117,7 +117,7 @@ const renderProfileEntry = (overrides?: {
     </ProfileEntry>,
   );
 
-  return {renderer, setIsDarkMode, setThemeColor, setUser};
+  return {renderer, onThemeColorChange, onToggleDarkMode, setUser};
 };
 
 describe('ProfileEntry', () => {
@@ -161,10 +161,13 @@ describe('ProfileEntry', () => {
     ).toBeGreaterThan(0);
   });
 
-  test('persists theme and dark mode changes from settings entry', async () => {
-    const setThemeColor = jest.fn();
-    const setIsDarkMode = jest.fn();
-    const {renderer} = renderProfileEntry({setIsDarkMode, setThemeColor});
+  test('delegates theme and dark mode changes to parent handlers', async () => {
+    const onThemeColorChange = jest.fn();
+    const onToggleDarkMode = jest.fn();
+    const {renderer} = renderProfileEntry({
+      onThemeColorChange,
+      onToggleDarkMode,
+    });
 
     await ReactTestRenderer.act(async () => {
       await findButtonByText(renderer, '打开个人中心').props.onPress();
@@ -173,10 +176,9 @@ describe('ProfileEntry', () => {
       await findButtonByText(renderer, '切换深色模式').props.onPress();
     });
 
-    expect(setThemeColor).toHaveBeenCalledWith('桃桃乌龙');
-    expect(setIsDarkMode).toHaveBeenCalledWith(true);
-    expect(AsyncStorage.setItem).toHaveBeenCalledWith('themeColor', '桃桃乌龙');
-    expect(AsyncStorage.setItem).toHaveBeenCalledWith('isDarkMode', 'true');
+    expect(onThemeColorChange).toHaveBeenCalledWith('桃桃乌龙');
+    expect(onToggleDarkMode).toHaveBeenCalledWith(true);
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
   });
 
   test('updates avatar through setUser state updater', async () => {

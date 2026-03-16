@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, {useCallback, useMemo, useState} from 'react';
 import type {AuthTheme} from '../../auth/ui/types';
 import {ProfileModal} from './ProfileModal';
@@ -16,8 +15,8 @@ type ProfileEntryProps = {
   isDarkMode: boolean;
   notesCount: number;
   onRequestLogout: () => Promise<void> | void;
-  setIsDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
-  setThemeColor: React.Dispatch<React.SetStateAction<string>>;
+  onThemeColorChange: (themeName: string) => void;
+  onToggleDarkMode: (value: boolean) => void;
   setUser: React.Dispatch<React.SetStateAction<ProfileEntryUser>>;
   theme: AuthTheme;
   themeColor: string;
@@ -28,9 +27,9 @@ export const ProfileEntry: React.FC<ProfileEntryProps> = ({
   children,
   isDarkMode,
   notesCount,
+  onThemeColorChange,
   onRequestLogout,
-  setIsDarkMode,
-  setThemeColor,
+  onToggleDarkMode,
   setUser,
   theme,
   themeColor,
@@ -56,22 +55,16 @@ export const ProfileEntry: React.FC<ProfileEntryProps> = ({
         profileThemeOptions.find(option => option.value === color)?.name ??
         '薄荷生巧';
 
-      setThemeColor(nextThemeColor);
-      AsyncStorage.setItem('themeColor', nextThemeColor).catch(error => {
-        console.error('保存主题颜色失败:', error);
-      });
+      onThemeColorChange(nextThemeColor);
     },
-    [setThemeColor],
+    [onThemeColorChange],
   );
 
   const handleToggleDarkMode = useCallback(
     (value: boolean) => {
-      setIsDarkMode(value);
-      AsyncStorage.setItem('isDarkMode', value.toString()).catch(error => {
-        console.error('保存深色模式设置失败:', error);
-      });
+      onToggleDarkMode(value);
     },
-    [setIsDarkMode],
+    [onToggleDarkMode],
   );
 
   const handleUpdateAvatar = useCallback(
