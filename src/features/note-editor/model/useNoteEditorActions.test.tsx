@@ -17,16 +17,36 @@ describe('useNoteEditorActions', () => {
       completeNoteEditorTextWithAi as jest.MockedFunction<
         typeof completeNoteEditorTextWithAi
       >;
-    completeNoteEditorTextWithAiMock.mockResolvedValue('续写内容');
+    completeNoteEditorTextWithAiMock.mockResolvedValue({
+      text: '续写内容',
+      widgets: [
+        {
+          id: 'todo-1',
+          type: 'todo-list',
+          title: '待办',
+          props: {
+            items: ['一', '二'],
+          },
+        },
+      ],
+      metadata: {
+        provider: 'mock',
+        model: 'mock-model',
+        usedFallback: false,
+      },
+    });
     const onAppendText = jest.fn();
+    const onAppendWidgets = jest.fn();
     let latestActions: ReturnType<typeof useNoteEditorActions> | null = null;
 
     const Probe = () => {
       latestActions = useNoteEditorActions({
         audiosCount: 0,
         content: '原文',
+        hasWidgets: false,
         imagesCount: 0,
         onAppendText,
+        onAppendWidgets,
         onSave: async () => {},
         title: '标题',
       });
@@ -49,6 +69,16 @@ describe('useNoteEditorActions', () => {
       '请帮我讲述一下这个命题中一些有趣的故事，不少于500字',
     );
     expect(onAppendText).toHaveBeenCalledWith('续写内容');
+    expect(onAppendWidgets).toHaveBeenCalledWith([
+      {
+        id: 'todo-1',
+        type: 'todo-list',
+        title: '待办',
+        props: {
+          items: ['一', '二'],
+        },
+      },
+    ]);
     expect(actions.isAiThinking).toBe(false);
     expect(actions.showAiThinkingModal).toBe(false);
   });
@@ -61,6 +91,7 @@ describe('useNoteEditorActions', () => {
       latestActions = useNoteEditorActions({
         audiosCount: 0,
         content: '正文',
+        hasWidgets: false,
         imagesCount: 0,
         onAppendText: () => {},
         onSave,
@@ -94,6 +125,7 @@ describe('useNoteEditorActions', () => {
       latestActions = useNoteEditorActions({
         audiosCount: 0,
         content: '正文',
+        hasWidgets: false,
         imagesCount: 0,
         onAppendText: () => {},
         onSave,
@@ -118,5 +150,37 @@ describe('useNoteEditorActions', () => {
     expect(onSave).toHaveBeenCalled();
     expect(jest.getTimerCount()).toBe(0);
     jest.useRealTimers();
+  });
+
+  test('allows save when content is empty but widgets exist', async () => {
+    const onSave = jest.fn().mockResolvedValue(undefined);
+    let latestActions: ReturnType<typeof useNoteEditorActions> | null = null;
+
+    const Probe = () => {
+      latestActions = useNoteEditorActions({
+        audiosCount: 0,
+        content: '   ',
+        hasWidgets: true,
+        imagesCount: 0,
+        onAppendText: () => {},
+        onSave,
+        title: '标题',
+      });
+
+      return null;
+    };
+
+    await ReactTestRenderer.act(() => {
+      ReactTestRenderer.create(<Probe />);
+    });
+
+    await ReactTestRenderer.act(async () => {
+      await latestActions?.handleSaveWithValidation();
+    });
+
+    const actions = latestActions!;
+
+    expect(onSave).toHaveBeenCalled();
+    expect(actions.showValidationModal).toBe(false);
   });
 });

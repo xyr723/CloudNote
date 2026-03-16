@@ -1,5 +1,6 @@
 import React from 'react';
 import type {NoteDraft} from '../../../entities/note/draft';
+import type {RichDocument} from '../../../entities/document/types';
 import {generateThemeColors} from '../../../shared/theme/colors';
 import type {TextSegment} from '../../../entities/note/types';
 import NoteEditorModal from '../../note-editor/ui/NoteEditorModal';
@@ -10,6 +11,7 @@ type HomeEditorModalProps = {
   modalVisible: boolean;
   onChangeAudios: (audios: string[]) => void;
   onChangeContent: (text: string) => void;
+  onChangeDocument: (document: RichDocument) => void;
   onChangeFontSize: (fontSize: number) => void;
   onChangeImages: (images: string[]) => void;
   onChangeTextSegments: (segments: TextSegment[]) => void;
@@ -25,6 +27,7 @@ export const HomeEditorModal: React.FC<HomeEditorModalProps> = ({
   modalVisible,
   onChangeAudios,
   onChangeContent,
+  onChangeDocument,
   onChangeFontSize,
   onChangeImages,
   onChangeTextSegments,
@@ -48,6 +51,7 @@ export const HomeEditorModal: React.FC<HomeEditorModalProps> = ({
       onChangeContent={onChangeContent}
       onChangeImages={onChangeImages}
       onChangeAudios={onChangeAudios}
+      onChangeDocument={onChangeDocument}
       onChangeFontSize={onChangeFontSize}
       onChangeTextSegments={onChangeTextSegments}
       theme={theme}

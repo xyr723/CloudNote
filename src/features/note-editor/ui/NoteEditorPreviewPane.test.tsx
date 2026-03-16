@@ -17,7 +17,13 @@ jest.mock('../../h5-editor/ui/H5DocumentPreview', () => ({
   H5DocumentPreview: ({
     document,
   }: {
-    document: {blocks: Array<{text?: string}>};
+    document: {
+      blocks: Array<{
+        text?: string;
+        type?: string;
+        widget?: {title?: string; type: string};
+      }>;
+    };
   }) => {
     const MockReact = require('react');
     const {Text: MockText} = require('react-native');
@@ -25,7 +31,13 @@ jest.mock('../../h5-editor/ui/H5DocumentPreview', () => ({
     return MockReact.createElement(
       MockText,
       {testID: 'preview-document'},
-      document.blocks.map(block => block.text ?? '').join('|'),
+      document.blocks
+        .map(block =>
+          block.type === 'widget'
+            ? `[widget:${block.widget?.title ?? block.widget?.type}]`
+            : (block.text ?? ''),
+        )
+        .join('|'),
     );
   },
 }));
@@ -57,5 +69,39 @@ describe('NoteEditorPreviewPane', () => {
     expect(
       renderer!.root.findByProps({testID: 'preview-document'}).props.children,
     ).toContain('预览内容');
+  });
+
+  test('merges existing widget blocks into the live preview document', async () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <NoteEditorPreviewPane
+          content="预览内容"
+          document={{
+            version: '1.0',
+            blocks: [
+              {
+                id: 'widget-1',
+                type: 'widget',
+                widget: {
+                  id: 'todo-1',
+                  type: 'todo-list',
+                  title: '待办',
+                  props: {
+                    items: ['一', '二'],
+                  },
+                },
+              },
+            ],
+          }}
+          theme={generateThemeColors('薄荷生巧', false)}
+        />,
+      );
+    });
+
+    expect(
+      renderer!.root.findByProps({testID: 'preview-document'}).props.children,
+    ).toContain('[widget:待办]');
   });
 });

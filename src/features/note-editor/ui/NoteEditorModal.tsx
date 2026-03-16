@@ -1,5 +1,11 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {
+  appendWidgetSchemasToDocument,
+  hasWidgetBlocks,
+} from '../../../entities/note/document';
+import type {RichDocument} from '../../../entities/document/types';
+import type {WidgetSchema} from '../../../entities/widget/types';
+import {
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -39,6 +45,7 @@ export interface NoteEditorModalProps {
   onChangeContent: (text: string) => void;
   onChangeImages?: (images: string[]) => void;
   onChangeAudios?: (audios: string[]) => void;
+  onChangeDocument?: (document: RichDocument) => void;
   onChangeFontSize?: (size: number) => void;
   onChangeTextSegments?: (segments: TextSegment[]) => void;
   theme: ReturnType<typeof generateThemeColors>;
@@ -53,6 +60,7 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
   onChangeContent,
   onChangeImages,
   onChangeAudios,
+  onChangeDocument,
   onChangeFontSize,
   onChangeTextSegments,
   visible,
@@ -64,6 +72,9 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
   const [editorMode, setEditorMode] = useState<'native' | 'h5' | 'preview'>(
     'native',
   );
+  const [draftDocument, setDraftDocument] = useState<RichDocument | undefined>(
+    note.document,
+  );
   const [h5FormatCommand, setH5FormatCommand] =
     useState<H5TextEditorFormatCommand | null>(null);
 
@@ -73,6 +84,10 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
       setH5FormatCommand(null);
     }
   }, [visible]);
+
+  useEffect(() => {
+    setDraftDocument(note.document);
+  }, [note.document]);
 
   const handleQueueH5FormatCommand = useCallback(
     (type: H5TextEditorFormatCommand['type']) => {
@@ -84,6 +99,15 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
     [],
   );
   const handleNoopAsync = useCallback(async () => {}, []);
+  const handleAppendWidgets = useCallback(
+    (widgets: WidgetSchema[]) => {
+      const nextDocument = appendWidgetSchemasToDocument(draftDocument, widgets);
+
+      setDraftDocument(nextDocument);
+      onChangeDocument?.(nextDocument);
+    },
+    [draftDocument, onChangeDocument],
+  );
 
   const formatting = useNoteFormatting({
     note,
@@ -122,8 +146,10 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
   const actions = useNoteEditorActions({
     audiosCount: media.audios.length,
     content: editorContent,
+    hasWidgets: hasWidgetBlocks(draftDocument),
     imagesCount: media.images.length,
     onAppendText: formatting.handleAppendText,
+    onAppendWidgets: handleAppendWidgets,
     onSave,
     title: note.title,
   });
@@ -306,7 +332,11 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
                       borderColor: theme.border,
                     },
                   ]}>
-                  <NoteEditorPreviewPane content={editorContent} theme={theme} />
+                  <NoteEditorPreviewPane
+                    content={editorContent}
+                    document={draftDocument}
+                    theme={theme}
+                  />
                 </View>
               )}
 

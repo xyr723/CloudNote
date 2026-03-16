@@ -208,9 +208,20 @@ export class OpenAiCompatibleAiProvider implements AiProvider {
     input: CompleteDocumentInput,
   ): Promise<AiCompletionResult> {
     const text = await this.request(buildCompletionMessages(input));
+    let widgets: WidgetSchema[] | undefined;
+
+    try {
+      widgets = await this.generateWidgets({
+        prompt: input.prompt,
+        existingContent: input.existingContent,
+      });
+    } catch (_error) {
+      widgets = undefined;
+    }
 
     return {
       text,
+      widgets,
       metadata: {
         provider: 'openai-compatible',
         model: this.config.model,

@@ -203,6 +203,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         onChangeContent={(text) =>
           setCurrentNote(previousNote => ({...previousNote, content: text}))
         }
+        onChangeDocument={(document) =>
+          setCurrentNote(previousNote => ({...previousNote, document}))
+        }
         onChangeFontSize={(fontSize) =>
           setCurrentNote(previousNote => ({...previousNote, fontSize}))
         }

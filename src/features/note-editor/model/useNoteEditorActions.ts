@@ -1,12 +1,15 @@
 import {useCallback, useState} from 'react';
 import {Alert} from 'react-native';
+import type {WidgetSchema} from '../../../entities/widget/types';
 import {completeNoteEditorTextWithAi} from './noteEditorAi';
 
 type UseNoteEditorActionsInput = {
   audiosCount: number;
   content: string;
+  hasWidgets: boolean;
   imagesCount: number;
   onAppendText: (text: string) => void;
+  onAppendWidgets?: (widgets: WidgetSchema[]) => void;
   onSave: () => Promise<void>;
   title: string;
 };
@@ -14,8 +17,10 @@ type UseNoteEditorActionsInput = {
 export const useNoteEditorActions = ({
   audiosCount,
   content,
+  hasWidgets,
   imagesCount,
   onAppendText,
+  onAppendWidgets,
   onSave,
   title,
 }: UseNoteEditorActionsInput) => {
@@ -33,12 +38,18 @@ export const useNoteEditorActions = ({
       const existingText =
         content || '不存在正整数x,y,z,n，当>3时，满足x^n+y^n=z^n';
       const userPrompt = '请帮我讲述一下这个命题中一些有趣的故事，不少于500字';
-      const completedText = await completeNoteEditorTextWithAi(
+      const completionResult = await completeNoteEditorTextWithAi(
         existingText,
         userPrompt,
       );
 
-      onAppendText(completedText);
+      if (completionResult.text) {
+        onAppendText(completionResult.text);
+      }
+
+      if (completionResult.widgets?.length) {
+        onAppendWidgets?.(completionResult.widgets);
+      }
     } catch (error) {
       console.error('AI补全文本失败:', error);
       Alert.alert('错误', 'AI补全文本失败，请稍后再试');
@@ -46,7 +57,7 @@ export const useNoteEditorActions = ({
       setIsAiThinking(false);
       setShowAiThinkingModal(false);
     }
-  }, [content, onAppendText]);
+  }, [content, onAppendText, onAppendWidgets]);
 
   const handleSaveWithValidation = useCallback(async () => {
     if (!title.trim()) {
@@ -55,7 +66,12 @@ export const useNoteEditorActions = ({
       return;
     }
 
-    if (!content.trim() && imagesCount === 0 && audiosCount === 0) {
+    if (
+      !content.trim() &&
+      imagesCount === 0 &&
+      audiosCount === 0 &&
+      !hasWidgets
+    ) {
       setValidationMessage('内容不能为空');
       setShowValidationModal(true);
       return;
@@ -69,7 +85,7 @@ export const useNoteEditorActions = ({
     } finally {
       setIsSaving(false);
     }
-  }, [audiosCount, content, imagesCount, onSave, title]);
+  }, [audiosCount, content, hasWidgets, imagesCount, onSave, title]);
 
   const handleCloseValidation = useCallback(() => {
     setShowValidationModal(false);

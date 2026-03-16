@@ -1,13 +1,12 @@
+import type {AiCompletionResult} from '../../../providers/ai/aiProvider';
 import {providerRegistry} from '../../../providers/providerRegistry';
 
 export const completeNoteEditorTextWithAi = async (
   existingContent: string,
   prompt: string,
-): Promise<string> => {
-  const result = await providerRegistry.getAiProvider().completeDocument({
+): Promise<AiCompletionResult> => {
+  return providerRegistry.getAiProvider().completeDocument({
     existingContent,
     prompt,
   });
-
-  return result.text;
 };

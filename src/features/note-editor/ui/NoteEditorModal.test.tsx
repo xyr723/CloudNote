@@ -969,9 +969,17 @@ test('syncs text segments after ai completion appends content', async () => {
     completeNoteEditorTextWithAi as jest.MockedFunction<
       typeof completeNoteEditorTextWithAi
     >;
-  completeNoteEditorTextWithAiMock.mockResolvedValue('续写内容');
+  completeNoteEditorTextWithAiMock.mockResolvedValue({
+    text: '续写内容',
+    metadata: {
+      provider: 'mock',
+      model: 'mock-model',
+      usedFallback: false,
+    },
+  });
   const onChangeContent = jest.fn();
   const onChangeTextSegments = jest.fn();
+  const onChangeDocument = jest.fn();
 
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
@@ -999,6 +1007,7 @@ test('syncs text segments after ai completion appends content', async () => {
         onChangeImages={() => {}}
         onChangeAudios={() => {}}
         onChangeFontSize={() => {}}
+        onChangeDocument={onChangeDocument}
         onChangeTextSegments={onChangeTextSegments}
         theme={generateThemeColors('薄荷生巧', false)}
       />,
@@ -1035,6 +1044,7 @@ test('syncs text segments after ai completion appends content', async () => {
       color: '#123456',
     },
   ]);
+  expect(onChangeDocument).not.toHaveBeenCalled();
 });
 
 test('renders appended ai content before parent note rerenders', async () => {
@@ -1042,7 +1052,14 @@ test('renders appended ai content before parent note rerenders', async () => {
     completeNoteEditorTextWithAi as jest.MockedFunction<
       typeof completeNoteEditorTextWithAi
     >;
-  completeNoteEditorTextWithAiMock.mockResolvedValue('续写内容');
+  completeNoteEditorTextWithAiMock.mockResolvedValue({
+    text: '续写内容',
+    metadata: {
+      provider: 'mock',
+      model: 'mock-model',
+      usedFallback: false,
+    },
+  });
 
   let renderer: ReactTestRenderer.ReactTestRenderer;
   await ReactTestRenderer.act(() => {
@@ -1098,6 +1115,91 @@ test('renders appended ai content before parent note rerenders', async () => {
       node => node.type === TextInput && node.props.value === '原文续写内容',
     ).length,
   ).toBeGreaterThan(0);
+});
+
+test('appends ai widgets into draft document state', async () => {
+  const completeNoteEditorTextWithAiMock =
+    completeNoteEditorTextWithAi as jest.MockedFunction<
+      typeof completeNoteEditorTextWithAi
+    >;
+  completeNoteEditorTextWithAiMock.mockResolvedValue({
+    text: '续写内容',
+    widgets: [
+      {
+        id: 'todo-1',
+        type: 'todo-list',
+        title: '待办',
+        props: {
+          items: ['一', '二'],
+        },
+      },
+    ],
+    metadata: {
+      provider: 'mock',
+      model: 'mock-model',
+      usedFallback: false,
+    },
+  });
+  const onChangeDocument = jest.fn();
+
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <NoteEditorModal
+        visible
+        isEditing={false}
+        note={{
+          title: '标题',
+          content: '原文',
+        }}
+        onSave={async () => {}}
+        onClose={() => {}}
+        onChangeTitle={() => {}}
+        onChangeContent={() => {}}
+        onChangeImages={() => {}}
+        onChangeAudios={() => {}}
+        onChangeFontSize={() => {}}
+        onChangeDocument={onChangeDocument}
+        onChangeTextSegments={() => {}}
+        theme={generateThemeColors('薄荷生巧', false)}
+      />,
+    );
+  });
+
+  const aiButton = renderer!.root.find(node => {
+    if (node.type !== TouchableOpacity || node.props.disabled) {
+      return false;
+    }
+
+    return (
+      node.findAll(
+        child => child.type === Text && child.props.children === '🤖️',
+      ).length > 0
+    );
+  });
+
+  await ReactTestRenderer.act(async () => {
+    aiButton.props.onPress();
+    await Promise.resolve();
+  });
+
+  expect(onChangeDocument).toHaveBeenCalledWith({
+    version: '1.0',
+    blocks: [
+      {
+        id: 'widget-todo-1',
+        type: 'widget',
+        widget: {
+          id: 'todo-1',
+          type: 'todo-list',
+          title: '待办',
+          props: {
+            items: ['一', '二'],
+          },
+        },
+      },
+    ],
+  });
 });
 
 test('syncs text segments after recording inserts an audio marker', async () => {
@@ -1179,7 +1281,14 @@ test('keeps inserted audio marker when ai completion runs before parent note rer
     completeNoteEditorTextWithAi as jest.MockedFunction<
       typeof completeNoteEditorTextWithAi
     >;
-  completeNoteEditorTextWithAiMock.mockResolvedValue('续写内容');
+  completeNoteEditorTextWithAiMock.mockResolvedValue({
+    text: '续写内容',
+    metadata: {
+      provider: 'mock',
+      model: 'mock-model',
+      usedFallback: false,
+    },
+  });
   const onChangeContent = jest.fn();
   const onChangeTextSegments = jest.fn();
 
