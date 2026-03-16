@@ -7,6 +7,9 @@ import type {
 import {
   appendTextToTextSegments,
   createDefaultTextSegments,
+  replaceRichTextSegmentsState,
+  replaceTextSegmentsContent,
+  setGlobalTextSegmentsFontSize,
   toggleBoldForSelection,
   toggleGlobalBold,
   toggleGlobalItalic,
@@ -64,10 +67,16 @@ export const useNoteFormatting = ({
 
   const handleFontSizeChange = useCallback(
     (nextSize: number) => {
+      const nextTextSegments = setGlobalTextSegmentsFontSize(
+        textSegments,
+        nextSize,
+      );
+
       setFontSize(nextSize);
+      applyTextSegmentsChange(nextTextSegments);
       onChangeFontSize?.(nextSize);
     },
-    [onChangeFontSize],
+    [applyTextSegmentsChange, onChangeFontSize, textSegments],
   );
 
   const handleIncreaseFontSize = useCallback(() => {
@@ -149,6 +158,50 @@ export const useNoteFormatting = ({
     [applyTextSegmentsChange, fontSize, onChangeContent, textSegments],
   );
 
+  const handleReplaceTextContent = useCallback(
+    (nextContent: string) => {
+      const nextTextSegments = replaceTextSegmentsContent({
+        textSegments,
+        nextContent,
+        fallbackFontSize: fontSize,
+      });
+
+      setSelection({
+        start: nextContent.length,
+        end: nextContent.length,
+      });
+      setCursorPosition(nextContent.length);
+      applyTextSegmentsChange(nextTextSegments);
+      onChangeContent(nextContent);
+    },
+    [applyTextSegmentsChange, fontSize, onChangeContent, textSegments],
+  );
+
+  const handleReplaceRichTextContent = useCallback(
+    ({
+      content: nextContent,
+      textSegments: nextTextSegments,
+    }: {
+      content: string;
+      textSegments?: EditableTextSegment[];
+    }) => {
+      const resolvedTextSegments = replaceRichTextSegmentsState({
+        content: nextContent,
+        fallbackFontSize: fontSize,
+        textSegments: nextTextSegments,
+      });
+
+      setSelection({
+        start: nextContent.length,
+        end: nextContent.length,
+      });
+      setCursorPosition(nextContent.length);
+      applyTextSegmentsChange(resolvedTextSegments);
+      onChangeContent(nextContent);
+    },
+    [applyTextSegmentsChange, fontSize, onChangeContent],
+  );
+
   return {
     applyTextSegmentsChange,
     cursorPosition,
@@ -158,6 +211,8 @@ export const useNoteFormatting = ({
     handleDecreaseFontSize,
     handleEditorSelectionChange,
     handleIncreaseFontSize,
+    handleReplaceRichTextContent,
+    handleReplaceTextContent,
     handleToggleItalic,
     isBold,
     isItalic,

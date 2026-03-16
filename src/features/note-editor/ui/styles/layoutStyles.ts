@@ -69,6 +69,28 @@ export const layoutStyles = {
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
+  modeSwitch: {
+    flexDirection: 'row',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+    gap: 8,
+  },
+  modeSwitchButton: {
+    flex: 1,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+  },
+  modeSwitchButtonDisabled: {
+    opacity: 0.4,
+  },
+  modeSwitchButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
   contentScroll: {
     flex: 1,
     marginBottom: 16,
@@ -96,6 +118,9 @@ export const layoutStyles = {
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 12,
+  },
+  toolbarButtonDisabled: {
+    opacity: 0.4,
   },
   toolbarButtonActive: {
     backgroundColor: 'rgba(0,0,0,0.05)',
