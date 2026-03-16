@@ -1,3 +1,5 @@
+import type {RichDocument} from '../document/types';
+
 export interface TextSegment {
   text: string;
   fontSize: number;
@@ -15,6 +17,7 @@ export interface Note {
   audios?: string[];
   fontSize?: number;
   textSegments?: TextSegment[];
+  document?: RichDocument;
   deletedAt?: string;
   isHidden?: boolean;
 }

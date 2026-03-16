@@ -1,3 +1,4 @@
+import type {RichDocument} from '../document/types';
 import type {Note, TextSegment} from './types';
 
 export interface NoteDraft {
@@ -8,6 +9,7 @@ export interface NoteDraft {
   audios?: string[];
   fontSize?: number;
   textSegments?: TextSegment[];
+  document?: RichDocument;
 }
 
 export const EMPTY_NOTE_DRAFT: NoteDraft = {
@@ -28,5 +30,6 @@ export const createDraftFromNote = (note: Note): NoteDraft => {
     audios: note.audios,
     fontSize: note.fontSize,
     textSegments: note.textSegments,
+    document: note.document,
   };
 };

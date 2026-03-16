@@ -1,7 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {Buffer} from 'buffer';
 import RNFetchBlob from 'react-native-blob-util';
+import type {
+  DocumentBlock,
+  RichDocument,
+  TextBlockType,
+} from '../../entities/document/types';
 import type {Note, TextSegment} from '../../entities/note/types';
+import type {
+  WidgetAction,
+  WidgetActionType,
+  WidgetSchema,
+  WidgetType,
+} from '../../entities/widget/types';
 import {
   copyManagedFile,
   fileExists,
@@ -29,6 +40,33 @@ const decodeString = (value: string): string => {
   }
 };
 
+const TEXT_BLOCK_TYPES: TextBlockType[] = [
+  'paragraph',
+  'heading',
+  'quote',
+  'code',
+];
+const WIDGET_TYPES: WidgetType[] = [
+  'todo-list',
+  'action-card',
+  'form',
+  'quote',
+  'metric',
+  'timeline',
+];
+const WIDGET_ACTION_TYPES: WidgetActionType[] = [
+  'open-url',
+  'insert-text',
+  'toggle',
+  'submit-form',
+];
+
+const isObjectRecord = (
+  value: unknown,
+): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+};
+
 const stringifyNotes = (notes: Note[]): string => {
   return JSON.stringify(notes, (_key, value: unknown) => {
     if (typeof value === 'string') {
@@ -40,11 +78,11 @@ const stringifyNotes = (notes: Note[]): string => {
 };
 
 const parseTextSegment = (value: unknown): TextSegment | null => {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+  if (!isObjectRecord(value)) {
     return null;
   }
 
-  const record = value as Record<string, unknown>;
+  const record = value;
 
   if (typeof record.text !== 'string' || typeof record.fontSize !== 'number') {
     return null;
@@ -56,6 +94,155 @@ const parseTextSegment = (value: unknown): TextSegment | null => {
     isBold: typeof record.isBold === 'boolean' ? record.isBold : undefined,
     isItalic: typeof record.isItalic === 'boolean' ? record.isItalic : undefined,
     color: typeof record.color === 'string' ? record.color : undefined,
+  };
+};
+
+const parseWidgetSchema = (value: unknown): WidgetSchema | null => {
+  if (!isObjectRecord(value)) {
+    return null;
+  }
+
+  if (
+    typeof value.id !== 'string' ||
+    typeof value.type !== 'string' ||
+    !WIDGET_TYPES.includes(value.type as WidgetType)
+  ) {
+    return null;
+  }
+
+  const actions = Array.isArray(value.actions)
+    ? value.actions
+        .map(action => {
+          if (!isObjectRecord(action)) {
+            return null;
+          }
+
+          if (
+            typeof action.id !== 'string' ||
+            typeof action.label !== 'string' ||
+            typeof action.type !== 'string' ||
+            !WIDGET_ACTION_TYPES.includes(action.type as WidgetActionType)
+          ) {
+            return null;
+          }
+
+          const parsedAction: WidgetAction = {
+            id: action.id,
+            label: action.label,
+            type: action.type as WidgetActionType,
+          };
+
+          if (isObjectRecord(action.payload)) {
+            parsedAction.payload = action.payload;
+          }
+
+          return parsedAction;
+        })
+        .filter((action): action is WidgetAction => action !== null)
+    : undefined;
+
+  return {
+    id: value.id,
+    type: value.type as WidgetType,
+    title: typeof value.title === 'string' ? value.title : undefined,
+    description:
+      typeof value.description === 'string' ? value.description : undefined,
+    props: isObjectRecord(value.props) ? value.props : undefined,
+    actions: actions && actions.length > 0 ? actions : undefined,
+    layout: isObjectRecord(value.layout)
+      ? {
+          span:
+            value.layout.span === 1 ||
+            value.layout.span === 2 ||
+            value.layout.span === 3 ||
+            value.layout.span === 4
+              ? value.layout.span
+              : undefined,
+          minHeight:
+            typeof value.layout.minHeight === 'number'
+              ? value.layout.minHeight
+              : undefined,
+        }
+      : undefined,
+  };
+};
+
+const parseDocumentBlock = (value: unknown): DocumentBlock | null => {
+  if (!isObjectRecord(value) || typeof value.id !== 'string') {
+    return null;
+  }
+
+  if (
+    typeof value.type === 'string' &&
+    TEXT_BLOCK_TYPES.includes(value.type as TextBlockType) &&
+    typeof value.text === 'string'
+  ) {
+    return {
+      id: value.id,
+      type: value.type as TextBlockType,
+      text: value.text,
+      level:
+        value.level === 1 || value.level === 2 || value.level === 3
+          ? value.level
+          : undefined,
+    };
+  }
+
+  if (value.type === 'list' && Array.isArray(value.items)) {
+    const items = value.items.filter(
+      (item): item is string => typeof item === 'string',
+    );
+
+    if (items.length !== value.items.length) {
+      return null;
+    }
+
+    return {
+      id: value.id,
+      type: 'list',
+      items,
+      ordered: typeof value.ordered === 'boolean' ? value.ordered : undefined,
+    };
+  }
+
+  if (value.type === 'widget') {
+    const widget = parseWidgetSchema(value.widget);
+
+    if (!widget) {
+      return null;
+    }
+
+    return {
+      id: value.id,
+      type: 'widget',
+      widget,
+    };
+  }
+
+  return null;
+};
+
+const parseRichDocument = (value: unknown): RichDocument | undefined => {
+  if (!isObjectRecord(value) || value.version !== '1.0') {
+    return undefined;
+  }
+
+  if (!Array.isArray(value.blocks)) {
+    return undefined;
+  }
+
+  const parsedBlocks = value.blocks
+    .map(parseDocumentBlock)
+    .filter((block): block is DocumentBlock => block !== null);
+
+  if (value.blocks.length > 0 && parsedBlocks.length === 0) {
+    return undefined;
+  }
+
+  return {
+    version: '1.0',
+    blocks: parsedBlocks,
+    plainText: typeof value.plainText === 'string' ? value.plainText : undefined,
   };
 };
 
@@ -150,6 +337,7 @@ const parseNotes = async (notesString: string | null): Promise<Note[]> => {
             ? noteRecord.fontSize
             : undefined,
         textSegments,
+        document: parseRichDocument(noteRecord.document),
         deletedAt:
           typeof noteRecord.deletedAt === 'string'
             ? noteRecord.deletedAt

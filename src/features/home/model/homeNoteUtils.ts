@@ -1,3 +1,4 @@
+import {hasWidgetBlocks} from '../../../entities/note/document';
 import type {NoteDraft} from '../../../entities/note/draft';
 import type {Dispatch, SetStateAction} from 'react';
 import type {Note} from '../../../entities/note/types';
@@ -33,7 +34,8 @@ export const hasNoteChanged = (
     JSON.stringify(cachedNote.audios) !== JSON.stringify(note.audios) ||
     cachedNote.fontSize !== note.fontSize ||
     JSON.stringify(cachedNote.textSegments) !==
-      JSON.stringify(note.textSegments)
+      JSON.stringify(note.textSegments) ||
+    JSON.stringify(cachedNote.document) !== JSON.stringify(note.document)
   );
 };
 
@@ -47,6 +49,7 @@ export const mergeDraftIntoNote = (note: Note, draft: NoteDraft): Note => {
     audios: draft.audios,
     fontSize: draft.fontSize,
     textSegments: draft.textSegments,
+    document: draft.document,
   };
 };
 
@@ -60,6 +63,7 @@ export const createNoteFromDraft = (draft: NoteDraft): Note => {
     audios: draft.audios,
     fontSize: draft.fontSize,
     textSegments: draft.textSegments,
+    document: draft.document,
   };
 };
 
@@ -68,7 +72,8 @@ export const hasDraftContent = (draft: NoteDraft): boolean => {
     draft.title.trim() ||
       draft.content.trim() ||
       draft.images?.length ||
-      draft.audios?.length,
+      draft.audios?.length ||
+      hasWidgetBlocks(draft.document),
   );
 };
 
