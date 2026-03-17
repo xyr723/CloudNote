@@ -1,3 +1,5 @@
+import type {RichDocument, WidgetBlock} from '../../../entities/document/types';
+import {extractWidgetBlocks} from '../../../entities/note/document';
 import type {TextSegment} from '../../../entities/note/types';
 
 const NOTE_MARKER_PATTERN = /(\[图片\d+\]|\[音频\d+\])/g;
@@ -180,18 +182,76 @@ const createSegmentHtml = ({
   ].join('');
 };
 
+const createWidgetPlaceholderHtml = (block: WidgetBlock): string => {
+  const title = block.widget.title ?? block.widget.type;
+  const description = block.widget.description;
+
+  return [
+    '<div class="note-widget-block"',
+    ` data-widget-block-id="${escapeHtml(block.id)}"`,
+    ` data-widget-id="${escapeHtml(block.widget.id)}"`,
+    ` data-widget-type="${escapeHtml(block.widget.type)}"`,
+    ' contenteditable="false"',
+    ' tabindex="0">',
+    '<div class="note-widget-meta">',
+    `<div class="note-widget-title">${escapeHtml(title)}</div>`,
+    description
+      ? `<div class="note-widget-description">${escapeHtml(description)}</div>`
+      : '',
+    '</div>',
+    '<div class="note-widget-actions">',
+    '<button type="button" class="note-widget-button" data-widget-action="edit">',
+    '编辑',
+    '</button>',
+    '<button type="button" class="note-widget-button note-widget-button-danger" data-widget-action="delete">',
+    '删除',
+    '</button>',
+    '</div>',
+    '</div>',
+  ].join('');
+};
+
+const createWidgetInsertButtonHtml = (afterBlockId?: string | null): string => {
+  return [
+    '<button type="button" class="note-widget-insert-button"',
+    afterBlockId
+      ? ` data-widget-insert-after-block-id="${escapeHtml(afterBlockId)}"`
+      : '',
+    ' data-widget-insert-request="true"',
+    ' contenteditable="false">',
+    '新增组件',
+    '</button>',
+  ].join('');
+};
+
+const createWidgetBlocksHtml = (document?: RichDocument): string => {
+  if (!document) {
+    return '';
+  }
+
+  const widgetBlocks = extractWidgetBlocks(document);
+  const lastWidgetBlock = widgetBlocks[widgetBlocks.length - 1];
+
+  return [
+    ...widgetBlocks.map(createWidgetPlaceholderHtml),
+    createWidgetInsertButtonHtml(lastWidgetBlock?.id ?? null),
+  ].join('');
+};
+
 export const createH5TextEditorBodyHtml = ({
   content,
+  document,
   textSegments,
   fallbackFontSize,
   defaultTextColor,
 }: {
   content: string;
+  document?: RichDocument;
   textSegments?: TextSegment[];
   fallbackFontSize: number;
   defaultTextColor: string;
 }): string => {
-  return resolveTextSegments({
+  const textHtml = resolveTextSegments({
     content,
     textSegments,
     fallbackFontSize,
@@ -205,4 +265,6 @@ export const createH5TextEditorBodyHtml = ({
       }),
     )
     .join('');
+
+  return `${textHtml}${createWidgetBlocksHtml(document)}`;
 };

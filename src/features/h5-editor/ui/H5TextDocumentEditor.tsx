@@ -4,6 +4,7 @@ import {
   WebView,
   type WebViewMessageEvent,
 } from 'react-native-webview';
+import type {RichDocument} from '../../../entities/document/types';
 import type {TextSegment} from '../../../entities/note/types';
 import {providerRegistry} from '../../../providers/providerRegistry';
 import type {ThemeColors} from '../../../shared/theme/colors';
@@ -12,6 +13,7 @@ import {
   createH5TextEditorFormatScript,
   createH5TextEditorHtml,
   createH5TextEditorSyncScript,
+  type H5WidgetBridgeEvent,
   parseH5TextEditorMessage,
   type H5TextEditorFormatCommand,
   type H5TextEditorSelectionPayload,
@@ -21,6 +23,7 @@ import {createH5TextEditorBodyHtml} from '../model/h5TextEditorMarkup';
 
 type H5TextDocumentEditorProps = {
   content: string;
+  document?: RichDocument;
   formatCommand?: H5TextEditorFormatCommand;
   fontSize: number;
   onChangeContent?: (content: string) => void;
@@ -30,18 +33,21 @@ type H5TextDocumentEditorProps = {
     cursorPosition: number,
   ) => void;
   onChangeState?: (state: H5TextEditorState) => void;
+  onWidgetEvent?: (event: H5WidgetBridgeEvent) => void;
   textSegments?: TextSegment[];
   theme: ThemeColors;
 };
 
 export const H5TextDocumentEditor: React.FC<H5TextDocumentEditorProps> = ({
   content,
+  document,
   formatCommand,
   fontSize,
   onChangeContent,
   onDeleteMedia,
   onSelectionChange,
   onChangeState,
+  onWidgetEvent,
   textSegments,
   theme,
 }) => {
@@ -53,7 +59,11 @@ export const H5TextDocumentEditor: React.FC<H5TextDocumentEditorProps> = ({
   const textSegmentsSignature = useMemo(() => {
     return JSON.stringify(textSegments ?? null);
   }, [textSegments]);
+  const documentSignature = useMemo(() => {
+    return JSON.stringify(document ?? null);
+  }, [document]);
   const lastSyncedSegmentsRef = useRef<string>(textSegmentsSignature);
+  const lastSyncedDocumentRef = useRef<string>(documentSignature);
   const lastAppliedFontSizeRef = useRef<number>(fontSize);
   const lastAppliedFormatCommandIdRef = useRef<number | null>(
     formatCommand?.id ?? null,
@@ -77,6 +87,7 @@ export const H5TextDocumentEditor: React.FC<H5TextDocumentEditorProps> = ({
         hasInitializedRef.current &&
         content === lastSyncedContentRef.current &&
         textSegmentsSignature === lastSyncedSegmentsRef.current &&
+        documentSignature === lastSyncedDocumentRef.current &&
         fontSize === lastAppliedFontSizeRef.current &&
         themeSignature === lastThemeSignatureRef.current;
 
@@ -86,10 +97,13 @@ export const H5TextDocumentEditor: React.FC<H5TextDocumentEditorProps> = ({
 
       setIsLoading(true);
 
-      const document = await providerRegistry.getEditorProvider().parse(content);
-      await providerRegistry.getEditorProvider().renderHtml(document);
+      const parsedDocument = await providerRegistry.getEditorProvider().parse(
+        content,
+      );
+      await providerRegistry.getEditorProvider().renderHtml(parsedDocument);
       const bodyHtml = createH5TextEditorBodyHtml({
         content,
+        document,
         textSegments,
         fallbackFontSize: fontSize,
         defaultTextColor: theme.text,
@@ -122,6 +136,7 @@ export const H5TextDocumentEditor: React.FC<H5TextDocumentEditorProps> = ({
 
       lastSyncedContentRef.current = content;
       lastSyncedSegmentsRef.current = textSegmentsSignature;
+      lastSyncedDocumentRef.current = documentSignature;
       lastAppliedFontSizeRef.current = fontSize;
       lastThemeSignatureRef.current = themeSignature;
       setIsLoading(false);
@@ -140,7 +155,16 @@ export const H5TextDocumentEditor: React.FC<H5TextDocumentEditorProps> = ({
     return () => {
       isActive = false;
     };
-  }, [content, fontSize, textSegments, textSegmentsSignature, theme, themeSignature]);
+  }, [
+    content,
+    document,
+    documentSignature,
+    fontSize,
+    textSegments,
+    textSegmentsSignature,
+    theme,
+    themeSignature,
+  ]);
 
   useEffect(() => {
     if (
@@ -161,24 +185,36 @@ export const H5TextDocumentEditor: React.FC<H5TextDocumentEditorProps> = ({
   const handleMessage = (event: WebViewMessageEvent): void => {
     const message = parseH5TextEditorMessage(event.nativeEvent.data);
 
+    if (message.type === 'selection-change') {
+      onSelectionChange?.(
+        {
+          start: message.start,
+          end: message.end,
+        },
+        message.cursorPosition,
+      );
+      return;
+    }
+
+    if (message.type === 'media-delete') {
+      onDeleteMedia?.({
+        kind: message.kind,
+        index: message.index,
+      });
+      return;
+    }
+
+    if (
+      message.type === 'widget-select' ||
+      message.type === 'widget-edit-request' ||
+      message.type === 'widget-delete' ||
+      message.type === 'widget-insert-request'
+    ) {
+      onWidgetEvent?.(message);
+      return;
+    }
+
     if (message.type !== 'content-change') {
-      if (message.type === 'selection-change') {
-        onSelectionChange?.(
-          {
-            start: message.start,
-            end: message.end,
-          },
-          message.cursorPosition,
-        );
-      }
-
-      if (message.type === 'media-delete') {
-        onDeleteMedia?.({
-          kind: message.kind,
-          index: message.index,
-        });
-      }
-
       return;
     }
 

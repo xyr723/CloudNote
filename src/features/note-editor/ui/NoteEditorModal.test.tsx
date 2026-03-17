@@ -15,6 +15,11 @@ const mockRenderHtml = jest.fn();
 const mockH5EditorProps: {
   current: null | {
     content: string;
+    document?: {
+      version: '1.0';
+      blocks: Array<Record<string, unknown>>;
+      plainText?: string;
+    };
     formatCommand?: {
       id: number;
       type: 'bold' | 'italic';
@@ -25,6 +30,17 @@ const mockH5EditorProps: {
       selection: {start: number; end: number},
       cursorPosition: number,
     ) => void;
+    onWidgetEvent?: (event: {
+      type:
+        | 'widget-select'
+        | 'widget-edit-request'
+        | 'widget-delete'
+        | 'widget-insert-request';
+      blockId?: string;
+      widgetId?: string;
+      widgetType?: string;
+      afterBlockId?: string | null;
+    }) => void;
     textSegments?: Array<{
       text: string;
       fontSize: number;
@@ -82,6 +98,11 @@ jest.mock(
     return {
       H5TextDocumentEditor: (props: {
         content: string;
+        document?: {
+          version: '1.0';
+          blocks: Array<Record<string, unknown>>;
+          plainText?: string;
+        };
         formatCommand?: {
           id: number;
           type: 'bold' | 'italic';
@@ -92,6 +113,17 @@ jest.mock(
           selection: {start: number; end: number},
           cursorPosition: number,
         ) => void;
+        onWidgetEvent?: (event: {
+          type:
+            | 'widget-select'
+            | 'widget-edit-request'
+            | 'widget-delete'
+            | 'widget-insert-request';
+          blockId?: string;
+          widgetId?: string;
+          widgetType?: string;
+          afterBlockId?: string | null;
+        }) => void;
         textSegments?: Array<{
           text: string;
           fontSize: number;
@@ -320,6 +352,52 @@ test('switches to h5 edit mode and syncs webview text back into note state', asy
       isBold: true,
     },
   ]);
+});
+
+test('passes an empty widget document into h5 mode for plain notes', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <NoteEditorModal
+        visible
+        isEditing={false}
+        note={{
+          title: '标题',
+          content: '原文',
+        }}
+        onSave={async () => {}}
+        onClose={() => {}}
+        onChangeTitle={() => {}}
+        onChangeContent={() => {}}
+        onChangeImages={() => {}}
+        onChangeAudios={() => {}}
+        onChangeFontSize={() => {}}
+        onChangeTextSegments={() => {}}
+        theme={generateThemeColors('薄荷生巧', false)}
+      />,
+    );
+  });
+
+  const h5Button = renderer!.root.find(node => {
+    if (node.type !== TouchableOpacity) {
+      return false;
+    }
+
+    return (
+      node.findAll(child => child.type === Text && child.props.children === 'H5')
+        .length > 0
+    );
+  });
+
+  await ReactTestRenderer.act(() => {
+    h5Button.props.onPress();
+  });
+
+  expect(mockH5EditorProps.current?.document).toEqual({
+    version: '1.0',
+    blocks: [],
+  });
 });
 
 test('allows h5 edit mode when note contains media markers', async () => {
@@ -1044,6 +1122,498 @@ test('syncs text segments after ai completion appends content', async () => {
       color: '#123456',
     },
   ]);
+  expect(onChangeDocument).not.toHaveBeenCalled();
+});
+
+test('opens widget editor in h5 mode and saves edited todo widget back to document', async () => {
+  const onChangeDocument = jest.fn();
+  const initialDocument = {
+    version: '1.0' as const,
+    blocks: [
+      {
+        id: 'paragraph-1',
+        type: 'paragraph' as const,
+        text: '正文',
+      },
+      {
+        id: 'widget-block-1',
+        type: 'widget' as const,
+        widget: {
+          id: 'widget-1',
+          type: 'todo-list' as const,
+          title: '原待办',
+          props: {
+            items: ['事项一'],
+          },
+        },
+      },
+    ],
+    plainText: '正文',
+  };
+  const expectedDocument = {
+    ...initialDocument,
+    blocks: [
+      initialDocument.blocks[0],
+      {
+        ...initialDocument.blocks[1],
+        widget: {
+          ...initialDocument.blocks[1].widget,
+          title: '编辑后的待办',
+        },
+      },
+    ],
+  };
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <NoteEditorModal
+        visible
+        isEditing={false}
+        note={{
+          title: '标题',
+          content: '正文',
+          textSegments: [{text: '正文', fontSize: 16}],
+          document: initialDocument,
+        }}
+        onSave={async () => {}}
+        onClose={() => {}}
+        onChangeTitle={() => {}}
+        onChangeContent={() => {}}
+        onChangeImages={() => {}}
+        onChangeAudios={() => {}}
+        onChangeFontSize={() => {}}
+        onChangeDocument={onChangeDocument}
+        onChangeTextSegments={() => {}}
+        theme={generateThemeColors('薄荷生巧', false)}
+      />,
+    );
+  });
+
+  const findButtonByText = (label: string) => {
+    const matches = renderer!.root.findAll(node => {
+      if (node.type !== TouchableOpacity || node.props.disabled) {
+        return false;
+      }
+
+      return (
+        node.findAll(
+          child => child.type === Text && child.props.children === label,
+        ).length > 0
+      );
+    });
+
+    return matches[matches.length - 1];
+  };
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('H5').props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    mockH5EditorProps.current?.onWidgetEvent?.({
+      type: 'widget-edit-request',
+      blockId: 'widget-block-1',
+      widgetId: 'widget-1',
+      widgetType: 'todo-list',
+    });
+  });
+
+  expect(
+    renderer!.root.findAllByType(TextInput).some(input => {
+      return input.props.placeholder === '组件标题';
+    }),
+  ).toBe(true);
+
+  await ReactTestRenderer.act(() => {
+    renderer!.root.findByProps({placeholder: '组件标题'}).props.onChangeText(
+      '编辑后的待办',
+    );
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('保存').props.onPress();
+  });
+
+  expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
+  expect(mockH5EditorProps.current?.document).toEqual(expectedDocument);
+});
+
+test('removes widget block from document when h5 widget delete event arrives', async () => {
+  const onChangeDocument = jest.fn();
+  const initialDocument = {
+    version: '1.0' as const,
+    blocks: [
+      {
+        id: 'paragraph-1',
+        type: 'paragraph' as const,
+        text: '正文',
+      },
+      {
+        id: 'widget-block-1',
+        type: 'widget' as const,
+        widget: {
+          id: 'widget-1',
+          type: 'todo-list' as const,
+          title: '原待办',
+          props: {
+            items: ['事项一'],
+          },
+        },
+      },
+    ],
+    plainText: '正文',
+  };
+  const expectedDocument = {
+    version: '1.0' as const,
+    blocks: [initialDocument.blocks[0]],
+    plainText: '正文',
+  };
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <NoteEditorModal
+        visible
+        isEditing={false}
+        note={{
+          title: '标题',
+          content: '正文',
+          textSegments: [{text: '正文', fontSize: 16}],
+          document: initialDocument,
+        }}
+        onSave={async () => {}}
+        onClose={() => {}}
+        onChangeTitle={() => {}}
+        onChangeContent={() => {}}
+        onChangeImages={() => {}}
+        onChangeAudios={() => {}}
+        onChangeFontSize={() => {}}
+        onChangeDocument={onChangeDocument}
+        onChangeTextSegments={() => {}}
+        theme={generateThemeColors('薄荷生巧', false)}
+      />,
+    );
+  });
+
+  await ReactTestRenderer.act(() => {
+    renderer!.root.find(node => {
+      if (node.type !== TouchableOpacity || node.props.disabled) {
+        return false;
+      }
+
+      return (
+        node.findAll(child => child.type === Text && child.props.children === 'H5')
+          .length > 0
+      );
+    }).props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    mockH5EditorProps.current?.onWidgetEvent?.({
+      type: 'widget-delete',
+      blockId: 'widget-block-1',
+      widgetId: 'widget-1',
+      widgetType: 'todo-list',
+    });
+  });
+
+  expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
+  expect(mockH5EditorProps.current?.document).toEqual(expectedDocument);
+});
+
+test('opens widget type picker before appending todo widget in h5 mode', async () => {
+  const onChangeDocument = jest.fn();
+  const initialDocument = {
+    version: '1.0' as const,
+    blocks: [
+      {
+        id: 'paragraph-1',
+        type: 'paragraph' as const,
+        text: '正文',
+      },
+    ],
+    plainText: '正文',
+  };
+  const expectedDocument = {
+    version: '1.0' as const,
+    blocks: [
+      initialDocument.blocks[0],
+      {
+        id: 'widget-draft-todo-list',
+        type: 'widget' as const,
+        widget: {
+          id: 'draft-todo-list',
+          type: 'todo-list' as const,
+          title: '新的待办',
+          props: {
+            items: ['待办事项'],
+          },
+        },
+      },
+    ],
+    plainText: '正文',
+  };
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  const findButtonByText = (label: string) => {
+    const matches = renderer!.root.findAll(node => {
+      if (node.type !== TouchableOpacity || node.props.disabled) {
+        return false;
+      }
+
+      return (
+        node.findAll(
+          child => child.type === Text && child.props.children === label,
+        ).length > 0
+      );
+    });
+
+    return matches[matches.length - 1];
+  };
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <NoteEditorModal
+        visible
+        isEditing={false}
+        note={{
+          title: '标题',
+          content: '正文',
+          textSegments: [{text: '正文', fontSize: 16}],
+          document: initialDocument,
+        }}
+        onSave={async () => {}}
+        onClose={() => {}}
+        onChangeTitle={() => {}}
+        onChangeContent={() => {}}
+        onChangeImages={() => {}}
+        onChangeAudios={() => {}}
+        onChangeFontSize={() => {}}
+        onChangeDocument={onChangeDocument}
+        onChangeTextSegments={() => {}}
+        theme={generateThemeColors('薄荷生巧', false)}
+      />,
+    );
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('H5').props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    mockH5EditorProps.current?.onWidgetEvent?.({
+      type: 'widget-insert-request',
+      afterBlockId: null,
+    });
+  });
+
+  expect(onChangeDocument).not.toHaveBeenCalled();
+  expect(
+    renderer!.root.findAll(
+      node => node.type === Text && node.props.children === '选择组件类型',
+    ).length,
+  ).toBeGreaterThan(0);
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('待办清单').props.onPress();
+  });
+
+  expect(onChangeDocument).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('保存').props.onPress();
+  });
+
+  expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
+  expect(mockH5EditorProps.current?.document).toEqual(expectedDocument);
+});
+
+test('saves fallback widget after selecting a non todo type in h5 mode', async () => {
+  const onChangeDocument = jest.fn();
+  const initialDocument = {
+    version: '1.0' as const,
+    blocks: [
+      {
+        id: 'paragraph-1',
+        type: 'paragraph' as const,
+        text: '正文',
+      },
+    ],
+    plainText: '正文',
+  };
+  const expectedDocument = {
+    version: '1.0' as const,
+    blocks: [
+      initialDocument.blocks[0],
+      {
+        id: 'widget-draft-metric',
+        type: 'widget' as const,
+        widget: {
+          id: 'draft-metric',
+          type: 'metric' as const,
+          title: 'metric',
+          description: '暂不支持直接编辑此类型组件',
+          props: {},
+        },
+      },
+    ],
+    plainText: '正文',
+  };
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  const findButtonByText = (label: string) => {
+    const matches = renderer!.root.findAll(node => {
+      if (node.type !== TouchableOpacity || node.props.disabled) {
+        return false;
+      }
+
+      return (
+        node.findAll(
+          child => child.type === Text && child.props.children === label,
+        ).length > 0
+      );
+    });
+
+    return matches[matches.length - 1];
+  };
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <NoteEditorModal
+        visible
+        isEditing={false}
+        note={{
+          title: '标题',
+          content: '正文',
+          textSegments: [{text: '正文', fontSize: 16}],
+          document: initialDocument,
+        }}
+        onSave={async () => {}}
+        onClose={() => {}}
+        onChangeTitle={() => {}}
+        onChangeContent={() => {}}
+        onChangeImages={() => {}}
+        onChangeAudios={() => {}}
+        onChangeFontSize={() => {}}
+        onChangeDocument={onChangeDocument}
+        onChangeTextSegments={() => {}}
+        theme={generateThemeColors('薄荷生巧', false)}
+      />,
+    );
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('H5').props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    mockH5EditorProps.current?.onWidgetEvent?.({
+      type: 'widget-insert-request',
+      afterBlockId: null,
+    });
+  });
+
+  expect(onChangeDocument).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('指标卡片').props.onPress();
+  });
+
+  expect(onChangeDocument).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('保存').props.onPress();
+  });
+
+  expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
+});
+
+test('does not write document when widget type picker or create editor is cancelled', async () => {
+  const onChangeDocument = jest.fn();
+  const initialDocument = {
+    version: '1.0' as const,
+    blocks: [
+      {
+        id: 'paragraph-1',
+        type: 'paragraph' as const,
+        text: '正文',
+      },
+    ],
+    plainText: '正文',
+  };
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  const findButtonByText = (label: string) => {
+    const matches = renderer!.root.findAll(node => {
+      if (node.type !== TouchableOpacity || node.props.disabled) {
+        return false;
+      }
+
+      return (
+        node.findAll(
+          child => child.type === Text && child.props.children === label,
+        ).length > 0
+      );
+    });
+
+    return matches[matches.length - 1];
+  };
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <NoteEditorModal
+        visible
+        isEditing={false}
+        note={{
+          title: '标题',
+          content: '正文',
+          textSegments: [{text: '正文', fontSize: 16}],
+          document: initialDocument,
+        }}
+        onSave={async () => {}}
+        onClose={() => {}}
+        onChangeTitle={() => {}}
+        onChangeContent={() => {}}
+        onChangeImages={() => {}}
+        onChangeAudios={() => {}}
+        onChangeFontSize={() => {}}
+        onChangeDocument={onChangeDocument}
+        onChangeTextSegments={() => {}}
+        theme={generateThemeColors('薄荷生巧', false)}
+      />,
+    );
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('H5').props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    mockH5EditorProps.current?.onWidgetEvent?.({
+      type: 'widget-insert-request',
+      afterBlockId: null,
+    });
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('取消').props.onPress();
+  });
+
+  expect(onChangeDocument).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(() => {
+    mockH5EditorProps.current?.onWidgetEvent?.({
+      type: 'widget-insert-request',
+      afterBlockId: null,
+    });
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('待办清单').props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('取消').props.onPress();
+  });
+
   expect(onChangeDocument).not.toHaveBeenCalled();
 });
 

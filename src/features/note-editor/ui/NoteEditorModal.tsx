@@ -1,10 +1,14 @@
 import React, {useCallback, useEffect, useState} from 'react';
 import {
+  appendWidgetBlock,
   appendWidgetSchemasToDocument,
+  findWidgetBlock,
   hasWidgetBlocks,
+  removeWidgetBlock,
+  replaceWidgetBlock,
 } from '../../../entities/note/document';
 import type {RichDocument} from '../../../entities/document/types';
-import type {WidgetSchema} from '../../../entities/widget/types';
+import type {WidgetSchema, WidgetType} from '../../../entities/widget/types';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -32,8 +36,29 @@ import {EditNoteToolbar} from './EditNoteToolbar';
 import {NoteImageEntryFlow} from './NoteImageEntryFlow';
 import {NoteEditorPreviewPane} from './NoteEditorPreviewPane';
 import {H5TextDocumentEditor} from '../../h5-editor/ui/H5TextDocumentEditor';
-import type {H5TextEditorFormatCommand} from '../../h5-editor/model/h5TextEditorBridge';
+import {
+  type H5TextEditorFormatCommand,
+  type H5WidgetBridgeEvent,
+} from '../../h5-editor/model/h5TextEditorBridge';
+import {createWidgetDraft} from '../../widget-editor/model/widgetDraftFactory';
+import {WidgetEditorSheet} from '../../widget-editor/ui/WidgetEditorSheet';
+import {WidgetTypePickerSheet} from '../../widget-editor/ui/WidgetTypePickerSheet';
 import {styles} from './styles';
+
+type ActiveWidgetEditorState = {
+  mode: 'create' | 'edit';
+  widget: WidgetSchema;
+  blockId?: string;
+} | null;
+
+type PendingWidgetInsertState = {
+  afterBlockId?: string | null;
+} | null;
+
+const EMPTY_WIDGET_DOCUMENT: RichDocument = {
+  version: '1.0',
+  blocks: [],
+};
 
 export interface NoteEditorModalProps {
   visible: boolean;
@@ -77,11 +102,17 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
   );
   const [h5FormatCommand, setH5FormatCommand] =
     useState<H5TextEditorFormatCommand | null>(null);
+  const [activeWidgetEditor, setActiveWidgetEditor] =
+    useState<ActiveWidgetEditorState>(null);
+  const [pendingWidgetInsert, setPendingWidgetInsert] =
+    useState<PendingWidgetInsertState>(null);
 
   useEffect(() => {
     if (!visible) {
       setEditorMode('native');
       setH5FormatCommand(null);
+      setActiveWidgetEditor(null);
+      setPendingWidgetInsert(null);
     }
   }, [visible]);
 
@@ -108,6 +139,129 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
     },
     [draftDocument, onChangeDocument],
   );
+  const handleApplyDocumentChange = useCallback(
+    (nextDocument: RichDocument) => {
+      setDraftDocument(nextDocument);
+      onChangeDocument?.(nextDocument);
+    },
+    [onChangeDocument],
+  );
+  const handleCloseWidgetEditor = useCallback(() => {
+    setActiveWidgetEditor(null);
+  }, []);
+  const handleCloseWidgetTypePicker = useCallback(() => {
+    setPendingWidgetInsert(null);
+  }, []);
+  const handleSelectWidgetType = useCallback((type: WidgetType) => {
+    setPendingWidgetInsert(null);
+    setActiveWidgetEditor({
+      mode: 'create',
+      widget: createWidgetDraft(type),
+    });
+  }, []);
+  const handleSaveWidget = useCallback(
+    (nextWidget: WidgetSchema) => {
+      if (!activeWidgetEditor) {
+        setActiveWidgetEditor(null);
+        return;
+      }
+
+      if (activeWidgetEditor.mode === 'create') {
+        handleApplyDocumentChange(appendWidgetBlock(draftDocument, nextWidget));
+        setActiveWidgetEditor(null);
+        return;
+      }
+
+      if (!draftDocument || !activeWidgetEditor.blockId) {
+        setActiveWidgetEditor(null);
+        return;
+      }
+
+      const currentBlock = findWidgetBlock(
+        draftDocument,
+        activeWidgetEditor.blockId,
+      );
+
+      if (
+        !currentBlock ||
+        currentBlock.widget.id !== activeWidgetEditor.widget.id
+      ) {
+        setActiveWidgetEditor(null);
+        return;
+      }
+
+      handleApplyDocumentChange(
+        replaceWidgetBlock(
+          draftDocument,
+          activeWidgetEditor.blockId,
+          nextWidget,
+        ),
+      );
+      setActiveWidgetEditor(null);
+    },
+    [activeWidgetEditor, draftDocument, handleApplyDocumentChange],
+  );
+  const handleDeleteActiveWidget = useCallback(() => {
+    if (
+      !activeWidgetEditor ||
+      activeWidgetEditor.mode !== 'edit' ||
+      !draftDocument ||
+      !activeWidgetEditor.blockId
+    ) {
+      setActiveWidgetEditor(null);
+      return;
+    }
+
+    handleApplyDocumentChange(
+      removeWidgetBlock(draftDocument, activeWidgetEditor.blockId),
+    );
+    setActiveWidgetEditor(null);
+  }, [activeWidgetEditor, draftDocument, handleApplyDocumentChange]);
+  const handleH5WidgetEvent = useCallback(
+    (event: H5WidgetBridgeEvent) => {
+      if (event.type === 'widget-select') {
+        return;
+      }
+
+      if (event.type === 'widget-edit-request') {
+        const targetBlock = findWidgetBlock(draftDocument, event.blockId);
+
+        if (!targetBlock || targetBlock.widget.id !== event.widgetId) {
+          return;
+        }
+
+        setActiveWidgetEditor({
+          mode: 'edit',
+          blockId: targetBlock.id,
+          widget: targetBlock.widget,
+        });
+        return;
+      }
+
+      if (event.type === 'widget-delete') {
+        if (!draftDocument) {
+          return;
+        }
+
+        const targetBlock = findWidgetBlock(draftDocument, event.blockId);
+
+        if (!targetBlock || targetBlock.widget.id !== event.widgetId) {
+          return;
+        }
+
+        handleApplyDocumentChange(removeWidgetBlock(draftDocument, event.blockId));
+        setActiveWidgetEditor(currentEditor => {
+          return currentEditor?.blockId === event.blockId ? null : currentEditor;
+        });
+        return;
+      }
+
+      setPendingWidgetInsert({
+        afterBlockId: event.afterBlockId,
+      });
+    },
+    [draftDocument, handleApplyDocumentChange],
+  );
 
   const formatting = useNoteFormatting({
     note,
@@ -116,6 +270,7 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
     onChangeTextSegments,
   });
   const editorContent = getTextSegmentsContent(formatting.textSegments);
+  const h5WidgetDocument = draftDocument ?? EMPTY_WIDGET_DOCUMENT;
   const media = useNoteMedia({
     content: editorContent,
     cursorPosition: formatting.cursorPosition,
@@ -307,10 +462,12 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
                   ]}>
                   <H5TextDocumentEditor
                     content={editorContent}
+                    document={h5WidgetDocument}
                     formatCommand={h5FormatCommand ?? undefined}
                     fontSize={formatting.fontSize}
                     onChangeState={formatting.handleReplaceRichTextContent}
                     onSelectionChange={formatting.handleEditorSelectionChange}
+                    onWidgetEvent={handleH5WidgetEvent}
                     onDeleteMedia={({kind, index}) => {
                       if (kind === 'image') {
                         media.handleDeleteImage(index);
@@ -393,6 +550,28 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
             </View>
           </KeyboardAvoidingView>
         </SafeAreaView>
+      </View>
+
+      <View
+        style={{
+          paddingHorizontal: 16,
+          paddingBottom: 16,
+        }}>
+        <WidgetTypePickerSheet
+          visible={pendingWidgetInsert !== null}
+          onClose={handleCloseWidgetTypePicker}
+          onSelect={handleSelectWidgetType}
+          theme={theme}
+        />
+        <WidgetEditorSheet
+          visible={activeWidgetEditor !== null}
+          mode={activeWidgetEditor?.mode ?? 'edit'}
+          widget={activeWidgetEditor?.widget ?? null}
+          onClose={handleCloseWidgetEditor}
+          onDelete={handleDeleteActiveWidget}
+          onSave={handleSaveWidget}
+          theme={theme}
+        />
       </View>
 
       <EditNoteAuxiliaryModals

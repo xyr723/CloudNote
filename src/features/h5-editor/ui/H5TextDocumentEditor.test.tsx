@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import {generateThemeColors} from '../../../shared/theme/colors';
+import type {RichDocument} from '../../../entities/document/types';
 import type {TextSegment} from '../../../entities/note/types';
 import {H5TextDocumentEditor} from './H5TextDocumentEditor';
 
@@ -53,6 +54,29 @@ const richTextSegments: TextSegment[] = [
   {text: '原', fontSize: 18, isItalic: true, color: '#123456'},
   {text: '文', fontSize: 18, isBold: true},
 ];
+const widgetDocument: RichDocument = {
+  version: '1.0',
+  blocks: [
+    {
+      id: 'paragraph-1',
+      type: 'paragraph',
+      text: '正文',
+    },
+    {
+      id: 'widget-block-1',
+      type: 'widget',
+      widget: {
+        id: 'widget-1',
+        type: 'todo-list',
+        title: '待办组件',
+        props: {
+          items: ['一', '二'],
+        },
+      },
+    },
+  ],
+  plainText: '正文',
+};
 
 describe('H5TextDocumentEditor', () => {
   beforeEach(() => {
@@ -256,6 +280,143 @@ describe('H5TextDocumentEditor', () => {
     expect(renderedHtml).toContain('data-note-marker="[图片0]"');
     expect(renderedHtml).toContain('data-note-marker="[音频1]"');
     expect(renderedHtml).toContain('contenteditable="false"');
+  });
+
+  test('renders widget placeholder metadata when document contains widget blocks', async () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+    const editorProps: any = {
+      content: '正文',
+      document: widgetDocument,
+      fontSize: 16,
+      onChangeContent: () => {},
+      onChangeState: () => {},
+      theme,
+    };
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <H5TextDocumentEditor {...editorProps} />,
+      );
+    });
+
+    const renderedHtml =
+      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.children;
+
+    expect(renderedHtml).toContain('data-widget-block-id="widget-block-1"');
+    expect(renderedHtml).toContain('data-widget-id="widget-1"');
+    expect(renderedHtml).toContain('data-widget-type="todo-list"');
+    expect(renderedHtml).toContain('contenteditable="false"');
+    expect(renderedHtml).toContain('待办组件');
+    expect(renderedHtml).toContain('data-widget-action="edit"');
+    expect(renderedHtml).toContain('data-widget-action="delete"');
+  });
+
+  test('forwards widget-select messages to react native', async () => {
+    const onWidgetEvent = jest.fn();
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+    const editorProps: any = {
+      content: '正文',
+      fontSize: 16,
+      onChangeContent: () => {},
+      onWidgetEvent,
+      theme,
+    };
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <H5TextDocumentEditor {...editorProps} />,
+      );
+    });
+
+    await ReactTestRenderer.act(async () => {
+      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.onMessage({
+        nativeEvent: {
+          data: JSON.stringify({
+            type: 'widget-select',
+            blockId: 'widget-block-1',
+            widgetId: 'widget-1',
+            widgetType: 'todo-list',
+          }),
+        },
+      });
+    });
+
+    expect(onWidgetEvent).toHaveBeenCalledWith({
+      type: 'widget-select',
+      blockId: 'widget-block-1',
+      widgetId: 'widget-1',
+      widgetType: 'todo-list',
+    });
+  });
+
+  test('forwards widget action messages to react native', async () => {
+    const onWidgetEvent = jest.fn();
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+    const editorProps: any = {
+      content: '正文',
+      fontSize: 16,
+      onChangeContent: () => {},
+      onWidgetEvent,
+      theme,
+    };
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <H5TextDocumentEditor {...editorProps} />,
+      );
+    });
+
+    await ReactTestRenderer.act(async () => {
+      const onMessage =
+        renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props
+          .onMessage;
+
+      onMessage({
+        nativeEvent: {
+          data: JSON.stringify({
+            type: 'widget-edit-request',
+            blockId: 'widget-block-1',
+            widgetId: 'widget-1',
+            widgetType: 'todo-list',
+          }),
+        },
+      });
+      onMessage({
+        nativeEvent: {
+          data: JSON.stringify({
+            type: 'widget-delete',
+            blockId: 'widget-block-1',
+            widgetId: 'widget-1',
+            widgetType: 'todo-list',
+          }),
+        },
+      });
+      onMessage({
+        nativeEvent: {
+          data: JSON.stringify({
+            type: 'widget-insert-request',
+            afterBlockId: 'widget-block-1',
+          }),
+        },
+      });
+    });
+
+    expect(onWidgetEvent).toHaveBeenNthCalledWith(1, {
+      type: 'widget-edit-request',
+      blockId: 'widget-block-1',
+      widgetId: 'widget-1',
+      widgetType: 'todo-list',
+    });
+    expect(onWidgetEvent).toHaveBeenNthCalledWith(2, {
+      type: 'widget-delete',
+      blockId: 'widget-block-1',
+      widgetId: 'widget-1',
+      widgetType: 'todo-list',
+    });
+    expect(onWidgetEvent).toHaveBeenNthCalledWith(3, {
+      type: 'widget-insert-request',
+      afterBlockId: 'widget-block-1',
+    });
   });
 
   test('injects updated html when external content changes', async () => {

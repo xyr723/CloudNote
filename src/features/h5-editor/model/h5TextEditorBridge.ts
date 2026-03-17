@@ -1,4 +1,5 @@
 import type {TextSegment} from '../../../entities/note/types';
+import type {WidgetType} from '../../../entities/widget/types';
 import type {ThemeColors} from '../../../shared/theme/colors';
 
 export type H5TextEditorState = {
@@ -22,6 +23,30 @@ export type H5TextEditorSelectionPayload = {
   cursorPosition: number;
 };
 
+export type H5WidgetBridgeEvent =
+  | {
+      type: 'widget-select';
+      blockId: string;
+      widgetId: string;
+      widgetType: WidgetType;
+    }
+  | {
+      type: 'widget-edit-request';
+      blockId: string;
+      widgetId: string;
+      widgetType: WidgetType;
+    }
+  | {
+      type: 'widget-delete';
+      blockId: string;
+      widgetId: string;
+      widgetType: WidgetType;
+    }
+  | {
+      type: 'widget-insert-request';
+      afterBlockId?: string | null;
+    };
+
 type H5TextEditorMessage =
   | ({
       type: 'content-change';
@@ -32,6 +57,7 @@ type H5TextEditorMessage =
   | ({
       type: 'media-delete';
     } & H5TextEditorDeleteMediaPayload)
+  | H5WidgetBridgeEvent
   | {
       type: 'unknown';
     };
@@ -60,9 +86,26 @@ const isSelectionOffset = (value: unknown): value is number => {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 };
 
+const isWidgetType = (value: unknown): value is WidgetType => {
+  return (
+    value === 'todo-list' ||
+    value === 'action-card' ||
+    value === 'form' ||
+    value === 'quote' ||
+    value === 'metric' ||
+    value === 'timeline'
+  );
+};
+
+const isWidgetMessageIdentifier = (value: unknown): value is string => {
+  return typeof value === 'string' && value.length > 0;
+};
+
 export const parseH5TextEditorMessage = (data: string): H5TextEditorMessage => {
   try {
     const message = JSON.parse(data) as {
+      afterBlockId?: unknown;
+      blockId?: unknown;
       content?: unknown;
       cursorPosition?: unknown;
       end?: unknown;
@@ -71,6 +114,8 @@ export const parseH5TextEditorMessage = (data: string): H5TextEditorMessage => {
       start?: unknown;
       textSegments?: unknown;
       type?: unknown;
+      widgetId?: unknown;
+      widgetType?: unknown;
     };
 
     if (
@@ -110,6 +155,34 @@ export const parseH5TextEditorMessage = (data: string): H5TextEditorMessage => {
         index: message.index,
       };
     }
+
+    if (
+      (message.type === 'widget-select' ||
+        message.type === 'widget-edit-request' ||
+        message.type === 'widget-delete') &&
+      isWidgetMessageIdentifier(message.blockId) &&
+      isWidgetMessageIdentifier(message.widgetId) &&
+      isWidgetType(message.widgetType)
+    ) {
+      return {
+        type: message.type,
+        blockId: message.blockId,
+        widgetId: message.widgetId,
+        widgetType: message.widgetType,
+      };
+    }
+
+    if (
+      message.type === 'widget-insert-request' &&
+      (typeof message.afterBlockId === 'string' ||
+        typeof message.afterBlockId === 'undefined' ||
+        message.afterBlockId === null)
+    ) {
+      return {
+        type: 'widget-insert-request',
+        afterBlockId: message.afterBlockId,
+      };
+    }
   } catch (error) {
     console.error('Failed to parse H5 editor message', error);
   }
@@ -137,6 +210,15 @@ const createBridgeScript = (): string => {
             node &&
               node.nodeType === Node.ELEMENT_NODE &&
               node.hasAttribute('data-note-marker'),
+          );
+        };
+
+        var isWidgetElement = function (node) {
+          return Boolean(
+            node &&
+              node.nodeType === Node.ELEMENT_NODE &&
+              (node.hasAttribute('data-widget-block-id') ||
+                node.hasAttribute('data-widget-insert-request')),
           );
         };
 
@@ -247,6 +329,10 @@ const createBridgeScript = (): string => {
             return;
           }
 
+          if (isWidgetElement(node)) {
+            return;
+          }
+
           if (node.tagName === 'BR') {
             appendSegmentText(segments, '\\n', currentStyle);
             return;
@@ -307,6 +393,10 @@ const createBridgeScript = (): string => {
 
           if (isMarkerElement(node)) {
             return normalizeText(node.getAttribute('data-note-marker') || '').length;
+          }
+
+          if (isWidgetElement(node)) {
+            return 0;
           }
 
           if (node.tagName === 'BR') {
@@ -543,7 +633,7 @@ const createBridgeScript = (): string => {
             event.key === 'Backspace' ? 'backward' : 'forward',
           );
 
-          if (isMarkerElement(adjacentNode)) {
+          if (isMarkerElement(adjacentNode) || isWidgetElement(adjacentNode)) {
             event.preventDefault();
           }
         });
@@ -598,6 +688,103 @@ const createBridgeScript = (): string => {
               type: 'media-delete',
               kind: kind,
               index: index,
+            }),
+          );
+          return;
+        });
+
+        editor.addEventListener('click', function (event) {
+          var target = event.target;
+
+          if (
+            !target ||
+            typeof target.closest !== 'function' ||
+            !window.ReactNativeWebView
+          ) {
+            return;
+          }
+
+          var resolveWidgetMeta = function (element) {
+            var widgetElement = element.closest('[data-widget-block-id]');
+
+            if (!widgetElement) {
+              return null;
+            }
+
+            var blockId = widgetElement.getAttribute('data-widget-block-id');
+            var widgetId = widgetElement.getAttribute('data-widget-id');
+            var widgetType = widgetElement.getAttribute('data-widget-type');
+
+            if (!blockId || !widgetId || !widgetType) {
+              return null;
+            }
+
+            return {
+              blockId: blockId,
+              widgetId: widgetId,
+              widgetType: widgetType,
+            };
+          };
+
+          var widgetActionButton = target.closest('[data-widget-action]');
+
+          if (widgetActionButton) {
+            var widgetAction = widgetActionButton.getAttribute('data-widget-action');
+            var widgetMeta = resolveWidgetMeta(widgetActionButton);
+
+            if (
+              !widgetMeta ||
+              (widgetAction !== 'edit' && widgetAction !== 'delete')
+            ) {
+              return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            window.ReactNativeWebView.postMessage(
+              JSON.stringify({
+                type:
+                  widgetAction === 'edit'
+                    ? 'widget-edit-request'
+                    : 'widget-delete',
+                blockId: widgetMeta.blockId,
+                widgetId: widgetMeta.widgetId,
+                widgetType: widgetMeta.widgetType,
+              }),
+            );
+            return;
+          }
+
+          var widgetInsertButton = target.closest('[data-widget-insert-request]');
+
+          if (widgetInsertButton) {
+            event.preventDefault();
+            event.stopPropagation();
+            window.ReactNativeWebView.postMessage(
+              JSON.stringify({
+                type: 'widget-insert-request',
+                afterBlockId:
+                  widgetInsertButton.getAttribute(
+                    'data-widget-insert-after-block-id',
+                  ) || null,
+              }),
+            );
+            return;
+          }
+
+          var widgetMeta = resolveWidgetMeta(target);
+
+          if (!widgetMeta) {
+            return;
+          }
+
+          event.preventDefault();
+          window.ReactNativeWebView.postMessage(
+            JSON.stringify({
+              type: 'widget-select',
+              blockId: widgetMeta.blockId,
+              widgetId: widgetMeta.widgetId,
+              widgetType: widgetMeta.widgetType,
             }),
           );
         });
@@ -675,6 +862,64 @@ export const createH5TextEditorHtml = ({
         line-height: 1;
         cursor: pointer;
         padding: 0;
+      }
+
+      .note-widget-block {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 12px;
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid ${theme.border};
+        background: ${theme.primaryTransparent};
+      }
+
+      .note-widget-meta {
+        min-width: 0;
+        flex: 1;
+      }
+
+      .note-widget-title {
+        font-weight: 600;
+        color: ${theme.textDark};
+      }
+
+      .note-widget-description {
+        margin-top: 4px;
+        font-size: 13px;
+        color: ${theme.textLight};
+      }
+
+      .note-widget-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+      }
+
+      .note-widget-button,
+      .note-widget-insert-button {
+        border: 1px solid ${theme.border};
+        border-radius: 999px;
+        background: ${theme.surface};
+        color: ${theme.text};
+        font-size: 13px;
+        line-height: 1;
+        padding: 8px 12px;
+        cursor: pointer;
+      }
+
+      .note-widget-button-danger {
+        color: ${theme.error};
+      }
+
+      .note-widget-insert-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 12px;
       }
     </style>
   </head>

@@ -45,6 +45,71 @@ export const extractWidgetBlocks = (
   return document.blocks.filter(isWidgetBlock);
 };
 
+export const findWidgetBlock = (
+  document: RichDocument | undefined,
+  blockId: string,
+): WidgetBlock | null => {
+  if (!document) {
+    return null;
+  }
+
+  const block = document.blocks.find(candidate => candidate.id === blockId);
+
+  return block && isWidgetBlock(block) ? block : null;
+};
+
+export const replaceWidgetBlock = (
+  document: RichDocument,
+  blockId: string,
+  nextWidget: WidgetSchema,
+): RichDocument => {
+  let didReplace = false;
+  const nextBlocks = document.blocks.map(block => {
+    if (block.id !== blockId || !isWidgetBlock(block)) {
+      return block;
+    }
+
+    didReplace = true;
+
+    return {
+      ...block,
+      widget: nextWidget,
+    };
+  });
+
+  if (!didReplace) {
+    return document;
+  }
+
+  return {
+    ...document,
+    blocks: nextBlocks,
+  };
+};
+
+export const removeWidgetBlock = (
+  document: RichDocument,
+  blockId: string,
+): RichDocument => {
+  const nextBlocks = document.blocks.filter(block => block.id !== blockId);
+
+  if (nextBlocks.length === document.blocks.length) {
+    return document;
+  }
+
+  return {
+    ...document,
+    blocks: nextBlocks,
+  };
+};
+
+export const appendWidgetBlock = (
+  document: RichDocument | undefined,
+  widget: WidgetSchema,
+): RichDocument => {
+  return appendWidgetSchemasToDocument(document, [widget]);
+};
+
 export const mergeTextDocumentWithWidgets = (
   textDocument: RichDocument,
   existingDocument?: RichDocument,

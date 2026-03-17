@@ -1,10 +1,14 @@
 import type {RichDocument, WidgetBlock} from '../document/types';
 import type {WidgetSchema} from '../widget/types';
 import {
+  appendWidgetBlock,
   appendWidgetSchemasToDocument,
   extractWidgetBlocks,
+  findWidgetBlock,
   hasWidgetBlocks,
   mergeTextDocumentWithWidgets,
+  removeWidgetBlock,
+  replaceWidgetBlock,
 } from './document';
 
 const buildWidget = (id: string): WidgetSchema => ({
@@ -137,5 +141,108 @@ describe('note document helpers', () => {
         blocks: [buildWidgetBlock('1')],
       }),
     ).toBe(true);
+  });
+
+  test('findWidgetBlock locates widget block by block id', () => {
+    const widgetBlock = buildWidgetBlock('target');
+    const document: RichDocument = {
+      version: '1.0',
+      blocks: [
+        {
+          id: 'paragraph-1',
+          type: 'paragraph',
+          text: '正文',
+        },
+        widgetBlock,
+      ],
+    };
+
+    expect(findWidgetBlock(document, widgetBlock.id)).toEqual(widgetBlock);
+  });
+
+  test('replaceWidgetBlock only replaces the widget of the target block', () => {
+    const firstWidgetBlock = buildWidgetBlock('1');
+    const secondWidgetBlock = buildWidgetBlock('2');
+    const nextWidget = buildWidget('next');
+    const document: RichDocument = {
+      version: '1.0',
+      blocks: [firstWidgetBlock, secondWidgetBlock],
+    };
+
+    expect(replaceWidgetBlock(document, secondWidgetBlock.id, nextWidget)).toEqual(
+      {
+        version: '1.0',
+        blocks: [
+          firstWidgetBlock,
+          {
+            ...secondWidgetBlock,
+            widget: nextWidget,
+          },
+        ],
+      },
+    );
+  });
+
+  test('removeWidgetBlock removes target widget block and keeps other block order', () => {
+    const document: RichDocument = {
+      version: '1.0',
+      blocks: [
+        {
+          id: 'paragraph-1',
+          type: 'paragraph',
+          text: '前文',
+        },
+        buildWidgetBlock('1'),
+        {
+          id: 'paragraph-2',
+          type: 'paragraph',
+          text: '后文',
+        },
+      ],
+    };
+
+    expect(removeWidgetBlock(document, 'block-1')).toEqual({
+      version: '1.0',
+      blocks: [
+        {
+          id: 'paragraph-1',
+          type: 'paragraph',
+          text: '前文',
+        },
+        {
+          id: 'paragraph-2',
+          type: 'paragraph',
+          text: '后文',
+        },
+      ],
+    });
+  });
+
+  test('appendWidgetBlock appends a new widget block to the document tail', () => {
+    const document: RichDocument = {
+      version: '1.0',
+      blocks: [
+        {
+          id: 'paragraph-1',
+          type: 'paragraph',
+          text: '正文',
+        },
+      ],
+      plainText: '正文',
+    };
+    const widget = buildWidget('tail');
+
+    expect(appendWidgetBlock(document, widget)).toEqual({
+      version: '1.0',
+      blocks: [
+        document.blocks[0],
+        {
+          id: 'widget-tail',
+          type: 'widget',
+          widget,
+        },
+      ],
+      plainText: '正文',
+    });
   });
 });
