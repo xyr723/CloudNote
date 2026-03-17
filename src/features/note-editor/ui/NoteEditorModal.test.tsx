@@ -1428,7 +1428,7 @@ test('opens widget type picker before appending todo widget in h5 mode', async (
   expect(mockH5EditorProps.current?.document).toEqual(expectedDocument);
 });
 
-test('saves fallback widget after selecting a non todo type in h5 mode', async () => {
+test('saves metric widget after selecting metric type in h5 mode', async () => {
   const onChangeDocument = jest.fn();
   const initialDocument = {
     version: '1.0' as const,
@@ -1451,7 +1451,109 @@ test('saves fallback widget after selecting a non todo type in h5 mode', async (
         widget: {
           id: 'draft-metric',
           type: 'metric' as const,
-          title: 'metric',
+          title: '关键指标',
+          description: '补充说明',
+          props: {
+            value: '0',
+            unit: '%',
+          },
+        },
+      },
+    ],
+    plainText: '正文',
+  };
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  const findButtonByText = (label: string) => {
+    const matches = renderer!.root.findAll(node => {
+      if (node.type !== TouchableOpacity || node.props.disabled) {
+        return false;
+      }
+
+      return (
+        node.findAll(
+          child => child.type === Text && child.props.children === label,
+        ).length > 0
+      );
+    });
+
+    return matches[matches.length - 1];
+  };
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <NoteEditorModal
+        visible
+        isEditing={false}
+        note={{
+          title: '标题',
+          content: '正文',
+          textSegments: [{text: '正文', fontSize: 16}],
+          document: initialDocument,
+        }}
+        onSave={async () => {}}
+        onClose={() => {}}
+        onChangeTitle={() => {}}
+        onChangeContent={() => {}}
+        onChangeImages={() => {}}
+        onChangeAudios={() => {}}
+        onChangeFontSize={() => {}}
+        onChangeDocument={onChangeDocument}
+        onChangeTextSegments={() => {}}
+        theme={generateThemeColors('薄荷生巧', false)}
+      />,
+    );
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('H5').props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    mockH5EditorProps.current?.onWidgetEvent?.({
+      type: 'widget-insert-request',
+      afterBlockId: null,
+    });
+  });
+
+  expect(onChangeDocument).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('指标卡片').props.onPress();
+  });
+
+  expect(onChangeDocument).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('保存').props.onPress();
+  });
+
+  expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
+});
+
+test('saves fallback widget after selecting an unsupported type in h5 mode', async () => {
+  const onChangeDocument = jest.fn();
+  const initialDocument = {
+    version: '1.0' as const,
+    blocks: [
+      {
+        id: 'paragraph-1',
+        type: 'paragraph' as const,
+        text: '正文',
+      },
+    ],
+    plainText: '正文',
+  };
+  const expectedDocument = {
+    version: '1.0' as const,
+    blocks: [
+      initialDocument.blocks[0],
+      {
+        id: 'widget-draft-timeline',
+        type: 'widget' as const,
+        widget: {
+          id: 'draft-timeline',
+          type: 'timeline' as const,
+          title: 'timeline',
           description: '暂不支持直接编辑此类型组件',
           props: {},
         },
@@ -1515,7 +1617,7 @@ test('saves fallback widget after selecting a non todo type in h5 mode', async (
   expect(onChangeDocument).not.toHaveBeenCalled();
 
   await ReactTestRenderer.act(() => {
-    findButtonByText('指标卡片').props.onPress();
+    findButtonByText('时间线').props.onPress();
   });
 
   expect(onChangeDocument).not.toHaveBeenCalled();

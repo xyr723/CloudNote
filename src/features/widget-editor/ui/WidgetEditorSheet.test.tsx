@@ -22,6 +22,13 @@ const metricWidget = {
     value: '99%',
   },
 };
+const timelineWidget = {
+  id: 'widget-3',
+  type: 'timeline' as const,
+  title: '项目里程碑',
+  description: '暂不支持直接编辑此类型组件',
+  props: {},
+};
 
 const findButtonByLabel = (
   renderer: ReactTestRenderer.ReactTestRenderer,
@@ -64,7 +71,7 @@ describe('WidgetEditorSheet', () => {
     ).toBe(true);
   });
 
-  test('renders fallback editor for unsupported editor types', () => {
+  test('renders metric editor for metric widgets', () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
     ReactTestRenderer.act(() => {
@@ -72,6 +79,27 @@ describe('WidgetEditorSheet', () => {
         <WidgetEditorSheet
           visible
           widget={metricWidget}
+          onClose={() => {}}
+          onDelete={() => {}}
+          onSave={() => {}}
+          theme={theme}
+        />,
+      );
+    });
+
+    expect(
+      renderer!.root.findAllByProps({placeholder: '指标值'}).length,
+    ).toBeGreaterThan(0);
+  });
+
+  test('renders fallback editor for unsupported editor types', () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(
+        <WidgetEditorSheet
+          visible
+          widget={timelineWidget}
           onClose={() => {}}
           onDelete={() => {}}
           onSave={() => {}}
@@ -233,7 +261,7 @@ describe('WidgetEditorSheet', () => {
         <WidgetEditorSheet
           visible
           mode="create"
-          widget={metricWidget}
+          widget={timelineWidget}
           onClose={() => {}}
           onDelete={() => {}}
           onSave={onSave}
@@ -246,6 +274,6 @@ describe('WidgetEditorSheet', () => {
       findButtonByLabel(renderer!, '保存').props.onPress();
     });
 
-    expect(onSave).toHaveBeenCalledWith(metricWidget);
+    expect(onSave).toHaveBeenCalledWith(timelineWidget);
   });
 });

@@ -16,6 +16,19 @@ export const createWidgetDraft = (type: WidgetType): WidgetSchema => {
     };
   }
 
+  if (type === 'metric') {
+    return {
+      id: createDefaultId(type),
+      type,
+      title: '关键指标',
+      description: '补充说明',
+      props: {
+        value: '0',
+        unit: '%',
+      },
+    };
+  }
+
   return {
     id: createDefaultId(type),
     type,

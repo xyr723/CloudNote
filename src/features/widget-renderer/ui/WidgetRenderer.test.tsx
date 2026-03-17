@@ -46,7 +46,7 @@ describe('WidgetRenderer', () => {
     );
   });
 
-  test('renders unsupported widget types through fallback card', async () => {
+  test('renders metric widgets with value unit and description', async () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
     await ReactTestRenderer.act(async () => {
@@ -57,7 +57,59 @@ describe('WidgetRenderer', () => {
             id: 'widget-2',
             type: 'metric',
             title: '关键指标',
-            description: '本周完成率 85%',
+            description: '本周完成率',
+            props: {
+              value: '85',
+              unit: '%',
+            },
+          }}
+        />,
+      );
+    });
+
+    expect(readAllTextChildren(renderer!)).toEqual(
+      expect.arrayContaining(['关键指标', '85', '%', '本周完成率']),
+    );
+  });
+
+  test('hides metric unit and description when optional fields are missing', async () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <WidgetRenderer
+          theme={theme}
+          widget={{
+            id: 'widget-3',
+            type: 'metric',
+            title: '留存率',
+            props: {
+              value: '67',
+            },
+          }}
+        />,
+      );
+    });
+
+    const textChildren = readAllTextChildren(renderer!);
+
+    expect(textChildren).toEqual(expect.arrayContaining(['留存率', '67']));
+    expect(textChildren).not.toContain('%');
+    expect(textChildren).not.toContain('本周完成率');
+  });
+
+  test('renders unsupported widget types through fallback card', async () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <WidgetRenderer
+          theme={theme}
+          widget={{
+            id: 'widget-4',
+            type: 'timeline',
+            title: '项目里程碑',
+            description: '本周推进节点',
             actions: [{id: 'action-1', label: '查看详情', type: 'open-url'}],
             layout: {
               span: 2,
@@ -69,7 +121,7 @@ describe('WidgetRenderer', () => {
     });
 
     expect(readAllTextChildren(renderer!)).toEqual(
-      expect.arrayContaining(['关键指标', '本周完成率 85%', '查看详情', 'metric']),
+      expect.arrayContaining(['项目里程碑', '本周推进节点', '查看详情', 'timeline']),
     );
   });
 });
