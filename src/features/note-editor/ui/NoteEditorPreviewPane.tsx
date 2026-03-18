@@ -2,6 +2,10 @@ import React, {useEffect, useState} from 'react';
 import type {RichDocument} from '../../../entities/document/types';
 import {mergeTextDocumentWithWidgets} from '../../../entities/note/document';
 import {providerRegistry} from '../../../providers/providerRegistry';
+import {
+  createNoteDocumentMirrorInput,
+  hasSyncedNoteDocumentMirror,
+} from '../model/noteEditorDocument';
 import {H5DocumentPreview} from '../../h5-editor/ui/H5DocumentPreview';
 import type {NoteEditorTheme} from './types';
 
@@ -9,22 +13,6 @@ type NoteEditorPreviewPaneProps = {
   content: string;
   document?: RichDocument;
   theme: NoteEditorTheme;
-};
-
-const createPreviewInput = (content: string): string => {
-  if (!content.trim()) {
-    return '';
-  }
-
-  return content
-    .replace(/\[图片(\d+)\]/g, (_, index: string) => {
-      return `\n\n图片占位 ${parseInt(index, 10) + 1}\n\n`;
-    })
-    .replace(/\[音频(\d+)\]/g, (_, index: string) => {
-      return `\n\n音频占位 ${parseInt(index, 10) + 1}\n\n`;
-    })
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
 };
 
 const EMPTY_DOCUMENT: RichDocument = {
@@ -40,11 +28,16 @@ export const NoteEditorPreviewPane: React.FC<NoteEditorPreviewPaneProps> = ({
   const [document, setDocument] = useState<RichDocument>(EMPTY_DOCUMENT);
 
   useEffect(() => {
+    if (hasSyncedNoteDocumentMirror(persistedDocument, content)) {
+      setDocument(persistedDocument);
+      return;
+    }
+
     let isActive = true;
 
     providerRegistry
       .getEditorProvider()
-      .parse(createPreviewInput(content))
+      .parse(createNoteDocumentMirrorInput(content))
       .then(parsedDocument => {
         if (!isActive) {
           return;

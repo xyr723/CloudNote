@@ -6,6 +6,7 @@ import {
   extractWidgetBlocks,
   findWidgetBlock,
   hasWidgetBlocks,
+  insertWidgetBlock,
   mergeTextDocumentWithWidgets,
   removeWidgetBlock,
   replaceWidgetBlock,
@@ -243,6 +244,86 @@ describe('note document helpers', () => {
         },
       ],
       plainText: '正文',
+    });
+  });
+
+  test('insertWidgetBlock inserts before the first widget when afterBlockId is null', () => {
+    const firstWidgetBlock = buildWidgetBlock('1');
+    const secondWidgetBlock = buildWidgetBlock('2');
+    const document: RichDocument = {
+      version: '1.0',
+      blocks: [
+        {
+          id: 'paragraph-1',
+          type: 'paragraph',
+          text: '正文',
+        },
+        firstWidgetBlock,
+        secondWidgetBlock,
+      ],
+      plainText: '正文',
+    };
+    const widget = buildWidget('new-head');
+
+    expect(insertWidgetBlock(document, widget, null)).toEqual({
+      version: '1.0',
+      blocks: [
+        document.blocks[0],
+        {
+          id: 'widget-new-head',
+          type: 'widget',
+          widget,
+        },
+        firstWidgetBlock,
+        secondWidgetBlock,
+      ],
+      plainText: '正文',
+    });
+  });
+
+  test('insertWidgetBlock inserts after the target widget block', () => {
+    const firstWidgetBlock = buildWidgetBlock('1');
+    const secondWidgetBlock = buildWidgetBlock('2');
+    const document: RichDocument = {
+      version: '1.0',
+      blocks: [firstWidgetBlock, secondWidgetBlock],
+    };
+    const widget = buildWidget('after-first');
+
+    expect(insertWidgetBlock(document, widget, firstWidgetBlock.id)).toEqual({
+      version: '1.0',
+      blocks: [
+        firstWidgetBlock,
+        {
+          id: 'widget-after-first',
+          type: 'widget',
+          widget,
+        },
+        secondWidgetBlock,
+      ],
+    });
+  });
+
+  test('insertWidgetBlock falls back to appending when afterBlockId is stale', () => {
+    const firstWidgetBlock = buildWidgetBlock('1');
+    const secondWidgetBlock = buildWidgetBlock('2');
+    const document: RichDocument = {
+      version: '1.0',
+      blocks: [firstWidgetBlock, secondWidgetBlock],
+    };
+    const widget = buildWidget('tail-fallback');
+
+    expect(insertWidgetBlock(document, widget, 'missing-widget-block')).toEqual({
+      version: '1.0',
+      blocks: [
+        firstWidgetBlock,
+        secondWidgetBlock,
+        {
+          id: 'widget-tail-fallback',
+          type: 'widget',
+          widget,
+        },
+      ],
     });
   });
 });

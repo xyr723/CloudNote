@@ -13,6 +13,7 @@ import {
   createH5TextEditorFormatScript,
   createH5TextEditorHtml,
   createH5TextEditorSyncScript,
+  type H5TextEditorMediaInsertRequestEvent,
   type H5WidgetBridgeEvent,
   parseH5TextEditorMessage,
   type H5TextEditorFormatCommand,
@@ -28,6 +29,7 @@ type H5TextDocumentEditorProps = {
   fontSize: number;
   onChangeContent?: (content: string) => void;
   onDeleteMedia?: (media: H5TextEditorDeleteMediaPayload) => void;
+  onMediaInsertRequest?: (event: H5TextEditorMediaInsertRequestEvent) => void;
   onSelectionChange?: (
     selection: Pick<H5TextEditorSelectionPayload, 'start' | 'end'>,
     cursorPosition: number,
@@ -45,6 +47,7 @@ export const H5TextDocumentEditor: React.FC<H5TextDocumentEditorProps> = ({
   fontSize,
   onChangeContent,
   onDeleteMedia,
+  onMediaInsertRequest,
   onSelectionChange,
   onChangeState,
   onWidgetEvent,
@@ -201,6 +204,11 @@ export const H5TextDocumentEditor: React.FC<H5TextDocumentEditorProps> = ({
         kind: message.kind,
         index: message.index,
       });
+      return;
+    }
+
+    if (message.type === 'media-insert-request') {
+      onMediaInsertRequest?.(message);
       return;
     }
 

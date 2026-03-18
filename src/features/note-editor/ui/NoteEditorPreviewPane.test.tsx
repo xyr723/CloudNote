@@ -71,6 +71,40 @@ describe('NoteEditorPreviewPane', () => {
     ).toContain('预览内容');
   });
 
+  test('renders the synced live document directly without reparsing content', async () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <NoteEditorPreviewPane
+          content={'开头[图片0]'}
+          document={{
+            version: '1.0',
+            plainText: '开头\n\n图片占位 1',
+            blocks: [
+              {
+                id: 'block-1',
+                type: 'paragraph',
+                text: '开头',
+              },
+              {
+                id: 'block-2',
+                type: 'paragraph',
+                text: '图片占位 1',
+              },
+            ],
+          }}
+          theme={generateThemeColors('薄荷生巧', false)}
+        />,
+      );
+    });
+
+    expect(mockParseDocument).not.toHaveBeenCalled();
+    expect(
+      renderer!.root.findByProps({testID: 'preview-document'}).props.children,
+    ).toBe('开头|图片占位 1');
+  });
+
   test('merges existing widget blocks into the live preview document', async () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
@@ -100,6 +134,7 @@ describe('NoteEditorPreviewPane', () => {
       );
     });
 
+    expect(mockParseDocument).toHaveBeenCalledWith('预览内容');
     expect(
       renderer!.root.findByProps({testID: 'preview-document'}).props.children,
     ).toContain('[widget:待办]');

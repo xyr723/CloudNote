@@ -230,11 +230,17 @@ const createWidgetBlocksHtml = (document?: RichDocument): string => {
   }
 
   const widgetBlocks = extractWidgetBlocks(document);
-  const lastWidgetBlock = widgetBlocks[widgetBlocks.length - 1];
+
+  if (widgetBlocks.length === 0) {
+    return createWidgetInsertButtonHtml(null);
+  }
 
   return [
-    ...widgetBlocks.map(createWidgetPlaceholderHtml),
-    createWidgetInsertButtonHtml(lastWidgetBlock?.id ?? null),
+    createWidgetInsertButtonHtml(null),
+    ...widgetBlocks.flatMap(block => [
+      createWidgetPlaceholderHtml(block),
+      createWidgetInsertButtonHtml(block.id),
+    ]),
   ].join('');
 };
 

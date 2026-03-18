@@ -77,6 +77,41 @@ const widgetDocument: RichDocument = {
   ],
   plainText: '正文',
 };
+const multiWidgetDocument: RichDocument = {
+  version: '1.0',
+  blocks: [
+    {
+      id: 'paragraph-1',
+      type: 'paragraph',
+      text: '正文',
+    },
+    {
+      id: 'widget-block-1',
+      type: 'widget',
+      widget: {
+        id: 'widget-1',
+        type: 'todo-list',
+        title: '待办组件',
+        props: {
+          items: ['一', '二'],
+        },
+      },
+    },
+    {
+      id: 'widget-block-2',
+      type: 'widget',
+      widget: {
+        id: 'widget-2',
+        type: 'metric',
+        title: '指标组件',
+        props: {
+          value: '85',
+        },
+      },
+    },
+  ],
+  plainText: '正文',
+};
 
 describe('H5TextDocumentEditor', () => {
   beforeEach(() => {
@@ -282,6 +317,36 @@ describe('H5TextDocumentEditor', () => {
     expect(renderedHtml).toContain('contenteditable="false"');
   });
 
+  test('renders inline media action buttons inside the h5 editor shell', async () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <H5TextDocumentEditor
+          content="正文"
+          fontSize={16}
+          onChangeContent={() => {}}
+          onChangeState={() => {}}
+          theme={theme}
+        />,
+      );
+    });
+
+    const renderedHtml =
+      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.children;
+
+    expect(renderedHtml).toContain('data-note-media-insert-action="pick-image"');
+    expect(renderedHtml).toContain(
+      'data-note-media-insert-action="capture-image"',
+    );
+    expect(renderedHtml).toContain(
+      'data-note-media-insert-action="record-audio"',
+    );
+    expect(renderedHtml).toContain('>相册<');
+    expect(renderedHtml).toContain('>拍照<');
+    expect(renderedHtml).toContain('>录音<');
+  });
+
   test('renders widget placeholder metadata when document contains widget blocks', async () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
     const editorProps: any = {
@@ -309,6 +374,37 @@ describe('H5TextDocumentEditor', () => {
     expect(renderedHtml).toContain('待办组件');
     expect(renderedHtml).toContain('data-widget-action="edit"');
     expect(renderedHtml).toContain('data-widget-action="delete"');
+  });
+
+  test('renders insert buttons before first widget and after each widget block', async () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <H5TextDocumentEditor
+          content="正文"
+          document={multiWidgetDocument}
+          fontSize={16}
+          onChangeContent={() => {}}
+          onChangeState={() => {}}
+          theme={theme}
+        />,
+      );
+    });
+
+    const renderedHtml =
+      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.children;
+    const insertButtonCount = (
+      renderedHtml.match(/data-widget-insert-request="true"/g) ?? []
+    ).length;
+
+    expect(insertButtonCount).toBe(3);
+    expect(renderedHtml).toContain(
+      'data-widget-insert-after-block-id="widget-block-1"',
+    );
+    expect(renderedHtml).toContain(
+      'data-widget-insert-after-block-id="widget-block-2"',
+    );
   });
 
   test('forwards widget-select messages to react native', async () => {
@@ -416,6 +512,39 @@ describe('H5TextDocumentEditor', () => {
     expect(onWidgetEvent).toHaveBeenNthCalledWith(3, {
       type: 'widget-insert-request',
       afterBlockId: 'widget-block-1',
+    });
+  });
+
+  test('forwards media insert request messages to react native', async () => {
+    const onMediaInsertRequest = jest.fn();
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <H5TextDocumentEditor
+          content="正文"
+          fontSize={16}
+          onChangeContent={() => {}}
+          onMediaInsertRequest={onMediaInsertRequest}
+          theme={theme}
+        />,
+      );
+    });
+
+    await ReactTestRenderer.act(async () => {
+      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.onMessage({
+        nativeEvent: {
+          data: JSON.stringify({
+            type: 'media-insert-request',
+            action: 'pick-image',
+          }),
+        },
+      });
+    });
+
+    expect(onMediaInsertRequest).toHaveBeenCalledWith({
+      type: 'media-insert-request',
+      action: 'pick-image',
     });
   });
 

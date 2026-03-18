@@ -17,6 +17,16 @@ export type H5TextEditorDeleteMediaPayload = {
   index: number;
 };
 
+export type H5TextEditorMediaInsertAction =
+  | 'pick-image'
+  | 'capture-image'
+  | 'record-audio';
+
+export type H5TextEditorMediaInsertRequestEvent = {
+  type: 'media-insert-request';
+  action: H5TextEditorMediaInsertAction;
+};
+
 export type H5TextEditorSelectionPayload = {
   start: number;
   end: number;
@@ -57,6 +67,7 @@ type H5TextEditorMessage =
   | ({
       type: 'media-delete';
     } & H5TextEditorDeleteMediaPayload)
+  | H5TextEditorMediaInsertRequestEvent
   | H5WidgetBridgeEvent
   | {
       type: 'unknown';
@@ -82,6 +93,16 @@ const isMediaKind = (value: unknown): value is 'image' | 'audio' => {
   return value === 'image' || value === 'audio';
 };
 
+const isMediaInsertAction = (
+  value: unknown,
+): value is H5TextEditorMediaInsertAction => {
+  return (
+    value === 'pick-image' ||
+    value === 'capture-image' ||
+    value === 'record-audio'
+  );
+};
+
 const isSelectionOffset = (value: unknown): value is number => {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 };
@@ -104,6 +125,7 @@ const isWidgetMessageIdentifier = (value: unknown): value is string => {
 export const parseH5TextEditorMessage = (data: string): H5TextEditorMessage => {
   try {
     const message = JSON.parse(data) as {
+      action?: unknown;
       afterBlockId?: unknown;
       blockId?: unknown;
       content?: unknown;
@@ -157,6 +179,16 @@ export const parseH5TextEditorMessage = (data: string): H5TextEditorMessage => {
     }
 
     if (
+      message.type === 'media-insert-request' &&
+      isMediaInsertAction(message.action)
+    ) {
+      return {
+        type: 'media-insert-request',
+        action: message.action,
+      };
+    }
+
+    if (
       (message.type === 'widget-select' ||
         message.type === 'widget-edit-request' ||
         message.type === 'widget-delete') &&
@@ -198,6 +230,8 @@ const createBridgeScript = (): string => {
         if (!editor) {
           return;
         }
+
+        var mediaActions = document.getElementById('note-media-actions');
 
         var normalizeText = function (value) {
           return (value || '')
@@ -789,6 +823,47 @@ const createBridgeScript = (): string => {
           );
         });
 
+        if (mediaActions) {
+          mediaActions.addEventListener('click', function (event) {
+            var target = event.target;
+
+            if (
+              !target ||
+              typeof target.closest !== 'function' ||
+              !window.ReactNativeWebView
+            ) {
+              return;
+            }
+
+            var mediaActionButton = target.closest('[data-note-media-insert-action]');
+
+            if (!mediaActionButton) {
+              return;
+            }
+
+            var action = mediaActionButton.getAttribute(
+              'data-note-media-insert-action',
+            );
+
+            if (
+              action !== 'pick-image' &&
+              action !== 'capture-image' &&
+              action !== 'record-audio'
+            ) {
+              return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            window.ReactNativeWebView.postMessage(
+              JSON.stringify({
+                type: 'media-insert-request',
+                action: action,
+              }),
+            );
+          });
+        }
+
         editor.addEventListener('input', postChange);
         editor.addEventListener('focus', postSelectionChange);
         editor.addEventListener('blur', postChange);
@@ -810,6 +885,14 @@ export const createH5TextEditorHtml = ({
   fontSize: number;
   theme: ThemeColors;
 }): string => {
+  const mediaActionsHtml = `
+    <div id="note-media-actions" class="note-media-actions">
+      <button type="button" class="note-media-action-button" data-note-media-insert-action="pick-image">相册</button>
+      <button type="button" class="note-media-action-button" data-note-media-insert-action="capture-image">拍照</button>
+      <button type="button" class="note-media-action-button" data-note-media-insert-action="record-audio">录音</button>
+    </div>
+  `;
+
   return `<!DOCTYPE html>
 <html lang="zh-CN">
   <head>
@@ -824,8 +907,26 @@ export const createH5TextEditorHtml = ({
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
 
+      .note-media-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        padding: 16px 16px 0;
+      }
+
+      .note-media-action-button {
+        border: 1px solid ${theme.border};
+        border-radius: 999px;
+        background: ${theme.surface};
+        color: ${theme.text};
+        font-size: 13px;
+        line-height: 1;
+        padding: 8px 12px;
+        cursor: pointer;
+      }
+
       #editor {
-        min-height: 100vh;
+        min-height: calc(100vh - 64px);
         padding: 16px;
         outline: none;
         font-size: ${fontSize}px;
@@ -924,6 +1025,7 @@ export const createH5TextEditorHtml = ({
     </style>
   </head>
   <body>
+    ${mediaActionsHtml}
     <div
       id="editor"
       contenteditable="true"

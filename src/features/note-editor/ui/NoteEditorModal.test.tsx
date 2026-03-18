@@ -6,7 +6,10 @@ import {generateThemeColors} from '../../../shared/theme/colors';
 import NoteEditorModal from './NoteEditorModal';
 import {completeNoteEditorTextWithAi} from '../model/noteEditorAi';
 import {useAudioPlayback} from '../model/useAudioPlayback';
-import {pickImagesFromLibrary} from '../../../shared/media/imagePicker';
+import {
+  captureImage,
+  pickImagesFromLibrary,
+} from '../../../shared/media/imagePicker';
 import {styles} from './styles';
 
 const mockSaveAttachment = jest.fn();
@@ -26,6 +29,10 @@ const mockH5EditorProps: {
     };
     fontSize: number;
     onDeleteMedia?: (media: {kind: 'image' | 'audio'; index: number}) => void;
+    onMediaInsertRequest?: (event: {
+      type: 'media-insert-request';
+      action: 'pick-image' | 'capture-image' | 'record-audio';
+    }) => void;
     onSelectionChange?: (
       selection: {start: number; end: number},
       cursorPosition: number,
@@ -61,6 +68,47 @@ const mockH5EditorProps: {
   };
 } = {
   current: null,
+};
+
+const normalizeMirrorContent = (content: string): string => {
+  if (!content.trim()) {
+    return '';
+  }
+
+  return content
+    .replace(/\[图片(\d+)\]/g, (_, index: string) => {
+      return `\n\n图片占位 ${parseInt(index, 10) + 1}\n\n`;
+    })
+    .replace(/\[音频(\d+)\]/g, (_, index: string) => {
+      return `\n\n音频占位 ${parseInt(index, 10) + 1}\n\n`;
+    })
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
+
+const buildMirrorTextBlocks = (plainText: string) => {
+  return plainText
+    .split(/\n\s*\n/)
+    .map(part => part.trim())
+    .filter(part => part.length > 0)
+    .map((text, index) => ({
+      id: `block-${index + 1}`,
+      type: 'paragraph' as const,
+      text,
+    }));
+};
+
+const buildMirrorDocument = (
+  content: string,
+  widgetBlocks: Array<Record<string, unknown>> = [],
+) => {
+  const plainText = normalizeMirrorContent(content);
+
+  return {
+    version: '1.0' as const,
+    blocks: [...buildMirrorTextBlocks(plainText), ...widgetBlocks],
+    plainText,
+  };
 };
 
 jest.mock('../../../providers/providerRegistry', () => ({
@@ -109,6 +157,10 @@ jest.mock(
         };
         fontSize: number;
         onDeleteMedia?: (media: {kind: 'image' | 'audio'; index: number}) => void;
+        onMediaInsertRequest?: (event: {
+          type: 'media-insert-request';
+          action: 'pick-image' | 'capture-image' | 'record-audio';
+        }) => void;
         onSelectionChange?: (
           selection: {start: number; end: number},
           cursorPosition: number,
@@ -171,20 +223,31 @@ const mockUseAudioPlayback = useAudioPlayback as jest.MockedFunction<
 const mockPickImagesFromLibrary =
   pickImagesFromLibrary as jest.MockedFunction<
     typeof pickImagesFromLibrary
->;
+  >;
+const mockCaptureImage = captureImage as jest.MockedFunction<typeof captureImage>;
 
 beforeEach(() => {
   jest.clearAllMocks();
   mockH5EditorProps.current = null;
-  mockParseDocument.mockResolvedValue({
-    version: '1.0',
-    blocks: [],
+  mockParseDocument.mockImplementation(async (input: string) => {
+    return {
+      version: '1.0',
+      blocks: buildMirrorTextBlocks(input),
+      plainText: input,
+    };
   });
   mockRenderHtml.mockResolvedValue('<p></p>');
   mockUseAudioPlayback.mockReturnValue({
     currentAudioIndex: -1,
     handlePlayAudio: jest.fn(),
     isPlaying: false,
+  });
+});
+
+afterEach(async () => {
+  await ReactTestRenderer.act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
   });
 });
 
@@ -269,6 +332,7 @@ test('switches to h5 preview mode and renders current content through editor pro
 
 test('switches to h5 edit mode and syncs webview text back into note state', async () => {
   const onChangeContent = jest.fn();
+  const onChangeDocument = jest.fn();
   const onChangeTextSegments = jest.fn();
   let renderer: ReactTestRenderer.ReactTestRenderer;
 
@@ -297,6 +361,7 @@ test('switches to h5 edit mode and syncs webview text back into note state', asy
         onChangeImages={() => {}}
         onChangeAudios={() => {}}
         onChangeFontSize={() => {}}
+        onChangeDocument={onChangeDocument}
         onChangeTextSegments={onChangeTextSegments}
         theme={generateThemeColors('薄荷生巧', false)}
       />,
@@ -328,7 +393,7 @@ test('switches to h5 edit mode and syncs webview text back into note state', asy
     },
   ]);
 
-  await ReactTestRenderer.act(() => {
+  await ReactTestRenderer.act(async () => {
     mockH5EditorProps.current?.onChangeState({
       content: 'H5正文',
       textSegments: [
@@ -336,9 +401,14 @@ test('switches to h5 edit mode and syncs webview text back into note state', asy
         {text: '正文', fontSize: 18, isBold: true},
       ],
     });
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
   expect(onChangeContent).toHaveBeenCalledWith('H5正文');
+  expect(onChangeDocument).toHaveBeenLastCalledWith(
+    buildMirrorDocument('H5正文'),
+  );
   expect(onChangeTextSegments).toHaveBeenCalledWith([
     {
       text: 'H5',
@@ -1042,6 +1112,244 @@ test('inserts audio markers in h5 mode through native recording flow', async () 
   ]);
 });
 
+test('inserts image markers in h5 mode through internal media pick request', async () => {
+  mockSaveAttachment.mockResolvedValue('file:///image-0.jpg');
+  mockPickImagesFromLibrary.mockResolvedValue([
+    {uri: 'file:///source-0.jpg'},
+  ]);
+  const onChangeImages = jest.fn();
+  const onChangeContent = jest.fn();
+  const onChangeTextSegments = jest.fn();
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  const findButtonByText = (label: string) => {
+    const matches = renderer!.root.findAll(node => {
+      if (node.type !== TouchableOpacity || node.props.disabled) {
+        return false;
+      }
+
+      return (
+        node.findAll(
+          child => child.type === Text && child.props.children === label,
+        ).length > 0
+      );
+    });
+
+    return matches[matches.length - 1];
+  };
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <NoteEditorModal
+        visible
+        isEditing={false}
+        note={{
+          title: '标题',
+          content: 'abcd',
+          images: [],
+          fontSize: 16,
+          textSegments: [{text: 'abcd', fontSize: 18, isBold: true}],
+        }}
+        onSave={async () => {}}
+        onClose={() => {}}
+        onChangeTitle={() => {}}
+        onChangeContent={onChangeContent}
+        onChangeImages={onChangeImages}
+        onChangeAudios={() => {}}
+        onChangeFontSize={() => {}}
+        onChangeTextSegments={onChangeTextSegments}
+        theme={generateThemeColors('薄荷生巧', false)}
+      />,
+    );
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('H5').props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    mockH5EditorProps.current?.onSelectionChange?.({start: 2, end: 2}, 2);
+  });
+
+  await ReactTestRenderer.act(async () => {
+    mockH5EditorProps.current?.onMediaInsertRequest?.({
+      type: 'media-insert-request',
+      action: 'pick-image',
+    });
+    await Promise.resolve();
+  });
+
+  expect(mockPickImagesFromLibrary).toHaveBeenCalledTimes(1);
+  expect(onChangeImages).toHaveBeenCalledWith(['file:///image-0.jpg']);
+  expect(onChangeContent).toHaveBeenCalledWith('ab[图片0]cd');
+  expect(onChangeTextSegments).toHaveBeenCalledWith([
+    {text: 'ab[图片0]cd', fontSize: 18, isBold: true},
+  ]);
+});
+
+test('inserts image markers in h5 mode through internal camera request', async () => {
+  mockSaveAttachment.mockResolvedValue('file:///image-0.jpg');
+  mockCaptureImage.mockResolvedValue({uri: 'file:///camera-0.jpg'});
+  const onChangeImages = jest.fn();
+  const onChangeContent = jest.fn();
+  const onChangeTextSegments = jest.fn();
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  const findButtonByText = (label: string) => {
+    const matches = renderer!.root.findAll(node => {
+      if (node.type !== TouchableOpacity || node.props.disabled) {
+        return false;
+      }
+
+      return (
+        node.findAll(
+          child => child.type === Text && child.props.children === label,
+        ).length > 0
+      );
+    });
+
+    return matches[matches.length - 1];
+  };
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <NoteEditorModal
+        visible
+        isEditing={false}
+        note={{
+          title: '标题',
+          content: 'abcd',
+          images: [],
+          fontSize: 16,
+          textSegments: [{text: 'abcd', fontSize: 18, isBold: true}],
+        }}
+        onSave={async () => {}}
+        onClose={() => {}}
+        onChangeTitle={() => {}}
+        onChangeContent={onChangeContent}
+        onChangeImages={onChangeImages}
+        onChangeAudios={() => {}}
+        onChangeFontSize={() => {}}
+        onChangeTextSegments={onChangeTextSegments}
+        theme={generateThemeColors('薄荷生巧', false)}
+      />,
+    );
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('H5').props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    mockH5EditorProps.current?.onSelectionChange?.({start: 1, end: 1}, 1);
+  });
+
+  await ReactTestRenderer.act(async () => {
+    mockH5EditorProps.current?.onMediaInsertRequest?.({
+      type: 'media-insert-request',
+      action: 'capture-image',
+    });
+    await Promise.resolve();
+  });
+
+  expect(mockCaptureImage).toHaveBeenCalledTimes(1);
+  expect(onChangeImages).toHaveBeenCalledWith(['file:///image-0.jpg']);
+  expect(onChangeContent).toHaveBeenCalledWith('a[图片0]bcd');
+  expect(onChangeTextSegments).toHaveBeenCalledWith([
+    {text: 'a[图片0]bcd', fontSize: 18, isBold: true},
+  ]);
+});
+
+test('inserts audio markers in h5 mode through internal media record request', async () => {
+  mockSaveAttachment.mockResolvedValue('file:///audio-0.mp3');
+  const existsMock = RNFetchBlob.fs.exists as jest.MockedFunction<
+    typeof RNFetchBlob.fs.exists
+  >;
+  existsMock.mockResolvedValue(true);
+  const onChangeAudios = jest.fn();
+  const onChangeContent = jest.fn();
+  const onChangeDocument = jest.fn();
+  const onChangeTextSegments = jest.fn();
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  const findButtonByText = (label: string) => {
+    const matches = renderer!.root.findAll(node => {
+      if (node.type !== TouchableOpacity || node.props.disabled) {
+        return false;
+      }
+
+      return (
+        node.findAll(
+          child => child.type === Text && child.props.children === label,
+        ).length > 0
+      );
+    });
+
+    return matches[matches.length - 1];
+  };
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <NoteEditorModal
+        visible
+        isEditing={false}
+        note={{
+          id: 'note-1',
+          title: '标题',
+          content: 'abcd',
+          audios: [],
+          fontSize: 16,
+          textSegments: [{text: 'abcd', fontSize: 18, isBold: true}],
+        }}
+        onSave={async () => {}}
+        onClose={() => {}}
+        onChangeTitle={() => {}}
+        onChangeContent={onChangeContent}
+        onChangeImages={() => {}}
+        onChangeAudios={onChangeAudios}
+        onChangeFontSize={() => {}}
+        onChangeDocument={onChangeDocument}
+        onChangeTextSegments={onChangeTextSegments}
+        theme={generateThemeColors('薄荷生巧', false)}
+      />,
+    );
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('H5').props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    mockH5EditorProps.current?.onSelectionChange?.({start: 2, end: 2}, 2);
+  });
+
+  await ReactTestRenderer.act(async () => {
+    mockH5EditorProps.current?.onMediaInsertRequest?.({
+      type: 'media-insert-request',
+      action: 'record-audio',
+    });
+    await Promise.resolve();
+  });
+
+  await ReactTestRenderer.act(async () => {
+    mockH5EditorProps.current?.onMediaInsertRequest?.({
+      type: 'media-insert-request',
+      action: 'record-audio',
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(onChangeAudios).toHaveBeenCalledWith(['file:///audio-0.mp3']);
+  expect(onChangeContent).toHaveBeenCalledWith('ab[音频0]cd');
+  expect(onChangeDocument).toHaveBeenLastCalledWith(
+    buildMirrorDocument('ab[音频0]cd'),
+  );
+  expect(onChangeTextSegments).toHaveBeenCalledWith([
+    {text: 'ab[音频0]cd', fontSize: 18, isBold: true},
+  ]);
+});
+
 test('syncs text segments after ai completion appends content', async () => {
   const completeNoteEditorTextWithAiMock =
     completeNoteEditorTextWithAi as jest.MockedFunction<
@@ -1107,6 +1415,7 @@ test('syncs text segments after ai completion appends content', async () => {
   await ReactTestRenderer.act(async () => {
     aiButton.props.onPress();
     await Promise.resolve();
+    await Promise.resolve();
   });
 
   expect(completeNoteEditorTextWithAiMock).toHaveBeenCalledWith(
@@ -1122,7 +1431,9 @@ test('syncs text segments after ai completion appends content', async () => {
       color: '#123456',
     },
   ]);
-  expect(onChangeDocument).not.toHaveBeenCalled();
+  expect(onChangeDocument).toHaveBeenLastCalledWith(
+    buildMirrorDocument('原文续写内容'),
+  );
 });
 
 test('opens widget editor in h5 mode and saves edited todo widget back to document', async () => {
@@ -1236,7 +1547,10 @@ test('opens widget editor in h5 mode and saves edited todo widget back to docume
   });
 
   expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
-  expect(mockH5EditorProps.current?.document).toEqual(expectedDocument);
+  expect(mockH5EditorProps.current?.document).toEqual({
+    version: '1.0',
+    blocks: [expectedDocument.blocks[1]],
+  });
 });
 
 test('removes widget block from document when h5 widget delete event arrives', async () => {
@@ -1319,7 +1633,10 @@ test('removes widget block from document when h5 widget delete event arrives', a
   });
 
   expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
-  expect(mockH5EditorProps.current?.document).toEqual(expectedDocument);
+  expect(mockH5EditorProps.current?.document).toEqual({
+    version: '1.0',
+    blocks: [],
+  });
 });
 
 test('opens widget type picker before appending todo widget in h5 mode', async () => {
@@ -1425,7 +1742,10 @@ test('opens widget type picker before appending todo widget in h5 mode', async (
   });
 
   expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
-  expect(mockH5EditorProps.current?.document).toEqual(expectedDocument);
+  expect(mockH5EditorProps.current?.document).toEqual({
+    version: '1.0',
+    blocks: [expectedDocument.blocks[1]],
+  });
 });
 
 test('saves metric widget after selecting metric type in h5 mode', async () => {
@@ -1530,7 +1850,217 @@ test('saves metric widget after selecting metric type in h5 mode', async () => {
   expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
 });
 
-test('saves fallback widget after selecting an unsupported type in h5 mode', async () => {
+test('saves quote widget after selecting quote type in h5 mode', async () => {
+  const onChangeDocument = jest.fn();
+  const initialDocument = {
+    version: '1.0' as const,
+    blocks: [
+      {
+        id: 'paragraph-1',
+        type: 'paragraph' as const,
+        text: '正文',
+      },
+    ],
+    plainText: '正文',
+  };
+  const expectedDocument = {
+    version: '1.0' as const,
+    blocks: [
+      initialDocument.blocks[0],
+      {
+        id: 'widget-draft-quote',
+        type: 'widget' as const,
+        widget: {
+          id: 'draft-quote',
+          type: 'quote' as const,
+          title: '引用',
+          description: '来源',
+          props: {
+            content: '在这里写下引用内容',
+          },
+        },
+      },
+    ],
+    plainText: '正文',
+  };
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  const findButtonByText = (label: string) => {
+    const matches = renderer!.root.findAll(node => {
+      if (node.type !== TouchableOpacity || node.props.disabled) {
+        return false;
+      }
+
+      return (
+        node.findAll(
+          child => child.type === Text && child.props.children === label,
+        ).length > 0
+      );
+    });
+
+    return matches[matches.length - 1];
+  };
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <NoteEditorModal
+        visible
+        isEditing={false}
+        note={{
+          title: '标题',
+          content: '正文',
+          textSegments: [{text: '正文', fontSize: 16}],
+          document: initialDocument,
+        }}
+        onSave={async () => {}}
+        onClose={() => {}}
+        onChangeTitle={() => {}}
+        onChangeContent={() => {}}
+        onChangeImages={() => {}}
+        onChangeAudios={() => {}}
+        onChangeFontSize={() => {}}
+        onChangeDocument={onChangeDocument}
+        onChangeTextSegments={() => {}}
+        theme={generateThemeColors('薄荷生巧', false)}
+      />,
+    );
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('H5').props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    mockH5EditorProps.current?.onWidgetEvent?.({
+      type: 'widget-insert-request',
+      afterBlockId: null,
+    });
+  });
+
+  expect(onChangeDocument).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('引用块').props.onPress();
+  });
+
+  expect(onChangeDocument).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('保存').props.onPress();
+  });
+
+  expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
+});
+
+test('saves action-card widget after selecting action-card type in h5 mode', async () => {
+  const onChangeDocument = jest.fn();
+  const initialDocument = {
+    version: '1.0' as const,
+    blocks: [
+      {
+        id: 'paragraph-1',
+        type: 'paragraph' as const,
+        text: '正文',
+      },
+    ],
+    plainText: '正文',
+  };
+  const expectedDocument = {
+    version: '1.0' as const,
+    blocks: [
+      initialDocument.blocks[0],
+      {
+        id: 'widget-draft-action-card',
+        type: 'widget' as const,
+        widget: {
+          id: 'draft-action-card',
+          type: 'action-card' as const,
+          title: '动作卡片',
+          description: '补充说明',
+          actions: [
+            {
+              id: 'action-1',
+              label: '立即查看',
+              type: 'open-url' as const,
+              payload: {
+                url: 'https://example.com',
+              },
+            },
+          ],
+          props: {},
+        },
+      },
+    ],
+    plainText: '正文',
+  };
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  const findButtonByText = (label: string) => {
+    const matches = renderer!.root.findAll(node => {
+      if (node.type !== TouchableOpacity || node.props.disabled) {
+        return false;
+      }
+
+      return (
+        node.findAll(
+          child => child.type === Text && child.props.children === label,
+        ).length > 0
+      );
+    });
+
+    return matches[matches.length - 1];
+  };
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <NoteEditorModal
+        visible
+        isEditing={false}
+        note={{
+          title: '标题',
+          content: '正文',
+          textSegments: [{text: '正文', fontSize: 16}],
+          document: initialDocument,
+        }}
+        onSave={async () => {}}
+        onClose={() => {}}
+        onChangeTitle={() => {}}
+        onChangeContent={() => {}}
+        onChangeImages={() => {}}
+        onChangeAudios={() => {}}
+        onChangeFontSize={() => {}}
+        onChangeDocument={onChangeDocument}
+        onChangeTextSegments={() => {}}
+        theme={generateThemeColors('薄荷生巧', false)}
+      />,
+    );
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('H5').props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    mockH5EditorProps.current?.onWidgetEvent?.({
+      type: 'widget-insert-request',
+      afterBlockId: null,
+    });
+  });
+
+  expect(onChangeDocument).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('动作卡片').props.onPress();
+  });
+
+  expect(onChangeDocument).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('保存').props.onPress();
+  });
+
+  expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
+});
+
+test('saves timeline widget after selecting timeline type in h5 mode', async () => {
   const onChangeDocument = jest.fn();
   const initialDocument = {
     version: '1.0' as const,
@@ -1553,9 +2083,13 @@ test('saves fallback widget after selecting an unsupported type in h5 mode', asy
         widget: {
           id: 'draft-timeline',
           type: 'timeline' as const,
-          title: 'timeline',
-          description: '暂不支持直接编辑此类型组件',
-          props: {},
+          title: '时间线',
+          props: {
+            items: [
+              {time: '09:00', content: '开始整理需求'},
+              {time: '11:00', content: '完成第一版方案'},
+            ],
+          },
         },
       },
     ],
@@ -1621,6 +2155,507 @@ test('saves fallback widget after selecting an unsupported type in h5 mode', asy
   });
 
   expect(onChangeDocument).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('保存').props.onPress();
+  });
+
+  expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
+});
+
+test('saves form widget after selecting form type in h5 mode', async () => {
+  const onChangeDocument = jest.fn();
+  const initialDocument = {
+    version: '1.0' as const,
+    blocks: [
+      {
+        id: 'paragraph-1',
+        type: 'paragraph' as const,
+        text: '正文',
+      },
+    ],
+    plainText: '正文',
+  };
+  const expectedDocument = {
+    version: '1.0' as const,
+    blocks: [
+      initialDocument.blocks[0],
+      {
+        id: 'widget-draft-form',
+        type: 'widget' as const,
+        widget: {
+          id: 'draft-form',
+          type: 'form' as const,
+          title: '表单',
+          props: {
+            fields: [
+              {
+                id: 'field-1',
+                label: '姓名',
+                type: 'text' as const,
+                placeholder: '请输入姓名',
+              },
+              {
+                id: 'field-2',
+                label: '补充说明',
+                type: 'textarea' as const,
+                placeholder: '写点备注',
+              },
+            ],
+          },
+        },
+      },
+    ],
+    plainText: '正文',
+  };
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  const findButtonByText = (label: string) => {
+    const matches = renderer!.root.findAll(node => {
+      if (node.type !== TouchableOpacity || node.props.disabled) {
+        return false;
+      }
+
+      return (
+        node.findAll(
+          child => child.type === Text && child.props.children === label,
+        ).length > 0
+      );
+    });
+
+    return matches[matches.length - 1];
+  };
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <NoteEditorModal
+        visible
+        isEditing={false}
+        note={{
+          title: '标题',
+          content: '正文',
+          textSegments: [{text: '正文', fontSize: 16}],
+          document: initialDocument,
+        }}
+        onSave={async () => {}}
+        onClose={() => {}}
+        onChangeTitle={() => {}}
+        onChangeContent={() => {}}
+        onChangeImages={() => {}}
+        onChangeAudios={() => {}}
+        onChangeFontSize={() => {}}
+        onChangeDocument={onChangeDocument}
+        onChangeTextSegments={() => {}}
+        theme={generateThemeColors('薄荷生巧', false)}
+      />,
+    );
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('H5').props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    mockH5EditorProps.current?.onWidgetEvent?.({
+      type: 'widget-insert-request',
+      afterBlockId: null,
+    });
+  });
+
+  expect(onChangeDocument).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('表单').props.onPress();
+  });
+
+  expect(onChangeDocument).not.toHaveBeenCalled();
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('保存').props.onPress();
+  });
+
+  expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
+});
+
+test('inserts new widget before the first existing widget when afterBlockId is null', async () => {
+  const onChangeDocument = jest.fn();
+  const initialDocument = {
+    version: '1.0' as const,
+    blocks: [
+      {
+        id: 'paragraph-1',
+        type: 'paragraph' as const,
+        text: '正文',
+      },
+      {
+        id: 'widget-block-1',
+        type: 'widget' as const,
+        widget: {
+          id: 'widget-1',
+          type: 'todo-list' as const,
+          title: '原待办',
+          props: {
+            items: ['事项一'],
+          },
+        },
+      },
+      {
+        id: 'widget-block-2',
+        type: 'widget' as const,
+        widget: {
+          id: 'widget-2',
+          type: 'metric' as const,
+          title: '原指标',
+          description: '旧说明',
+          props: {
+            value: '10',
+            unit: '%',
+          },
+        },
+      },
+    ],
+    plainText: '正文',
+  };
+  const expectedDocument = {
+    version: '1.0' as const,
+    blocks: [
+      initialDocument.blocks[0],
+      {
+        id: 'widget-draft-quote',
+        type: 'widget' as const,
+        widget: {
+          id: 'draft-quote',
+          type: 'quote' as const,
+          title: '引用',
+          description: '来源',
+          props: {
+            content: '在这里写下引用内容',
+          },
+        },
+      },
+      initialDocument.blocks[1],
+      initialDocument.blocks[2],
+    ],
+    plainText: '正文',
+  };
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  const findButtonByText = (label: string) => {
+    const matches = renderer!.root.findAll(node => {
+      if (node.type !== TouchableOpacity || node.props.disabled) {
+        return false;
+      }
+
+      return (
+        node.findAll(
+          child => child.type === Text && child.props.children === label,
+        ).length > 0
+      );
+    });
+
+    return matches[matches.length - 1];
+  };
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <NoteEditorModal
+        visible
+        isEditing={false}
+        note={{
+          title: '标题',
+          content: '正文',
+          textSegments: [{text: '正文', fontSize: 16}],
+          document: initialDocument,
+        }}
+        onSave={async () => {}}
+        onClose={() => {}}
+        onChangeTitle={() => {}}
+        onChangeContent={() => {}}
+        onChangeImages={() => {}}
+        onChangeAudios={() => {}}
+        onChangeFontSize={() => {}}
+        onChangeDocument={onChangeDocument}
+        onChangeTextSegments={() => {}}
+        theme={generateThemeColors('薄荷生巧', false)}
+      />,
+    );
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('H5').props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    mockH5EditorProps.current?.onWidgetEvent?.({
+      type: 'widget-insert-request',
+      afterBlockId: null,
+    });
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('引用块').props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('保存').props.onPress();
+  });
+
+  expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
+});
+
+test('inserts new widget after the targeted widget block when afterBlockId is provided', async () => {
+  const onChangeDocument = jest.fn();
+  const initialDocument = {
+    version: '1.0' as const,
+    blocks: [
+      {
+        id: 'paragraph-1',
+        type: 'paragraph' as const,
+        text: '正文',
+      },
+      {
+        id: 'widget-block-1',
+        type: 'widget' as const,
+        widget: {
+          id: 'widget-1',
+          type: 'todo-list' as const,
+          title: '原待办',
+          props: {
+            items: ['事项一'],
+          },
+        },
+      },
+      {
+        id: 'widget-block-2',
+        type: 'widget' as const,
+        widget: {
+          id: 'widget-2',
+          type: 'metric' as const,
+          title: '原指标',
+          description: '旧说明',
+          props: {
+            value: '10',
+            unit: '%',
+          },
+        },
+      },
+    ],
+    plainText: '正文',
+  };
+  const expectedDocument = {
+    version: '1.0' as const,
+    blocks: [
+      initialDocument.blocks[0],
+      initialDocument.blocks[1],
+      {
+        id: 'widget-draft-form',
+        type: 'widget' as const,
+        widget: {
+          id: 'draft-form',
+          type: 'form' as const,
+          title: '表单',
+          props: {
+            fields: [
+              {
+                id: 'field-1',
+                label: '姓名',
+                type: 'text' as const,
+                placeholder: '请输入姓名',
+              },
+              {
+                id: 'field-2',
+                label: '补充说明',
+                type: 'textarea' as const,
+                placeholder: '写点备注',
+              },
+            ],
+          },
+        },
+      },
+      initialDocument.blocks[2],
+    ],
+    plainText: '正文',
+  };
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  const findButtonByText = (label: string) => {
+    const matches = renderer!.root.findAll(node => {
+      if (node.type !== TouchableOpacity || node.props.disabled) {
+        return false;
+      }
+
+      return (
+        node.findAll(
+          child => child.type === Text && child.props.children === label,
+        ).length > 0
+      );
+    });
+
+    return matches[matches.length - 1];
+  };
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <NoteEditorModal
+        visible
+        isEditing={false}
+        note={{
+          title: '标题',
+          content: '正文',
+          textSegments: [{text: '正文', fontSize: 16}],
+          document: initialDocument,
+        }}
+        onSave={async () => {}}
+        onClose={() => {}}
+        onChangeTitle={() => {}}
+        onChangeContent={() => {}}
+        onChangeImages={() => {}}
+        onChangeAudios={() => {}}
+        onChangeFontSize={() => {}}
+        onChangeDocument={onChangeDocument}
+        onChangeTextSegments={() => {}}
+        theme={generateThemeColors('薄荷生巧', false)}
+      />,
+    );
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('H5').props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    mockH5EditorProps.current?.onWidgetEvent?.({
+      type: 'widget-insert-request',
+      afterBlockId: 'widget-block-1',
+    });
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('表单').props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('保存').props.onPress();
+  });
+
+  expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
+});
+
+test('falls back to appending the new widget when afterBlockId is stale', async () => {
+  const onChangeDocument = jest.fn();
+  const initialDocument = {
+    version: '1.0' as const,
+    blocks: [
+      {
+        id: 'paragraph-1',
+        type: 'paragraph' as const,
+        text: '正文',
+      },
+      {
+        id: 'widget-block-1',
+        type: 'widget' as const,
+        widget: {
+          id: 'widget-1',
+          type: 'todo-list' as const,
+          title: '原待办',
+          props: {
+            items: ['事项一'],
+          },
+        },
+      },
+      {
+        id: 'widget-block-2',
+        type: 'widget' as const,
+        widget: {
+          id: 'widget-2',
+          type: 'metric' as const,
+          title: '原指标',
+          description: '旧说明',
+          props: {
+            value: '10',
+            unit: '%',
+          },
+        },
+      },
+    ],
+    plainText: '正文',
+  };
+  const expectedDocument = {
+    version: '1.0' as const,
+    blocks: [
+      initialDocument.blocks[0],
+      initialDocument.blocks[1],
+      initialDocument.blocks[2],
+      {
+        id: 'widget-draft-metric',
+        type: 'widget' as const,
+        widget: {
+          id: 'draft-metric',
+          type: 'metric' as const,
+          title: '关键指标',
+          description: '补充说明',
+          props: {
+            value: '0',
+            unit: '%',
+          },
+        },
+      },
+    ],
+    plainText: '正文',
+  };
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+  const findButtonByText = (label: string) => {
+    const matches = renderer!.root.findAll(node => {
+      if (node.type !== TouchableOpacity || node.props.disabled) {
+        return false;
+      }
+
+      return (
+        node.findAll(
+          child => child.type === Text && child.props.children === label,
+        ).length > 0
+      );
+    });
+
+    return matches[matches.length - 1];
+  };
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <NoteEditorModal
+        visible
+        isEditing={false}
+        note={{
+          title: '标题',
+          content: '正文',
+          textSegments: [{text: '正文', fontSize: 16}],
+          document: initialDocument,
+        }}
+        onSave={async () => {}}
+        onClose={() => {}}
+        onChangeTitle={() => {}}
+        onChangeContent={() => {}}
+        onChangeImages={() => {}}
+        onChangeAudios={() => {}}
+        onChangeFontSize={() => {}}
+        onChangeDocument={onChangeDocument}
+        onChangeTextSegments={() => {}}
+        theme={generateThemeColors('薄荷生巧', false)}
+      />,
+    );
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('H5').props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    mockH5EditorProps.current?.onWidgetEvent?.({
+      type: 'widget-insert-request',
+      afterBlockId: 'missing-widget-block',
+    });
+  });
+
+  await ReactTestRenderer.act(() => {
+    findButtonByText('指标卡片').props.onPress();
+  });
 
   await ReactTestRenderer.act(() => {
     findButtonByText('保存').props.onPress();
@@ -1853,11 +2888,11 @@ test('appends ai widgets into draft document state', async () => {
   await ReactTestRenderer.act(async () => {
     aiButton.props.onPress();
     await Promise.resolve();
+    await Promise.resolve();
   });
 
-  expect(onChangeDocument).toHaveBeenCalledWith({
-    version: '1.0',
-    blocks: [
+  expect(onChangeDocument).toHaveBeenLastCalledWith(
+    buildMirrorDocument('原文续写内容', [
       {
         id: 'widget-todo-1',
         type: 'widget',
@@ -1870,8 +2905,8 @@ test('appends ai widgets into draft document state', async () => {
           },
         },
       },
-    ],
-  });
+    ]),
+  );
 });
 
 test('syncs text segments after recording inserts an audio marker', async () => {

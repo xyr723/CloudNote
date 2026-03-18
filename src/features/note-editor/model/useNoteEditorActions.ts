@@ -43,12 +43,12 @@ export const useNoteEditorActions = ({
         userPrompt,
       );
 
-      if (completionResult.text) {
-        onAppendText(completionResult.text);
-      }
-
       if (completionResult.widgets?.length) {
         onAppendWidgets?.(completionResult.widgets);
+      }
+
+      if (completionResult.text) {
+        onAppendText(completionResult.text);
       }
     } catch (error) {
       console.error('AI补全文本失败:', error);

@@ -12,6 +12,23 @@ const isWidgetBlock = (
   return block.type === 'widget';
 };
 
+const resolveWidgetInsertIndex = (
+  blocks: RichDocument['blocks'],
+  afterBlockId?: string | null,
+): number => {
+  if (afterBlockId == null) {
+    const firstWidgetIndex = blocks.findIndex(isWidgetBlock);
+
+    return firstWidgetIndex === -1 ? blocks.length : firstWidgetIndex;
+  }
+
+  const targetBlockIndex = blocks.findIndex(block => {
+    return block.id === afterBlockId && isWidgetBlock(block);
+  });
+
+  return targetBlockIndex === -1 ? blocks.length : targetBlockIndex + 1;
+};
+
 const createWidgetBlockId = (
   widget: WidgetSchema,
   usedIds: Set<string>,
@@ -110,6 +127,14 @@ export const appendWidgetBlock = (
   return appendWidgetSchemasToDocument(document, [widget]);
 };
 
+export const insertWidgetBlock = (
+  document: RichDocument | undefined,
+  widget: WidgetSchema,
+  afterBlockId?: string | null,
+): RichDocument => {
+  return insertWidgetSchemasToDocument(document, [widget], afterBlockId);
+};
+
 export const mergeTextDocumentWithWidgets = (
   textDocument: RichDocument,
   existingDocument?: RichDocument,
@@ -140,6 +165,38 @@ export const appendWidgetSchemasToDocument = (
   return {
     ...baseDocument,
     blocks: [...baseDocument.blocks, ...widgetBlocks],
+  };
+};
+
+export const insertWidgetSchemasToDocument = (
+  document: RichDocument | undefined,
+  widgets: WidgetSchema[],
+  afterBlockId?: string | null,
+): RichDocument => {
+  const baseDocument = document ?? EMPTY_DOCUMENT;
+
+  if (widgets.length === 0) {
+    return baseDocument;
+  }
+
+  const usedIds = new Set(baseDocument.blocks.map(block => block.id));
+  const widgetBlocks: WidgetBlock[] = widgets.map(widget => ({
+    id: createWidgetBlockId(widget, usedIds),
+    type: 'widget',
+    widget,
+  }));
+  const insertIndex = resolveWidgetInsertIndex(
+    baseDocument.blocks,
+    afterBlockId,
+  );
+
+  return {
+    ...baseDocument,
+    blocks: [
+      ...baseDocument.blocks.slice(0, insertIndex),
+      ...widgetBlocks,
+      ...baseDocument.blocks.slice(insertIndex),
+    ],
   };
 };
 
