@@ -1,5 +1,4 @@
 import type {RichDocument} from '../../../entities/document/types';
-import {extractWidgetBlocks} from '../../../entities/note/document';
 
 export const createNoteDocumentMirrorInput = (content: string): string => {
   if (!content.trim()) {
@@ -40,18 +39,5 @@ export const createNoteTextMirrorDocument = (
     version: '1.0',
     blocks: createMirrorTextBlocks(plainText),
     plainText,
-  };
-};
-
-export const createWidgetOnlyDocument = (
-  document?: RichDocument,
-): RichDocument | undefined => {
-  if (!document) {
-    return undefined;
-  }
-
-  return {
-    version: document.version,
-    blocks: extractWidgetBlocks(document),
   };
 };

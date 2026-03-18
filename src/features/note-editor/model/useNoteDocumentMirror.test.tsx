@@ -3,10 +3,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import type {RichDocument} from '../../../entities/document/types';
 import {appendWidgetSchemasToDocument, mergeTextDocumentWithWidgets} from '../../../entities/note/document';
 import type {WidgetSchema} from '../../../entities/widget/types';
-import {
-  createNoteTextMirrorDocument,
-  createWidgetOnlyDocument,
-} from './noteEditorDocument';
+import {createNoteTextMirrorDocument} from './noteEditorDocument';
 import {useNoteDocumentMirror} from './useNoteDocumentMirror';
 
 const buildWidget = (id: string): WidgetSchema => ({
@@ -19,7 +16,7 @@ const buildWidget = (id: string): WidgetSchema => ({
 });
 
 describe('useNoteDocumentMirror', () => {
-  test('syncs a live text mirror while keeping a widget-only document for H5 editor', async () => {
+  test('syncs a live text mirror while keeping the full draft document updated', async () => {
     const initialDocument: RichDocument = {
       version: '1.0',
       blocks: [
@@ -75,9 +72,6 @@ describe('useNoteDocumentMirror', () => {
 
     expect(onChangeDocument).toHaveBeenLastCalledWith(expectedDocument);
     expect(mirror.draftDocument).toEqual(expectedDocument);
-    expect(mirror.widgetDocument).toEqual(
-      createWidgetOnlyDocument(expectedDocument),
-    );
   });
 
   test('keeps the full live mirror as the last document write when widgets append during dirty text updates', async () => {
@@ -125,8 +119,5 @@ describe('useNoteDocumentMirror', () => {
 
     expect(onChangeDocument).toHaveBeenLastCalledWith(expectedDocument);
     expect(mirror.draftDocument).toEqual(expectedDocument);
-    expect(mirror.widgetDocument).toEqual(
-      createWidgetOnlyDocument(expectedDocument),
-    );
   });
 });

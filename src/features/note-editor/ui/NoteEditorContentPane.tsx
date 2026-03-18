@@ -14,7 +14,6 @@ type NoteEditorContentPaneProps = {
   editorMode: NoteEditorMode;
   controller: NoteEditorController;
   draftDocument: RichDocument;
-  h5WidgetDocument: RichDocument;
   onH5WidgetEvent: (event: H5WidgetBridgeEvent) => void;
   theme: ReturnType<typeof generateThemeColors>;
 };
@@ -23,7 +22,6 @@ export const NoteEditorContentPane: React.FC<NoteEditorContentPaneProps> = ({
   editorMode,
   controller,
   draftDocument,
-  h5WidgetDocument,
   onH5WidgetEvent,
   theme,
 }) => {
@@ -76,7 +74,7 @@ export const NoteEditorContentPane: React.FC<NoteEditorContentPaneProps> = ({
         ]}>
         <H5TextDocumentEditor
           content={editorContent}
-          document={h5WidgetDocument}
+          document={draftDocument}
           formatCommand={h5FormatCommand ?? undefined}
           fontSize={formatting.fontSize}
           onChangeState={formatting.handleReplaceRichTextContent}

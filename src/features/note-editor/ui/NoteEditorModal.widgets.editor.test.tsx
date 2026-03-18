@@ -82,10 +82,7 @@ test('opens widget editor in h5 mode and saves edited todo widget back to docume
   });
 
   expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
-  expect(mockH5EditorProps.current?.document).toEqual({
-    version: '1.0',
-    blocks: [expectedDocument.blocks[1]],
-  });
+  expect(mockH5EditorProps.current?.document).toEqual(expectedDocument);
 });
 
 test('removes widget block from document when h5 widget delete event arrives', async () => {
@@ -118,8 +115,5 @@ test('removes widget block from document when h5 widget delete event arrives', a
   });
 
   expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
-  expect(mockH5EditorProps.current?.document).toEqual({
-    version: '1.0',
-    blocks: [],
-  });
+  expect(mockH5EditorProps.current?.document).toEqual(expectedDocument);
 });

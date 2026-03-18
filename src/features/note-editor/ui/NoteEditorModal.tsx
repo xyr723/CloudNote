@@ -66,7 +66,6 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
     handleAppendWidgets,
     handleApplyDocumentChange,
     handleMirrorContentChange,
-    widgetDocument: h5WidgetDocument,
   } = useNoteDocumentMirror({
     noteContent: note.content,
     noteDocument: note.document,
@@ -160,7 +159,6 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
                 editorMode={editorMode}
                 controller={controller}
                 draftDocument={draftDocument}
-                h5WidgetDocument={h5WidgetDocument}
                 onH5WidgetEvent={handleH5WidgetEvent}
                 theme={theme}
               />

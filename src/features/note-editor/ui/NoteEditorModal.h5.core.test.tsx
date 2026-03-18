@@ -112,7 +112,7 @@ test('switches to h5 edit mode and syncs webview text back into note state', asy
   ]);
 });
 
-test('passes an empty widget document into h5 mode for plain notes', async () => {
+test('passes the full live mirror document into h5 mode for plain notes', async () => {
   const {renderer} = await renderNoteEditorModal({
     noteOverrides: {
       content: '原文',
@@ -123,7 +123,8 @@ test('passes an empty widget document into h5 mode for plain notes', async () =>
 
   expect(mockH5EditorProps.current?.document).toEqual({
     version: '1.0',
-    blocks: [],
+    blocks: [{id: 'block-1', type: 'paragraph', text: '原文'}],
+    plainText: '原文',
   });
 });
 

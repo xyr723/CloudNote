@@ -188,10 +188,7 @@ test('opens widget type picker before appending todo widget in h5 mode', async (
   });
 
   expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
-  expect(mockH5EditorProps.current?.document).toEqual({
-    version: '1.0',
-    blocks: [todoWidgetBlock],
-  });
+  expect(mockH5EditorProps.current?.document).toEqual(expectedDocument);
 });
 
 test.each(widgetInsertCases)(

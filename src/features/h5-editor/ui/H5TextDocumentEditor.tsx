@@ -5,8 +5,8 @@ import {
   type WebViewMessageEvent,
 } from 'react-native-webview';
 import type {RichDocument} from '../../../entities/document/types';
+import {extractWidgetBlocks} from '../../../entities/note/document';
 import type {TextSegment} from '../../../entities/note/types';
-import {providerRegistry} from '../../../providers/providerRegistry';
 import type {ThemeColors} from '../../../shared/theme/colors';
 import {
   type H5TextEditorDeleteMediaPayload,
@@ -27,7 +27,6 @@ type H5TextDocumentEditorProps = {
   document?: RichDocument;
   formatCommand?: H5TextEditorFormatCommand;
   fontSize: number;
-  onChangeContent?: (content: string) => void;
   onDeleteMedia?: (media: H5TextEditorDeleteMediaPayload) => void;
   onMediaInsertRequest?: (event: H5TextEditorMediaInsertRequestEvent) => void;
   onSelectionChange?: (
@@ -45,7 +44,6 @@ export const H5TextDocumentEditor: React.FC<H5TextDocumentEditorProps> = ({
   document,
   formatCommand,
   fontSize,
-  onChangeContent,
   onDeleteMedia,
   onMediaInsertRequest,
   onSelectionChange,
@@ -63,7 +61,7 @@ export const H5TextDocumentEditor: React.FC<H5TextDocumentEditorProps> = ({
     return JSON.stringify(textSegments ?? null);
   }, [textSegments]);
   const documentSignature = useMemo(() => {
-    return JSON.stringify(document ?? null);
+    return JSON.stringify(extractWidgetBlocks(document));
   }, [document]);
   const lastSyncedSegmentsRef = useRef<string>(textSegmentsSignature);
   const lastSyncedDocumentRef = useRef<string>(documentSignature);
@@ -83,81 +81,53 @@ export const H5TextDocumentEditor: React.FC<H5TextDocumentEditorProps> = ({
   const lastThemeSignatureRef = useRef<string>(themeSignature);
 
   useEffect(() => {
-    let isActive = true;
+    const shouldSkipSync =
+      hasInitializedRef.current &&
+      content === lastSyncedContentRef.current &&
+      textSegmentsSignature === lastSyncedSegmentsRef.current &&
+      documentSignature === lastSyncedDocumentRef.current &&
+      fontSize === lastAppliedFontSizeRef.current &&
+      themeSignature === lastThemeSignatureRef.current;
 
-    const syncEditor = async (): Promise<void> => {
-      const shouldSkipSync =
-        hasInitializedRef.current &&
-        content === lastSyncedContentRef.current &&
-        textSegmentsSignature === lastSyncedSegmentsRef.current &&
-        documentSignature === lastSyncedDocumentRef.current &&
-        fontSize === lastAppliedFontSizeRef.current &&
-        themeSignature === lastThemeSignatureRef.current;
+    if (shouldSkipSync) {
+      return;
+    }
 
-      if (shouldSkipSync) {
-        return;
-      }
-
-      setIsLoading(true);
-
-      const parsedDocument = await providerRegistry.getEditorProvider().parse(
-        content,
-      );
-      await providerRegistry.getEditorProvider().renderHtml(parsedDocument);
-      const bodyHtml = createH5TextEditorBodyHtml({
-        content,
-        document,
-        textSegments,
-        fallbackFontSize: fontSize,
-        defaultTextColor: theme.text,
-      });
-
-      if (!isActive) {
-        return;
-      }
-
-      if (!hasInitializedRef.current) {
-        setHtml(
-          createH5TextEditorHtml({
-            bodyHtml,
-            defaultTextColor: theme.text,
-            fontSize,
-            theme,
-          }),
-        );
-        hasInitializedRef.current = true;
-      } else {
-        webViewRef.current?.injectJavaScript(
-          createH5TextEditorSyncScript({
-            bodyHtml,
-            defaultTextColor: theme.text,
-            fontSize,
-            theme,
-          }),
-        );
-      }
-
-      lastSyncedContentRef.current = content;
-      lastSyncedSegmentsRef.current = textSegmentsSignature;
-      lastSyncedDocumentRef.current = documentSignature;
-      lastAppliedFontSizeRef.current = fontSize;
-      lastThemeSignatureRef.current = themeSignature;
-      setIsLoading(false);
-    };
-
-    syncEditor().catch(error => {
-      console.error('Failed to sync H5 text editor', error);
-
-      if (!isActive) {
-        return;
-      }
-
-      setIsLoading(false);
+    const bodyHtml = createH5TextEditorBodyHtml({
+      content,
+      document,
+      textSegments,
+      fallbackFontSize: fontSize,
+      defaultTextColor: theme.text,
     });
 
-    return () => {
-      isActive = false;
-    };
+    if (!hasInitializedRef.current) {
+      setHtml(
+        createH5TextEditorHtml({
+          bodyHtml,
+          defaultTextColor: theme.text,
+          fontSize,
+          theme,
+        }),
+      );
+      hasInitializedRef.current = true;
+      setIsLoading(false);
+    } else {
+      webViewRef.current?.injectJavaScript(
+        createH5TextEditorSyncScript({
+          bodyHtml,
+          defaultTextColor: theme.text,
+          fontSize,
+          theme,
+        }),
+      );
+    }
+
+    lastSyncedContentRef.current = content;
+    lastSyncedSegmentsRef.current = textSegmentsSignature;
+    lastSyncedDocumentRef.current = documentSignature;
+    lastAppliedFontSizeRef.current = fontSize;
+    lastThemeSignatureRef.current = themeSignature;
   }, [
     content,
     document,
@@ -232,7 +202,6 @@ export const H5TextDocumentEditor: React.FC<H5TextDocumentEditorProps> = ({
       content: message.content,
       textSegments: message.textSegments,
     });
-    onChangeContent?.(message.content);
   };
 
   return (

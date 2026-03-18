@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useCallback, useEffect, useRef, useState} from 'react';
 import type {RichDocument} from '../../../entities/document/types';
 import {
   appendWidgetSchemasToDocument,
@@ -7,13 +7,7 @@ import {
 import type {WidgetSchema} from '../../../entities/widget/types';
 import {
   createNoteTextMirrorDocument,
-  createWidgetOnlyDocument,
 } from './noteEditorDocument';
-
-const EMPTY_WIDGET_DOCUMENT: RichDocument = {
-  version: '1.0',
-  blocks: [],
-};
 
 type UseNoteDocumentMirrorInput = {
   noteContent: string;
@@ -63,10 +57,6 @@ export const useNoteDocumentMirror = ({
     draftDocumentRef.current = nextDocument;
     setDraftDocument(nextDocument);
   }, [noteContent, noteDocument]);
-
-  const widgetDocument = useMemo(() => {
-    return createWidgetOnlyDocument(draftDocument) ?? EMPTY_WIDGET_DOCUMENT;
-  }, [draftDocument]);
 
   const getCurrentDocument = useCallback(() => {
     return draftDocumentRef.current;
@@ -127,6 +117,5 @@ export const useNoteDocumentMirror = ({
     handleAppendWidgets,
     handleApplyDocumentChange,
     handleMirrorContentChange,
-    widgetDocument,
   };
 };

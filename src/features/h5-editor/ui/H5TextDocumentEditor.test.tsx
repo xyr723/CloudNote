@@ -5,16 +5,14 @@ import type {RichDocument} from '../../../entities/document/types';
 import type {TextSegment} from '../../../entities/note/types';
 import {H5TextDocumentEditor} from './H5TextDocumentEditor';
 
-const mockParseDocument = jest.fn();
-const mockRenderHtml = jest.fn();
 const mockInjectJavaScript = jest.fn();
+const mockGetEditorProvider = jest.fn(() => {
+  throw new Error('provider should not be used in H5TextDocumentEditor');
+});
 
 jest.mock('../../../providers/providerRegistry', () => ({
   providerRegistry: {
-    getEditorProvider: () => ({
-      parse: mockParseDocument,
-      renderHtml: mockRenderHtml,
-    }),
+    getEditorProvider: mockGetEditorProvider,
   },
 }));
 
@@ -116,14 +114,9 @@ const multiWidgetDocument: RichDocument = {
 describe('H5TextDocumentEditor', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockParseDocument.mockResolvedValue({
-      version: '1.0',
-      blocks: [{id: 'block-1', type: 'paragraph', text: '初始内容'}],
-    });
-    mockRenderHtml.mockResolvedValue('<p>初始内容</p>');
   });
 
-  test('renders editable html from editor provider', async () => {
+  test('renders editable html from local markup without editor provider', async () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
     await ReactTestRenderer.act(async () => {
@@ -131,17 +124,12 @@ describe('H5TextDocumentEditor', () => {
         <H5TextDocumentEditor
           content="初始内容"
           fontSize={16}
-          onChangeContent={() => {}}
           theme={theme}
         />,
       );
     });
 
-    expect(mockParseDocument).toHaveBeenCalledWith('初始内容');
-    expect(mockRenderHtml).toHaveBeenCalledWith({
-      version: '1.0',
-      blocks: [{id: 'block-1', type: 'paragraph', text: '初始内容'}],
-    });
+    expect(mockGetEditorProvider).not.toHaveBeenCalled();
     expect(
       renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.children,
     ).toContain('contenteditable="true"');
@@ -155,7 +143,6 @@ describe('H5TextDocumentEditor', () => {
         <H5TextDocumentEditor
           content="原文"
           fontSize={16}
-          onChangeContent={() => {}}
           onChangeState={() => {}}
           textSegments={richTextSegments}
           theme={theme}
@@ -173,7 +160,7 @@ describe('H5TextDocumentEditor', () => {
     expect(renderedHtml).toContain('data-note-color="#123456"');
   });
 
-  test('syncs text back to react native through webview message', async () => {
+  test('syncs text state back through onChangeState only', async () => {
     const onChangeContent = jest.fn();
     const onChangeState = jest.fn();
     let renderer: ReactTestRenderer.ReactTestRenderer;
@@ -183,7 +170,6 @@ describe('H5TextDocumentEditor', () => {
         <H5TextDocumentEditor
           content="初始内容"
           fontSize={16}
-          onChangeContent={onChangeContent}
           onChangeState={onChangeState}
           theme={theme}
         />,
@@ -205,7 +191,6 @@ describe('H5TextDocumentEditor', () => {
       });
     });
 
-    expect(onChangeContent).toHaveBeenCalledWith('更新内容');
     expect(onChangeState).toHaveBeenCalledWith({
       content: '更新内容',
       textSegments: [
@@ -213,6 +198,7 @@ describe('H5TextDocumentEditor', () => {
         {text: '内容', fontSize: 18, isBold: true},
       ],
     });
+    expect(onChangeContent).not.toHaveBeenCalled();
   });
 
   test('forwards media delete messages to react native', async () => {
@@ -224,7 +210,6 @@ describe('H5TextDocumentEditor', () => {
         <H5TextDocumentEditor
           content="前文[图片0]后文"
           fontSize={16}
-          onChangeContent={() => {}}
           onDeleteMedia={onDeleteMedia}
           onChangeState={() => {}}
           theme={theme}
@@ -256,7 +241,6 @@ describe('H5TextDocumentEditor', () => {
     const editorProps: any = {
       content: '前后文',
       fontSize: 16,
-      onChangeContent: () => {},
       onSelectionChange,
       theme,
     };
@@ -284,17 +268,6 @@ describe('H5TextDocumentEditor', () => {
   });
 
   test('renders media markers as non-editable placeholder chips', async () => {
-    mockParseDocument.mockResolvedValue({
-      version: '1.0',
-      blocks: [
-        {
-          id: 'block-1',
-          type: 'paragraph',
-          text: '前文[图片0]后文[音频1]',
-        },
-      ],
-    });
-    mockRenderHtml.mockResolvedValue('<p>前文[图片0]后文[音频1]</p>');
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
     await ReactTestRenderer.act(async () => {
@@ -302,7 +275,6 @@ describe('H5TextDocumentEditor', () => {
         <H5TextDocumentEditor
           content="前文[图片0]后文[音频1]"
           fontSize={16}
-          onChangeContent={() => {}}
           onChangeState={() => {}}
           theme={theme}
         />,
@@ -325,7 +297,6 @@ describe('H5TextDocumentEditor', () => {
         <H5TextDocumentEditor
           content="正文"
           fontSize={16}
-          onChangeContent={() => {}}
           onChangeState={() => {}}
           theme={theme}
         />,
@@ -385,7 +356,6 @@ describe('H5TextDocumentEditor', () => {
           content="正文"
           document={multiWidgetDocument}
           fontSize={16}
-          onChangeContent={() => {}}
           onChangeState={() => {}}
           theme={theme}
         />,
@@ -413,7 +383,6 @@ describe('H5TextDocumentEditor', () => {
     const editorProps: any = {
       content: '正文',
       fontSize: 16,
-      onChangeContent: () => {},
       onWidgetEvent,
       theme,
     };
@@ -524,7 +493,6 @@ describe('H5TextDocumentEditor', () => {
         <H5TextDocumentEditor
           content="正文"
           fontSize={16}
-          onChangeContent={() => {}}
           onMediaInsertRequest={onMediaInsertRequest}
           theme={theme}
         />,
@@ -556,25 +524,17 @@ describe('H5TextDocumentEditor', () => {
         <H5TextDocumentEditor
           content="初始内容"
           fontSize={16}
-          onChangeContent={() => {}}
           onChangeState={() => {}}
           theme={theme}
         />,
       );
     });
 
-    mockParseDocument.mockResolvedValue({
-      version: '1.0',
-      blocks: [{id: 'block-2', type: 'paragraph', text: '父级更新'}],
-    });
-    mockRenderHtml.mockResolvedValue('<p>父级更新[图片0]</p>');
-
     await ReactTestRenderer.act(async () => {
       renderer!.update(
         <H5TextDocumentEditor
           content="父级更新[图片0]"
           fontSize={16}
-          onChangeContent={() => {}}
           onChangeState={() => {}}
           textSegments={[
             {text: '父级', fontSize: 20, isItalic: true, color: '#123456'},
@@ -599,6 +559,64 @@ describe('H5TextDocumentEditor', () => {
     );
   });
 
+  test('skips resync when parent echoes back mirrored text blocks with unchanged widgets', async () => {
+    const onChangeState = jest.fn();
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <H5TextDocumentEditor
+          content="原文"
+          document={widgetDocument}
+          fontSize={16}
+          onChangeState={onChangeState}
+          textSegments={[{text: '原文', fontSize: 16}]}
+          theme={theme}
+        />,
+      );
+    });
+
+    mockInjectJavaScript.mockClear();
+
+    await ReactTestRenderer.act(async () => {
+      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.onMessage({
+        nativeEvent: {
+          data: JSON.stringify({
+            type: 'content-change',
+            content: '更新正文',
+            textSegments: [{text: '更新正文', fontSize: 16}],
+          }),
+        },
+      });
+    });
+
+    await ReactTestRenderer.act(async () => {
+      renderer!.update(
+        <H5TextDocumentEditor
+          content="更新正文"
+          document={{
+            ...widgetDocument,
+            blocks: [
+              {
+                id: 'paragraph-1',
+                type: 'paragraph',
+                text: '更新正文',
+              },
+              widgetDocument.blocks[1],
+            ],
+            plainText: '更新正文',
+          }}
+          fontSize={16}
+          onChangeState={onChangeState}
+          textSegments={[{text: '更新正文', fontSize: 16}]}
+          theme={theme}
+        />,
+      );
+    });
+
+    expect(mockInjectJavaScript).not.toHaveBeenCalled();
+  });
+
   test('injects formatting command when toolbar command changes', async () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
@@ -607,7 +625,6 @@ describe('H5TextDocumentEditor', () => {
         <H5TextDocumentEditor
           content="原文"
           fontSize={16}
-          onChangeContent={() => {}}
           onChangeState={() => {}}
           theme={theme}
         />,
@@ -622,7 +639,6 @@ describe('H5TextDocumentEditor', () => {
           content="原文"
           fontSize={16}
           formatCommand={{id: 1, type: 'bold'}}
-          onChangeContent={() => {}}
           onChangeState={() => {}}
           theme={theme}
         />,
