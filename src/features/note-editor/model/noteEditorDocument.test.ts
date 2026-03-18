@@ -1,7 +1,6 @@
 import {
   createNoteDocumentMirrorInput,
   createWidgetOnlyDocument,
-  hasSyncedNoteDocumentMirror,
 } from './noteEditorDocument';
 
 describe('noteEditorDocument', () => {
@@ -9,30 +8,6 @@ describe('noteEditorDocument', () => {
     expect(
       createNoteDocumentMirrorInput('开头[图片0]中间[音频1]结尾'),
     ).toBe('开头\n\n图片占位 1\n\n中间\n\n音频占位 2\n\n结尾');
-  });
-
-  test('checks whether a document mirror is already synced with current content', () => {
-    expect(
-      hasSyncedNoteDocumentMirror(
-        {
-          version: '1.0',
-          plainText: '正文\n\n图片占位 1',
-          blocks: [],
-        },
-        '正文[图片0]',
-      ),
-    ).toBe(true);
-
-    expect(
-      hasSyncedNoteDocumentMirror(
-        {
-          version: '1.0',
-          plainText: '旧正文',
-          blocks: [],
-        },
-        '新正文',
-      ),
-    ).toBe(false);
   });
 
   test('extracts a widget-only document from a mixed live document', () => {

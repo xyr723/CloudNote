@@ -17,15 +17,6 @@ export const createNoteDocumentMirrorInput = (content: string): string => {
     .trim();
 };
 
-export const hasSyncedNoteDocumentMirror = (
-  document: RichDocument | undefined,
-  content: string,
-): document is RichDocument => {
-  return Boolean(
-    document && document.plainText === createNoteDocumentMirrorInput(content),
-  );
-};
-
 const createMirrorTextBlocks = (
   plainText: string,
 ): RichDocument['blocks'] => {

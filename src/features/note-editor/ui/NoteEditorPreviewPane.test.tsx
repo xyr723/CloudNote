@@ -3,16 +3,6 @@ import ReactTestRenderer from 'react-test-renderer';
 import {generateThemeColors} from '../../../shared/theme/colors';
 import {NoteEditorPreviewPane} from './NoteEditorPreviewPane';
 
-const mockParseDocument = jest.fn();
-
-jest.mock('../../../providers/providerRegistry', () => ({
-  providerRegistry: {
-    getEditorProvider: () => ({
-      parse: mockParseDocument,
-    }),
-  },
-}));
-
 jest.mock('../../h5-editor/ui/H5DocumentPreview', () => ({
   H5DocumentPreview: ({
     document,
@@ -43,44 +33,15 @@ jest.mock('../../h5-editor/ui/H5DocumentPreview', () => ({
 }));
 
 describe('NoteEditorPreviewPane', () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-    mockParseDocument.mockResolvedValue({
-      version: '1.0',
-      blocks: [{id: 'block-1', type: 'paragraph', text: '预览内容'}],
-    });
-  });
-
-  test('parses content markers into preview placeholders before rendering', async () => {
+  test('renders media placeholder blocks from the resolved live document directly', async () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
     await ReactTestRenderer.act(async () => {
       renderer = ReactTestRenderer.create(
         <NoteEditorPreviewPane
-          content={'开头[图片0]中间[音频1]结尾'}
-          theme={generateThemeColors('薄荷生巧', false)}
-        />,
-      );
-    });
-
-    expect(mockParseDocument).toHaveBeenCalledWith(
-      '开头\n\n图片占位 1\n\n中间\n\n音频占位 2\n\n结尾',
-    );
-    expect(
-      renderer!.root.findByProps({testID: 'preview-document'}).props.children,
-    ).toContain('预览内容');
-  });
-
-  test('renders the synced live document directly without reparsing content', async () => {
-    let renderer: ReactTestRenderer.ReactTestRenderer;
-
-    await ReactTestRenderer.act(async () => {
-      renderer = ReactTestRenderer.create(
-        <NoteEditorPreviewPane
-          content={'开头[图片0]'}
           document={{
             version: '1.0',
-            plainText: '开头\n\n图片占位 1',
+            plainText: '开头\n\n图片占位 1\n\n中间\n\n音频占位 2\n\n结尾',
             blocks: [
               {
                 id: 'block-1',
@@ -92,6 +53,21 @@ describe('NoteEditorPreviewPane', () => {
                 type: 'paragraph',
                 text: '图片占位 1',
               },
+              {
+                id: 'block-3',
+                type: 'paragraph',
+                text: '中间',
+              },
+              {
+                id: 'block-4',
+                type: 'paragraph',
+                text: '音频占位 2',
+              },
+              {
+                id: 'block-5',
+                type: 'paragraph',
+                text: '结尾',
+              },
             ],
           }}
           theme={generateThemeColors('薄荷生巧', false)}
@@ -99,19 +75,61 @@ describe('NoteEditorPreviewPane', () => {
       );
     });
 
-    expect(mockParseDocument).not.toHaveBeenCalled();
     expect(
       renderer!.root.findByProps({testID: 'preview-document'}).props.children,
-    ).toBe('开头|图片占位 1');
+    ).toBe('开头|图片占位 1|中间|音频占位 2|结尾');
   });
 
-  test('merges existing widget blocks into the live preview document', async () => {
+  test('renders resolved text and widget blocks from the provided document', async () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
     await ReactTestRenderer.act(async () => {
       renderer = ReactTestRenderer.create(
         <NoteEditorPreviewPane
-          content="预览内容"
+          document={{
+            version: '1.0',
+            plainText: '最新正文\n\n图片占位 1',
+            blocks: [
+              {
+                id: 'block-1',
+                type: 'paragraph',
+                text: '最新正文',
+              },
+              {
+                id: 'block-2',
+                type: 'paragraph',
+                text: '图片占位 1',
+              },
+              {
+                id: 'widget-1',
+                type: 'widget',
+                widget: {
+                  id: 'todo-1',
+                  type: 'todo-list',
+                  title: '待办',
+                  props: {
+                    items: ['一', '二'],
+                  },
+                },
+              },
+            ],
+          }}
+          theme={generateThemeColors('薄荷生巧', false)}
+        />,
+      );
+    });
+
+    expect(
+      renderer!.root.findByProps({testID: 'preview-document'}).props.children,
+    ).toBe('最新正文|图片占位 1|[widget:待办]');
+  });
+
+  test('renders the provided widget-only document as-is', async () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <NoteEditorPreviewPane
           document={{
             version: '1.0',
             blocks: [
@@ -134,9 +152,8 @@ describe('NoteEditorPreviewPane', () => {
       );
     });
 
-    expect(mockParseDocument).toHaveBeenCalledWith('预览内容');
     expect(
       renderer!.root.findByProps({testID: 'preview-document'}).props.children,
-    ).toContain('[widget:待办]');
+    ).toBe('[widget:待办]');
   });
 });

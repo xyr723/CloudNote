@@ -4,7 +4,6 @@ import {
   appendWidgetSchemasToDocument,
   mergeTextDocumentWithWidgets,
 } from '../../../entities/note/document';
-import type {TextSegment} from '../../../entities/note/types';
 import type {WidgetSchema} from '../../../entities/widget/types';
 import {
   createNoteTextMirrorDocument,
@@ -17,47 +16,63 @@ const EMPTY_WIDGET_DOCUMENT: RichDocument = {
 };
 
 type UseNoteDocumentMirrorInput = {
+  noteContent: string;
   noteDocument?: RichDocument;
   onChangeDocument?: (document: RichDocument) => void;
   visible: boolean;
 };
 
+const createResolvedDraftDocument = ({
+  content,
+  document,
+}: {
+  content: string;
+  document?: RichDocument;
+}): RichDocument => {
+  return mergeTextDocumentWithWidgets(
+    createNoteTextMirrorDocument(content),
+    document,
+  );
+};
+
 export const useNoteDocumentMirror = ({
+  noteContent,
   noteDocument,
   onChangeDocument,
   visible,
 }: UseNoteDocumentMirrorInput) => {
-  const [draftDocument, setDraftDocument] = useState<RichDocument | undefined>(
-    noteDocument,
+  const [draftDocument, setDraftDocument] = useState<RichDocument>(() => {
+    return createResolvedDraftDocument({
+      content: noteContent,
+      document: noteDocument,
+    });
+  });
+  const draftDocumentRef = useRef<RichDocument>(
+    createResolvedDraftDocument({
+      content: noteContent,
+      document: noteDocument,
+    }),
   );
-  const draftDocumentRef = useRef<RichDocument | undefined>(noteDocument);
-  const textMirrorDirtyRef = useRef(false);
 
   useEffect(() => {
-    if (!visible) {
-      textMirrorDirtyRef.current = false;
-    }
-  }, [visible]);
+    const nextDocument = createResolvedDraftDocument({
+      content: noteContent,
+      document: noteDocument,
+    });
 
-  useEffect(() => {
-    draftDocumentRef.current = noteDocument;
-    textMirrorDirtyRef.current = false;
-    setDraftDocument(noteDocument);
-  }, [noteDocument]);
+    draftDocumentRef.current = nextDocument;
+    setDraftDocument(nextDocument);
+  }, [noteContent, noteDocument]);
 
   const widgetDocument = useMemo(() => {
     return createWidgetOnlyDocument(draftDocument) ?? EMPTY_WIDGET_DOCUMENT;
   }, [draftDocument]);
 
-  const markTextMirrorDirty = useCallback(() => {
-    textMirrorDirtyRef.current = true;
-  }, []);
-
   const getCurrentDocument = useCallback(() => {
     return draftDocumentRef.current;
   }, []);
 
-  const handleApplyDocumentChange = useCallback(
+  const commitDocumentChange = useCallback(
     (nextDocument: RichDocument) => {
       draftDocumentRef.current = nextDocument;
       setDraftDocument(nextDocument);
@@ -65,53 +80,31 @@ export const useNoteDocumentMirror = ({
     },
     [onChangeDocument],
   );
+  const handleApplyDocumentChange = useCallback(
+    (nextDocument: RichDocument) => {
+      commitDocumentChange(nextDocument);
+    },
+    [commitDocumentChange],
+  );
 
   const handleAppendWidgets = useCallback(
     (widgets: WidgetSchema[]) => {
-      const nextDocument = appendWidgetSchemasToDocument(
-        draftDocumentRef.current,
-        widgets,
+      commitDocumentChange(
+        appendWidgetSchemasToDocument(draftDocumentRef.current, widgets),
       );
-
-      draftDocumentRef.current = nextDocument;
-      setDraftDocument(nextDocument);
-
-      if (textMirrorDirtyRef.current) {
-        return;
-      }
-
-      onChangeDocument?.(nextDocument);
     },
-    [onChangeDocument],
+    [commitDocumentChange],
   );
 
   const handleMirrorContentChange = useCallback(
     (nextContent: string, applyContentChange: (content: string) => void) => {
-      markTextMirrorDirty();
       applyContentChange(nextContent);
-    },
-    [markTextMirrorDirty],
-  );
-
-  const handleMirrorTextSegmentsChange = useCallback(
-    (
-      nextSegments: TextSegment[],
-      applyTextSegmentsChange?: (segments: TextSegment[]) => void,
-    ) => {
-      markTextMirrorDirty();
-      applyTextSegmentsChange?.(nextSegments);
-    },
-    [markTextMirrorDirty],
-  );
-
-  const syncTextMirror = useCallback(
-    (content: string) => {
-      if (!visible || !textMirrorDirtyRef.current) {
+      if (!visible) {
         return;
       }
 
       const nextDocument = mergeTextDocumentWithWidgets(
-        createNoteTextMirrorDocument(content),
+        createNoteTextMirrorDocument(nextContent),
         draftDocumentRef.current,
       );
       const currentDocumentSignature = JSON.stringify(
@@ -120,16 +113,12 @@ export const useNoteDocumentMirror = ({
       const nextDocumentSignature = JSON.stringify(nextDocument);
 
       if (currentDocumentSignature === nextDocumentSignature) {
-        textMirrorDirtyRef.current = false;
         return;
       }
 
-      draftDocumentRef.current = nextDocument;
-      setDraftDocument(nextDocument);
-      onChangeDocument?.(nextDocument);
-      textMirrorDirtyRef.current = false;
+      commitDocumentChange(nextDocument);
     },
-    [onChangeDocument, visible],
+    [commitDocumentChange, visible],
   );
 
   return {
@@ -138,9 +127,6 @@ export const useNoteDocumentMirror = ({
     handleAppendWidgets,
     handleApplyDocumentChange,
     handleMirrorContentChange,
-    handleMirrorTextSegmentsChange,
-    markTextMirrorDirty,
-    syncTextMirror,
     widgetDocument,
   };
 };

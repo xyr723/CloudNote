@@ -23,7 +23,7 @@ type PendingWidgetInsertState = {
 
 type UseNoteWidgetEditingInput = {
   applyDocumentChange: (document: RichDocument) => void;
-  getCurrentDocument: () => RichDocument | undefined;
+  getCurrentDocument: () => RichDocument;
   visible: boolean;
 };
 
@@ -85,7 +85,7 @@ export const useNoteWidgetEditing = ({
 
       const currentDocument = getCurrentDocument();
 
-      if (!currentDocument || !activeWidgetEditor.blockId) {
+      if (!activeWidgetEditor.blockId) {
         setActiveWidgetEditor(null);
         return;
       }
@@ -121,7 +121,6 @@ export const useNoteWidgetEditing = ({
     if (
       !activeWidgetEditor ||
       activeWidgetEditor.mode !== 'edit' ||
-      !currentDocument ||
       !activeWidgetEditor.blockId
     ) {
       setActiveWidgetEditor(null);
@@ -143,10 +142,6 @@ export const useNoteWidgetEditing = ({
       }
 
       if (event.type === 'widget-edit-request') {
-        if (!currentDocument) {
-          return;
-        }
-
         const targetBlock = findWidgetBlock(currentDocument, event.blockId);
 
         if (!targetBlock || targetBlock.widget.id !== event.widgetId) {
@@ -162,10 +157,6 @@ export const useNoteWidgetEditing = ({
       }
 
       if (event.type === 'widget-delete') {
-        if (!currentDocument) {
-          return;
-        }
-
         const targetBlock = findWidgetBlock(currentDocument, event.blockId);
 
         if (!targetBlock || targetBlock.widget.id !== event.widgetId) {

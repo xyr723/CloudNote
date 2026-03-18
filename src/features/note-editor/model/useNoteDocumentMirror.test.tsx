@@ -32,13 +32,17 @@ describe('useNoteDocumentMirror', () => {
     };
     const onChangeDocument = jest.fn();
     let latestMirror: ReturnType<typeof useNoteDocumentMirror> | null = null;
+    let setContentState: ((content: string) => void) | null = null;
 
     const Probe = () => {
+      const [content, setContent] = useState('');
+      setContentState = setContent;
       const [document, setDocument] = useState<RichDocument | undefined>(
         initialDocument,
       );
 
       latestMirror = useNoteDocumentMirror({
+        noteContent: content,
         noteDocument: document,
         onChangeDocument: nextDocument => {
           setDocument(nextDocument);
@@ -55,8 +59,12 @@ describe('useNoteDocumentMirror', () => {
     });
 
     await ReactTestRenderer.act(() => {
-      latestMirror?.markTextMirrorDirty();
-      latestMirror?.syncTextMirror('原文[图片0]更新');
+      latestMirror?.handleMirrorContentChange(
+        '原文[图片0]更新',
+        () => {
+          setContentState?.('原文[图片0]更新');
+        },
+      );
     });
 
     const expectedDocument = mergeTextDocumentWithWidgets(
@@ -76,13 +84,17 @@ describe('useNoteDocumentMirror', () => {
     const aiWidget = buildWidget('todo-1');
     const onChangeDocument = jest.fn();
     let latestMirror: ReturnType<typeof useNoteDocumentMirror> | null = null;
+    let setContentState: ((content: string) => void) | null = null;
 
     const Probe = () => {
+      const [content, setContent] = useState('');
+      setContentState = setContent;
       const [document, setDocument] = useState<RichDocument | undefined>(
         undefined,
       );
 
       latestMirror = useNoteDocumentMirror({
+        noteContent: content,
         noteDocument: document,
         onChangeDocument: nextDocument => {
           setDocument(nextDocument);
@@ -99,9 +111,10 @@ describe('useNoteDocumentMirror', () => {
     });
 
     await ReactTestRenderer.act(() => {
-      latestMirror?.markTextMirrorDirty();
       latestMirror?.handleAppendWidgets([aiWidget]);
-      latestMirror?.syncTextMirror('原文续写内容');
+      latestMirror?.handleMirrorContentChange('原文续写内容', () => {
+        setContentState?.('原文续写内容');
+      });
     });
 
     const expectedDocument = mergeTextDocumentWithWidgets(

@@ -45,9 +45,7 @@ describe('useNoteWidgetEditing', () => {
       null;
 
     const Probe = () => {
-      const [document, setDocument] = useState<RichDocument | undefined>(
-        initialDocument,
-      );
+      const [document, setDocument] = useState<RichDocument>(initialDocument);
 
       latestWidgetEditing = useNoteWidgetEditing({
         applyDocumentChange: nextDocument => {
@@ -120,9 +118,7 @@ describe('useNoteWidgetEditing', () => {
       null;
 
     const Probe = () => {
-      const [document, setDocument] = useState<RichDocument | undefined>(
-        initialDocument,
-      );
+      const [document, setDocument] = useState<RichDocument>(initialDocument);
 
       latestWidgetEditing = useNoteWidgetEditing({
         applyDocumentChange: nextDocument => {
@@ -187,9 +183,7 @@ describe('useNoteWidgetEditing', () => {
       null;
 
     const Probe = () => {
-      const [document, setDocument] = useState<RichDocument | undefined>(
-        initialDocument,
-      );
+      const [document, setDocument] = useState<RichDocument>(initialDocument);
 
       latestWidgetEditing = useNoteWidgetEditing({
         applyDocumentChange: nextDocument => {

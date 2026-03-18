@@ -66,10 +66,9 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
     handleAppendWidgets,
     handleApplyDocumentChange,
     handleMirrorContentChange,
-    handleMirrorTextSegmentsChange,
-    syncTextMirror,
     widgetDocument: h5WidgetDocument,
   } = useNoteDocumentMirror({
+    noteContent: note.content,
     noteDocument: note.document,
     onChangeDocument,
     visible,
@@ -106,8 +105,6 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
     onChangeTextSegments,
     handleAppendWidgets,
     handleMirrorContentChange,
-    handleMirrorTextSegmentsChange,
-    syncTextMirror,
   });
   const actions = controller.actions;
 

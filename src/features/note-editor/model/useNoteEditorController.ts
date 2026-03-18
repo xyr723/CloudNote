@@ -18,7 +18,7 @@ import {getTextSegmentsContent} from './noteEditorTextSegments';
 type UseNoteEditorControllerInput = {
   visible: boolean;
   note: NoteDraft;
-  draftDocument?: RichDocument;
+  draftDocument: RichDocument;
   onSave: () => Promise<void>;
   onChangeContent: (text: string) => void;
   onChangeImages?: (images: string[]) => void;
@@ -30,11 +30,6 @@ type UseNoteEditorControllerInput = {
     nextContent: string,
     applyContentChange: (content: string) => void,
   ) => void;
-  handleMirrorTextSegmentsChange: (
-    nextSegments: TextSegment[],
-    applyTextSegmentsChange?: (segments: TextSegment[]) => void,
-  ) => void;
-  syncTextMirror: (content: string) => void;
 };
 
 export const useNoteEditorController = ({
@@ -49,8 +44,6 @@ export const useNoteEditorController = ({
   onChangeTextSegments,
   handleAppendWidgets,
   handleMirrorContentChange,
-  handleMirrorTextSegmentsChange,
-  syncTextMirror,
 }: UseNoteEditorControllerInput) => {
   const [tempNoteId] = useState(
     () => `temp_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`,
@@ -81,15 +74,9 @@ export const useNoteEditorController = ({
       handleMirrorContentChange(nextContent, onChangeContent);
     },
     onChangeFontSize,
-    onChangeTextSegments: nextSegments => {
-      handleMirrorTextSegmentsChange(nextSegments, onChangeTextSegments);
-    },
+    onChangeTextSegments,
   });
   const editorContent = getTextSegmentsContent(formatting.textSegments);
-
-  useEffect(() => {
-    syncTextMirror(editorContent);
-  }, [editorContent, syncTextMirror]);
 
   const media = useNoteMedia({
     content: editorContent,
@@ -101,10 +88,7 @@ export const useNoteEditorController = ({
       handleMirrorContentChange(nextContent, onChangeContent);
     },
     onChangeImages,
-    onChangeTextSegments: nextSegments => {
-      formatting.applyTextSegmentsChange(nextSegments);
-      handleMirrorTextSegmentsChange(nextSegments, undefined);
-    },
+    onChangeTextSegments: formatting.applyTextSegmentsChange,
     tempNoteId,
     textSegments: formatting.textSegments,
   });

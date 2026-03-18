@@ -13,7 +13,7 @@ import {styles} from './styles';
 type NoteEditorContentPaneProps = {
   editorMode: NoteEditorMode;
   controller: NoteEditorController;
-  draftDocument?: RichDocument;
+  draftDocument: RichDocument;
   h5WidgetDocument: RichDocument;
   onH5WidgetEvent: (event: H5WidgetBridgeEvent) => void;
   theme: ReturnType<typeof generateThemeColors>;
@@ -108,7 +108,6 @@ export const NoteEditorContentPane: React.FC<NoteEditorContentPaneProps> = ({
         },
       ]}>
       <NoteEditorPreviewPane
-        content={editorContent}
         document={draftDocument}
         theme={theme}
       />
