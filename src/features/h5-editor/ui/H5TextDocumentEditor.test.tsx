@@ -377,7 +377,37 @@ describe('H5TextDocumentEditor', () => {
     );
   });
 
-  test('forwards widget-select messages to react native', async () => {
+  test('renders widget move actions with boundary disabled states', async () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <H5TextDocumentEditor
+          content="正文"
+          document={multiWidgetDocument}
+          fontSize={16}
+          onChangeState={() => {}}
+          theme={theme}
+        />,
+      );
+    });
+
+    const renderedHtml =
+      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.children;
+
+    expect((renderedHtml.match(/data-widget-action="move-up"/g) ?? []).length).toBe(
+      2,
+    );
+    expect(
+      (renderedHtml.match(/data-widget-action="move-down"/g) ?? []).length,
+    ).toBe(2);
+    expect(renderedHtml).toContain('data-widget-action="move-up" disabled');
+    expect(renderedHtml).toContain('data-widget-action="move-down" disabled');
+    expect(renderedHtml).toContain('>上移<');
+    expect(renderedHtml).toContain('>下移<');
+  });
+
+  test('ignores legacy widget-select messages', async () => {
     const onWidgetEvent = jest.fn();
     let renderer: ReactTestRenderer.ReactTestRenderer;
     const editorProps: any = {
@@ -406,12 +436,7 @@ describe('H5TextDocumentEditor', () => {
       });
     });
 
-    expect(onWidgetEvent).toHaveBeenCalledWith({
-      type: 'widget-select',
-      blockId: 'widget-block-1',
-      widgetId: 'widget-1',
-      widgetType: 'todo-list',
-    });
+    expect(onWidgetEvent).not.toHaveBeenCalled();
   });
 
   test('forwards widget action messages to react native', async () => {
@@ -464,6 +489,17 @@ describe('H5TextDocumentEditor', () => {
           }),
         },
       });
+      onMessage({
+        nativeEvent: {
+          data: JSON.stringify({
+            type: 'widget-move',
+            blockId: 'widget-block-1',
+            widgetId: 'widget-1',
+            widgetType: 'todo-list',
+            direction: 'up',
+          }),
+        },
+      });
     });
 
     expect(onWidgetEvent).toHaveBeenNthCalledWith(1, {
@@ -481,6 +517,13 @@ describe('H5TextDocumentEditor', () => {
     expect(onWidgetEvent).toHaveBeenNthCalledWith(3, {
       type: 'widget-insert-request',
       afterBlockId: 'widget-block-1',
+    });
+    expect(onWidgetEvent).toHaveBeenNthCalledWith(4, {
+      type: 'widget-move',
+      blockId: 'widget-block-1',
+      widgetId: 'widget-1',
+      widgetType: 'todo-list',
+      direction: 'up',
     });
   });
 

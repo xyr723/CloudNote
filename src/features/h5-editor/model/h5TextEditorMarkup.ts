@@ -182,7 +182,15 @@ const createSegmentHtml = ({
   ].join('');
 };
 
-const createWidgetPlaceholderHtml = (block: WidgetBlock): string => {
+const createWidgetPlaceholderHtml = ({
+  block,
+  canMoveDown,
+  canMoveUp,
+}: {
+  block: WidgetBlock;
+  canMoveDown: boolean;
+  canMoveUp: boolean;
+}): string => {
   const title = block.widget.title ?? block.widget.type;
   const description = block.widget.description;
 
@@ -200,6 +208,16 @@ const createWidgetPlaceholderHtml = (block: WidgetBlock): string => {
       : '',
     '</div>',
     '<div class="note-widget-actions">',
+    '<button type="button" class="note-widget-button" data-widget-action="move-up"',
+    canMoveUp ? '' : ' disabled',
+    '>',
+    '上移',
+    '</button>',
+    '<button type="button" class="note-widget-button" data-widget-action="move-down"',
+    canMoveDown ? '' : ' disabled',
+    '>',
+    '下移',
+    '</button>',
     '<button type="button" class="note-widget-button" data-widget-action="edit">',
     '编辑',
     '</button>',
@@ -237,8 +255,12 @@ const createWidgetBlocksHtml = (document?: RichDocument): string => {
 
   return [
     createWidgetInsertButtonHtml(null),
-    ...widgetBlocks.flatMap(block => [
-      createWidgetPlaceholderHtml(block),
+    ...widgetBlocks.flatMap((block, index) => [
+      createWidgetPlaceholderHtml({
+        block,
+        canMoveUp: index > 0,
+        canMoveDown: index < widgetBlocks.length - 1,
+      }),
       createWidgetInsertButtonHtml(block.id),
     ]),
   ].join('');

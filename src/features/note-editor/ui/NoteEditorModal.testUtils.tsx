@@ -27,14 +27,15 @@ export const mockH5EditorProps: {
     ) => void;
     onWidgetEvent?: (event: {
       type:
-        | 'widget-select'
         | 'widget-edit-request'
         | 'widget-delete'
+        | 'widget-move'
         | 'widget-insert-request';
       blockId?: string;
       widgetId?: string;
       widgetType?: string;
       afterBlockId?: string | null;
+      direction?: 'up' | 'down';
     }) => void;
     textSegments?: Array<{
       text: string;

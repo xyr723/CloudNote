@@ -8,6 +8,7 @@ import {
   hasWidgetBlocks,
   insertWidgetBlock,
   mergeTextDocumentWithWidgets,
+  moveWidgetBlock,
   removeWidgetBlock,
   replaceWidgetBlock,
 } from './document';
@@ -324,6 +325,48 @@ describe('note document helpers', () => {
           widget,
         },
       ],
+    });
+  });
+
+  test('moveWidgetBlock reorders widget blocks while keeping text blocks in place', () => {
+    const firstWidgetBlock = buildWidgetBlock('1');
+    const secondWidgetBlock = buildWidgetBlock('2');
+    const document: RichDocument = {
+      version: '1.0',
+      blocks: [
+        {
+          id: 'paragraph-1',
+          type: 'paragraph',
+          text: '前文',
+        },
+        firstWidgetBlock,
+        {
+          id: 'paragraph-2',
+          type: 'paragraph',
+          text: '后文',
+        },
+        secondWidgetBlock,
+      ],
+      plainText: '前文\n\n后文',
+    };
+
+    expect(moveWidgetBlock(document, secondWidgetBlock.id, 'up')).toEqual({
+      version: '1.0',
+      blocks: [
+        {
+          id: 'paragraph-1',
+          type: 'paragraph',
+          text: '前文',
+        },
+        secondWidgetBlock,
+        {
+          id: 'paragraph-2',
+          type: 'paragraph',
+          text: '后文',
+        },
+        firstWidgetBlock,
+      ],
+      plainText: '前文\n\n后文',
     });
   });
 });

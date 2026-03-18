@@ -3,6 +3,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import type {RichDocument} from '../../../entities/document/types';
 import {
   insertWidgetBlock,
+  moveWidgetBlock,
   removeWidgetBlock,
   replaceWidgetBlock,
 } from '../../../entities/note/document';
@@ -220,5 +221,66 @@ describe('useNoteWidgetEditing', () => {
       removeWidgetBlock(initialDocument, 'widget-block-1'),
     );
     expect(getWidgetEditing().activeWidgetEditor).toBeNull();
+  });
+
+  test('moves widget blocks when h5 move request arrives', async () => {
+    const initialDocument: RichDocument = {
+      version: '1.0',
+      blocks: [
+        {
+          id: 'paragraph-1',
+          type: 'paragraph',
+          text: '正文',
+        },
+        {
+          id: 'widget-block-1',
+          type: 'widget',
+          widget: buildWidget('widget-1'),
+        },
+        {
+          id: 'widget-block-2',
+          type: 'widget',
+          widget: buildWidget('widget-2'),
+        },
+      ],
+      plainText: '正文',
+    };
+    const appliedDocuments: RichDocument[] = [];
+    let latestWidgetEditing: ReturnType<typeof useNoteWidgetEditing> | null =
+      null;
+
+    const Probe = () => {
+      const [document, setDocument] = useState<RichDocument>(initialDocument);
+
+      latestWidgetEditing = useNoteWidgetEditing({
+        applyDocumentChange: nextDocument => {
+          appliedDocuments.push(nextDocument);
+          setDocument(nextDocument);
+        },
+        getCurrentDocument: () => document,
+        visible: true,
+      });
+
+      return null;
+    };
+
+    await ReactTestRenderer.act(() => {
+      ReactTestRenderer.create(<Probe />);
+    });
+
+    await ReactTestRenderer.act(() => {
+      latestWidgetEditing?.handleH5WidgetEvent({
+        type: 'widget-move',
+        blockId: 'widget-block-2',
+        widgetId: 'widget-2',
+        widgetType: 'todo-list',
+        direction: 'up',
+      });
+    });
+
+    expect(appliedDocuments).toHaveLength(1);
+    expect(appliedDocuments[0]).toEqual(
+      moveWidgetBlock(initialDocument, 'widget-block-2', 'up'),
+    );
   });
 });

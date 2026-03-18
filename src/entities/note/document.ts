@@ -6,6 +6,8 @@ const EMPTY_DOCUMENT: RichDocument = {
   blocks: [],
 };
 
+export type WidgetMoveDirection = 'up' | 'down';
+
 const isWidgetBlock = (
   block: RichDocument['blocks'][number],
 ): block is WidgetBlock => {
@@ -111,6 +113,54 @@ export const removeWidgetBlock = (
   const nextBlocks = document.blocks.filter(block => block.id !== blockId);
 
   if (nextBlocks.length === document.blocks.length) {
+    return document;
+  }
+
+  return {
+    ...document,
+    blocks: nextBlocks,
+  };
+};
+
+export const moveWidgetBlock = (
+  document: RichDocument,
+  blockId: string,
+  direction: WidgetMoveDirection,
+): RichDocument => {
+  const widgetBlocks = extractWidgetBlocks(document);
+  const currentIndex = widgetBlocks.findIndex(block => block.id === blockId);
+
+  if (currentIndex === -1) {
+    return document;
+  }
+
+  const nextIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+
+  if (nextIndex < 0 || nextIndex >= widgetBlocks.length) {
+    return document;
+  }
+
+  const reorderedWidgetBlocks = [...widgetBlocks];
+  [reorderedWidgetBlocks[currentIndex], reorderedWidgetBlocks[nextIndex]] = [
+    reorderedWidgetBlocks[nextIndex],
+    reorderedWidgetBlocks[currentIndex],
+  ];
+
+  let widgetIndex = 0;
+  let didChange = false;
+  const nextBlocks = document.blocks.map(block => {
+    if (!isWidgetBlock(block)) {
+      return block;
+    }
+
+    const reorderedBlock = reorderedWidgetBlocks[widgetIndex];
+    widgetIndex += 1;
+    didChange = didChange || reorderedBlock !== block;
+
+    return reorderedBlock;
+  });
+
+  if (!didChange) {
     return document;
   }
 

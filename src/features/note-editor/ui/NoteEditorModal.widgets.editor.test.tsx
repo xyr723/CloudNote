@@ -117,3 +117,53 @@ test('removes widget block from document when h5 widget delete event arrives', a
   expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
   expect(mockH5EditorProps.current?.document).toEqual(expectedDocument);
 });
+
+test('reorders widget blocks when h5 widget move event arrives', async () => {
+  const initialDocument = buildWidgetDocument([
+    buildParagraphBlock(),
+    {
+      id: 'widget-block-1',
+      type: 'widget',
+      widget: {
+        id: 'widget-1',
+        type: 'todo-list',
+        title: '原待办',
+        props: {
+          items: ['事项一'],
+        },
+      },
+    },
+    {
+      id: 'widget-block-2',
+      type: 'widget',
+      widget: {
+        id: 'widget-2',
+        type: 'metric',
+        title: '原指标',
+        props: {
+          value: '85',
+        },
+      },
+    },
+  ]);
+  const expectedDocument = buildWidgetDocument([
+    initialDocument.blocks[0],
+    initialDocument.blocks[2],
+    initialDocument.blocks[1],
+  ]);
+  const {onChangeDocument, renderer} = await renderWidgetModal({
+    noteDocument: initialDocument,
+  });
+
+  await openH5Mode(renderer);
+  await dispatchWidgetEvent({
+    type: 'widget-move',
+    blockId: 'widget-block-2',
+    widgetId: 'widget-2',
+    widgetType: 'metric',
+    direction: 'up',
+  });
+
+  expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
+  expect(mockH5EditorProps.current?.document).toEqual(expectedDocument);
+});

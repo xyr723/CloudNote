@@ -19,11 +19,12 @@ type WidgetEvent = {
     | 'widget-edit-request'
     | 'widget-delete'
     | 'widget-insert-request'
-    | 'widget-select';
+    | 'widget-move';
   blockId?: string;
   widgetId?: string;
   widgetType?: string;
   afterBlockId?: string | null;
+  direction?: 'up' | 'down';
 };
 
 export const buildParagraphBlock = (

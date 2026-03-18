@@ -2,6 +2,7 @@ import {useCallback, useEffect, useState} from 'react';
 import {
   findWidgetBlock,
   insertWidgetBlock,
+  moveWidgetBlock,
   removeWidgetBlock,
   replaceWidgetBlock,
 } from '../../../entities/note/document';
@@ -137,10 +138,6 @@ export const useNoteWidgetEditing = ({
     (event: H5WidgetBridgeEvent) => {
       const currentDocument = getCurrentDocument();
 
-      if (event.type === 'widget-select') {
-        return;
-      }
-
       if (event.type === 'widget-edit-request') {
         const targetBlock = findWidgetBlock(currentDocument, event.blockId);
 
@@ -167,6 +164,26 @@ export const useNoteWidgetEditing = ({
         setActiveWidgetEditor(currentEditor => {
           return currentEditor?.blockId === event.blockId ? null : currentEditor;
         });
+        return;
+      }
+
+      if (event.type === 'widget-move') {
+        const targetBlock = findWidgetBlock(currentDocument, event.blockId);
+
+        if (!targetBlock || targetBlock.widget.id !== event.widgetId) {
+          return;
+        }
+
+        const nextDocument = moveWidgetBlock(
+          currentDocument,
+          event.blockId,
+          event.direction,
+        );
+
+        if (nextDocument !== currentDocument) {
+          applyDocumentChange(nextDocument);
+        }
+
         return;
       }
 

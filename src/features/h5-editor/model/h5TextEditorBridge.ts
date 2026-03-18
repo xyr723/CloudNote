@@ -22,6 +22,8 @@ export type H5TextEditorMediaInsertAction =
   | 'capture-image'
   | 'record-audio';
 
+export type H5WidgetMoveDirection = 'up' | 'down';
+
 export type H5TextEditorMediaInsertRequestEvent = {
   type: 'media-insert-request';
   action: H5TextEditorMediaInsertAction;
@@ -35,12 +37,6 @@ export type H5TextEditorSelectionPayload = {
 
 export type H5WidgetBridgeEvent =
   | {
-      type: 'widget-select';
-      blockId: string;
-      widgetId: string;
-      widgetType: WidgetType;
-    }
-  | {
       type: 'widget-edit-request';
       blockId: string;
       widgetId: string;
@@ -51,6 +47,13 @@ export type H5WidgetBridgeEvent =
       blockId: string;
       widgetId: string;
       widgetType: WidgetType;
+    }
+  | {
+      type: 'widget-move';
+      blockId: string;
+      widgetId: string;
+      widgetType: WidgetType;
+      direction: H5WidgetMoveDirection;
     }
   | {
       type: 'widget-insert-request';
@@ -122,6 +125,12 @@ const isWidgetMessageIdentifier = (value: unknown): value is string => {
   return typeof value === 'string' && value.length > 0;
 };
 
+const isWidgetMoveDirection = (
+  value: unknown,
+): value is H5WidgetMoveDirection => {
+  return value === 'up' || value === 'down';
+};
+
 export const parseH5TextEditorMessage = (data: string): H5TextEditorMessage => {
   try {
     const message = JSON.parse(data) as {
@@ -130,6 +139,7 @@ export const parseH5TextEditorMessage = (data: string): H5TextEditorMessage => {
       blockId?: unknown;
       content?: unknown;
       cursorPosition?: unknown;
+      direction?: unknown;
       end?: unknown;
       index?: unknown;
       kind?: unknown;
@@ -189,8 +199,7 @@ export const parseH5TextEditorMessage = (data: string): H5TextEditorMessage => {
     }
 
     if (
-      (message.type === 'widget-select' ||
-        message.type === 'widget-edit-request' ||
+      (message.type === 'widget-edit-request' ||
         message.type === 'widget-delete') &&
       isWidgetMessageIdentifier(message.blockId) &&
       isWidgetMessageIdentifier(message.widgetId) &&
@@ -201,6 +210,22 @@ export const parseH5TextEditorMessage = (data: string): H5TextEditorMessage => {
         blockId: message.blockId,
         widgetId: message.widgetId,
         widgetType: message.widgetType,
+      };
+    }
+
+    if (
+      message.type === 'widget-move' &&
+      isWidgetMessageIdentifier(message.blockId) &&
+      isWidgetMessageIdentifier(message.widgetId) &&
+      isWidgetType(message.widgetType) &&
+      isWidgetMoveDirection(message.direction)
+    ) {
+      return {
+        type: 'widget-move',
+        blockId: message.blockId,
+        widgetId: message.widgetId,
+        widgetType: message.widgetType,
+        direction: message.direction,
       };
     }
 
@@ -768,7 +793,12 @@ const createBridgeScript = (): string => {
 
             if (
               !widgetMeta ||
-              (widgetAction !== 'edit' && widgetAction !== 'delete')
+              (
+                widgetAction !== 'move-up' &&
+                widgetAction !== 'move-down' &&
+                widgetAction !== 'edit' &&
+                widgetAction !== 'delete'
+              )
             ) {
               return;
             }
@@ -780,10 +810,18 @@ const createBridgeScript = (): string => {
                 type:
                   widgetAction === 'edit'
                     ? 'widget-edit-request'
-                    : 'widget-delete',
+                    : widgetAction === 'delete'
+                      ? 'widget-delete'
+                      : 'widget-move',
                 blockId: widgetMeta.blockId,
                 widgetId: widgetMeta.widgetId,
                 widgetType: widgetMeta.widgetType,
+                direction:
+                  widgetAction === 'move-up'
+                    ? 'up'
+                    : widgetAction === 'move-down'
+                      ? 'down'
+                      : undefined,
               }),
             );
             return;
@@ -806,21 +844,6 @@ const createBridgeScript = (): string => {
             return;
           }
 
-          var widgetMeta = resolveWidgetMeta(target);
-
-          if (!widgetMeta) {
-            return;
-          }
-
-          event.preventDefault();
-          window.ReactNativeWebView.postMessage(
-            JSON.stringify({
-              type: 'widget-select',
-              blockId: widgetMeta.blockId,
-              widgetId: widgetMeta.widgetId,
-              widgetType: widgetMeta.widgetType,
-            }),
-          );
         });
 
         if (mediaActions) {
@@ -1014,6 +1037,11 @@ export const createH5TextEditorHtml = ({
 
       .note-widget-button-danger {
         color: ${theme.error};
+      }
+
+      .note-widget-button:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
       }
 
       .note-widget-insert-button {
