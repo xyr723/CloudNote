@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import {Text, TextInput, TouchableOpacity} from 'react-native';
+import type {WidgetType} from '../../../entities/widget/types';
 import {generateThemeColors} from '../../../shared/theme/colors';
 import {WidgetEditorSheet} from './WidgetEditorSheet';
 
@@ -13,6 +14,23 @@ const todoWidget = {
     items: ['事项一'],
   },
 };
+const actionCardWidget = {
+  id: 'widget-0',
+  type: 'action-card' as const,
+  title: '快捷入口',
+  description: '查看今日数据',
+  props: {},
+  actions: [
+    {
+      id: 'action-1',
+      label: '立即查看',
+      type: 'open-url' as const,
+      payload: {
+        url: 'https://example.com',
+      },
+    },
+  ],
+};
 const metricWidget = {
   id: 'widget-2',
   type: 'metric' as const,
@@ -22,10 +40,45 @@ const metricWidget = {
     value: '99%',
   },
 };
+const quoteWidget = {
+  id: 'widget-4',
+  type: 'quote' as const,
+  title: '摘录卡片',
+  description: '乔布斯',
+  props: {
+    content: '保持饥饿，保持愚蠢',
+  },
+};
 const timelineWidget = {
   id: 'widget-3',
   type: 'timeline' as const,
   title: '项目里程碑',
+  props: {
+    items: [
+      {time: '09:00', content: '开始整理需求'},
+      {time: '11:00', content: '完成第一版方案'},
+    ],
+  },
+};
+const formWidget = {
+  id: 'widget-5',
+  type: 'form' as const,
+  title: '表单卡片',
+  props: {
+    fields: [
+      {
+        id: 'field-1',
+        label: '姓名',
+        type: 'text' as const,
+        placeholder: '请输入姓名',
+      },
+    ],
+  },
+};
+const unsupportedWidget = {
+  id: 'widget-6',
+  type: 'unknown-widget' as WidgetType,
+  title: '未知组件',
   description: '暂不支持直接编辑此类型组件',
   props: {},
 };
@@ -92,7 +145,49 @@ describe('WidgetEditorSheet', () => {
     ).toBeGreaterThan(0);
   });
 
-  test('renders fallback editor for unsupported editor types', () => {
+  test('renders action-card editor for action-card widgets', () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(
+        <WidgetEditorSheet
+          visible
+          widget={actionCardWidget}
+          onClose={() => {}}
+          onDelete={() => {}}
+          onSave={() => {}}
+          theme={theme}
+        />,
+      );
+    });
+
+    expect(
+      renderer!.root.findAllByProps({placeholder: '按钮文案'}).length,
+    ).toBeGreaterThan(0);
+  });
+
+  test('renders quote editor for quote widgets', () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(
+        <WidgetEditorSheet
+          visible
+          widget={quoteWidget}
+          onClose={() => {}}
+          onDelete={() => {}}
+          onSave={() => {}}
+          theme={theme}
+        />,
+      );
+    });
+
+    expect(
+      renderer!.root.findAllByProps({placeholder: '引用正文'}).length,
+    ).toBeGreaterThan(0);
+  });
+
+  test('renders timeline editor for timeline widgets', () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
     ReactTestRenderer.act(() => {
@@ -100,6 +195,48 @@ describe('WidgetEditorSheet', () => {
         <WidgetEditorSheet
           visible
           widget={timelineWidget}
+          onClose={() => {}}
+          onDelete={() => {}}
+          onSave={() => {}}
+          theme={theme}
+        />,
+      );
+    });
+
+    expect(
+      renderer!.root.findAllByProps({placeholder: '时间 1'}).length,
+    ).toBeGreaterThan(0);
+  });
+
+  test('renders form editor for form widgets', () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(
+        <WidgetEditorSheet
+          visible
+          widget={formWidget}
+          onClose={() => {}}
+          onDelete={() => {}}
+          onSave={() => {}}
+          theme={theme}
+        />,
+      );
+    });
+
+    expect(
+      renderer!.root.findAllByProps({placeholder: '字段标题 1'}).length,
+    ).toBeGreaterThan(0);
+  });
+
+  test('renders fallback editor for unsupported editor types', () => {
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    ReactTestRenderer.act(() => {
+      renderer = ReactTestRenderer.create(
+        <WidgetEditorSheet
+          visible
+          widget={unsupportedWidget}
           onClose={() => {}}
           onDelete={() => {}}
           onSave={() => {}}
@@ -261,7 +398,7 @@ describe('WidgetEditorSheet', () => {
         <WidgetEditorSheet
           visible
           mode="create"
-          widget={timelineWidget}
+          widget={formWidget}
           onClose={() => {}}
           onDelete={() => {}}
           onSave={onSave}
@@ -274,6 +411,6 @@ describe('WidgetEditorSheet', () => {
       findButtonByLabel(renderer!, '保存').props.onPress();
     });
 
-    expect(onSave).toHaveBeenCalledWith(timelineWidget);
+    expect(onSave).toHaveBeenCalledWith(formWidget);
   });
 });
