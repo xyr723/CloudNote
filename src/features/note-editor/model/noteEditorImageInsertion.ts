@@ -1,10 +1,8 @@
 import type {PickedImageAsset} from '../../../shared/media/imagePicker';
 import {saveNoteAttachment} from '../../../shared/media/noteAttachmentStore';
 import type {EditableTextSegment} from '../ui/types';
-import {
-  insertMarkerAtCursor,
-  insertMarkerIntoTextSegments,
-} from './noteEditorMediaUtils';
+import {insertMarkerAtCursor} from './noteEditorMediaContentMarkers';
+import {insertMarkerIntoTextSegments} from './noteEditorMediaTextSegments';
 
 type AppendSelectedImagesInput = {
   content: string;

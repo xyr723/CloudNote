@@ -2,10 +2,8 @@ import {useCallback} from 'react';
 import {Alert} from 'react-native';
 import {saveNoteAttachment} from '../../../shared/media/noteAttachmentStore';
 import type {EditableTextSegment} from '../ui/types';
-import {
-  insertMarkerAtCursor,
-  insertMarkerIntoTextSegments,
-} from './noteEditorMediaUtils';
+import {insertMarkerAtCursor} from './noteEditorMediaContentMarkers';
+import {insertMarkerIntoTextSegments} from './noteEditorMediaTextSegments';
 import {useAudioRecordingSession} from './useAudioRecordingSession';
 
 type UseNoteRecordingInput = {
