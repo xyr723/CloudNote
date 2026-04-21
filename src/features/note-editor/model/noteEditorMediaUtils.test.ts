@@ -39,6 +39,26 @@ describe('noteEditorMediaUtils', () => {
     ).toBe('正文[图片0]');
   });
 
+  test('preserves paragraph blank lines when there are no image markers to repair', () => {
+    expect(
+      syncImageMarkers({
+        content: '前段\n\n后段',
+        imageCount: 0,
+        isUserDelete: false,
+      }),
+    ).toBe('前段\n\n后段');
+  });
+
+  test('preserves paragraph blank lines when appending missing image markers', () => {
+    expect(
+      syncImageMarkers({
+        content: '前段\n\n后段',
+        imageCount: 1,
+        isUserDelete: false,
+      }),
+    ).toBe('前段\n\n后段\n[图片0]');
+  });
+
   test('appends missing image markers into the last formatted segment', () => {
     expect(
       syncImageMarkersInTextSegments({
@@ -49,6 +69,18 @@ describe('noteEditorMediaUtils', () => {
         textSegments: [{text: '正文', fontSize: 18, isBold: true}],
       }),
     ).toEqual([{text: '正文\n[图片0]', fontSize: 18, isBold: true}]);
+  });
+
+  test('preserves paragraph blank lines in text segments when appending missing image markers', () => {
+    expect(
+      syncImageMarkersInTextSegments({
+        content: '前段\n\n后段',
+        fontSize: 16,
+        imageCount: 1,
+        isUserDelete: false,
+        textSegments: [{text: '前段\n\n后段', fontSize: 18, isBold: true}],
+      }),
+    ).toEqual([{text: '前段\n\n后段\n[图片0]', fontSize: 18, isBold: true}]);
   });
 
   test('normalizes text segments before appending a repaired image marker', () => {

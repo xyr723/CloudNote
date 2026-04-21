@@ -1,10 +1,13 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import type {RichDocument, TextBlock} from '../../../entities/document/types';
+import type {
+  RichDocument,
+  TextBlock,
+  WidgetBlock,
+} from '../../../entities/document/types';
 import type {NoteDraft} from '../../../entities/note/draft';
 import {generateThemeColors} from '../../../shared/theme/colors';
 import {
-  buildMirrorDocument,
   findTextButton,
   mockH5EditorProps,
 } from './NoteEditorModal.testUtils';
@@ -19,7 +22,8 @@ type WidgetEvent = {
     | 'widget-edit-request'
     | 'widget-delete'
     | 'widget-insert-request'
-    | 'widget-move';
+    | 'widget-move'
+    | 'widget-reorder-request';
   blockId?: string;
   widgetId?: string;
   widgetType?: string;
@@ -40,11 +44,26 @@ export const buildParagraphBlock = (
 
 export const buildWidgetDocument = (
   blocks: RichDocument['blocks'],
-  plainText: string = '正文',
-): RichDocument => {
-  const widgetBlocks = blocks.filter(block => block.type === 'widget');
+  plainText: string = blocks
+    .filter(
+      (block): block is Exclude<RichDocument['blocks'][number], WidgetBlock> => {
+        return block.type !== 'widget';
+      },
+    )
+    .map(block => {
+      if (block.type === 'list') {
+        return block.items.join('\n');
+      }
 
-  return buildMirrorDocument(plainText, widgetBlocks);
+      return block.text;
+    })
+    .join('\n\n') || '正文',
+): RichDocument => {
+  return {
+    version: '1.0',
+    blocks,
+    plainText,
+  };
 };
 
 export const renderWidgetModal = async ({

@@ -1,11 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {Buffer} from 'buffer';
-import RNFetchBlob from 'react-native-blob-util';
 import type {
   DocumentBlock,
   RichDocument,
   TextBlockType,
 } from '../../entities/document/types';
+import {createLiveNoteDocument} from '../../entities/note/document';
 import type {Note, TextSegment} from '../../entities/note/types';
 import type {
   WidgetAction,
@@ -16,6 +16,7 @@ import type {
 import {
   copyManagedFile,
   fileExists,
+  managedDocumentDir,
   stripFileScheme,
   toPlatformFileUri,
 } from './localFileStore';
@@ -337,7 +338,7 @@ const parseNotes = async (notesString: string | null): Promise<Note[]> => {
             ? noteRecord.fontSize
             : undefined,
         textSegments,
-        document: parseRichDocument(noteRecord.document),
+        document: undefined,
         deletedAt:
           typeof noteRecord.deletedAt === 'string'
             ? noteRecord.deletedAt
@@ -347,6 +348,11 @@ const parseNotes = async (notesString: string | null): Promise<Note[]> => {
             ? noteRecord.isHidden
             : undefined,
       };
+
+      parsedNote.document = createLiveNoteDocument({
+        content: parsedNote.content,
+        document: parseRichDocument(noteRecord.document),
+      });
 
       return parsedNote;
     }),
@@ -362,7 +368,7 @@ const getManagedMediaPath = (
   index: number,
   fallbackExtension: string,
 ): string => {
-  const baseDirectory = `${RNFetchBlob.fs.dirs.DocumentDir}/${mediaType}/${username}`;
+  const baseDirectory = `${managedDocumentDir}/${mediaType}/${username}`;
   return `${baseDirectory}/${noteId}_${index}.${fallbackExtension}`;
 };
 
@@ -398,8 +404,14 @@ const persistNoteAssets = async (
   username: string,
   note: Note,
 ): Promise<Note> => {
+  const normalizedDocument = createLiveNoteDocument({
+    content: note.content,
+    document: note.document,
+  });
+
   return {
     ...note,
+    document: normalizedDocument,
     images: await persistMediaUris(username, note.id, note.images, 'images', 'jpg'),
     audios: await persistMediaUris(username, note.id, note.audios, 'audios', 'mp3'),
   };
@@ -427,7 +439,18 @@ export const localNoteStore = {
   },
 
   async saveTrashNotes(username: string, notes: Note[]): Promise<void> {
-    await AsyncStorage.setItem(getTrashKey(username), stringifyNotes(notes));
+    await AsyncStorage.setItem(
+      getTrashKey(username),
+      stringifyNotes(
+        notes.map(note => ({
+          ...note,
+          document: createLiveNoteDocument({
+            content: note.content,
+            document: note.document,
+          }),
+        })),
+      ),
+    );
   },
 
   async moveNoteToTrash(username: string, note: Note): Promise<void> {

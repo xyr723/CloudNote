@@ -152,6 +152,13 @@ export const useNoteMedia = ({
     }, '拍照时发生错误');
   }, [handleImageAssetSelection]);
 
+  const handleInlineImageAssets = useCallback(
+    async (assets: PickedImageAsset[]) => {
+      await handleImageAssetSelection(async () => assets, IMAGE_ERROR_FALLBACK_MESSAGE);
+    },
+    [handleImageAssetSelection],
+  );
+
   const scheduleImageDeletionCommit = useCallback(
     (nextImages: string[]) => {
       setTimeout(() => {
@@ -240,6 +247,7 @@ export const useNoteMedia = ({
     handleDeleteAudio,
     handleDeleteImage,
     handleImagePicker,
+    handleInlineImageAssets,
     images,
   };
 };

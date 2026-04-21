@@ -106,6 +106,31 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
     handleMirrorContentChange,
   });
   const actions = controller.actions;
+  const h5WidgetInlinePanel =
+    pendingWidgetInsert !== null || activeWidgetEditor !== null ? (
+      <View
+        testID="note-h5-widget-inline-panel"
+        style={{
+          gap: 12,
+          marginTop: 12,
+        }}>
+        <WidgetTypePickerSheet
+          visible={pendingWidgetInsert !== null}
+          onClose={handleCloseWidgetTypePicker}
+          onSelect={handleSelectWidgetType}
+          theme={theme}
+        />
+        <WidgetEditorSheet
+          visible={activeWidgetEditor !== null}
+          mode={activeWidgetEditor?.mode ?? 'edit'}
+          widget={activeWidgetEditor?.widget ?? null}
+          onClose={handleCloseWidgetEditor}
+          onDelete={handleDeleteActiveWidget}
+          onSave={handleSaveWidget}
+          theme={theme}
+        />
+      </View>
+    ) : null;
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
@@ -159,6 +184,7 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
                 editorMode={editorMode}
                 controller={controller}
                 draftDocument={draftDocument}
+                h5WidgetInlinePanel={h5WidgetInlinePanel}
                 onH5WidgetEvent={handleH5WidgetEvent}
                 theme={theme}
               />
@@ -170,28 +196,6 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
             </View>
           </KeyboardAvoidingView>
         </SafeAreaView>
-      </View>
-
-      <View
-        style={{
-          paddingHorizontal: 16,
-          paddingBottom: 16,
-        }}>
-        <WidgetTypePickerSheet
-          visible={pendingWidgetInsert !== null}
-          onClose={handleCloseWidgetTypePicker}
-          onSelect={handleSelectWidgetType}
-          theme={theme}
-        />
-        <WidgetEditorSheet
-          visible={activeWidgetEditor !== null}
-          mode={activeWidgetEditor?.mode ?? 'edit'}
-          widget={activeWidgetEditor?.widget ?? null}
-          onClose={handleCloseWidgetEditor}
-          onDelete={handleDeleteActiveWidget}
-          onSave={handleSaveWidget}
-          theme={theme}
-        />
       </View>
 
       <EditNoteAuxiliaryModals

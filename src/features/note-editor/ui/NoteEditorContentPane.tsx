@@ -14,6 +14,7 @@ type NoteEditorContentPaneProps = {
   editorMode: NoteEditorMode;
   controller: NoteEditorController;
   draftDocument: RichDocument;
+  h5WidgetInlinePanel?: React.ReactNode;
   onH5WidgetEvent: (event: H5WidgetBridgeEvent) => void;
   theme: ReturnType<typeof generateThemeColors>;
 };
@@ -22,6 +23,7 @@ export const NoteEditorContentPane: React.FC<NoteEditorContentPaneProps> = ({
   editorMode,
   controller,
   draftDocument,
+  h5WidgetInlinePanel,
   onH5WidgetEvent,
   theme,
 }) => {
@@ -92,6 +94,7 @@ export const NoteEditorContentPane: React.FC<NoteEditorContentPaneProps> = ({
           textSegments={formatting.textSegments}
           theme={theme}
         />
+        {h5WidgetInlinePanel}
       </View>
     );
   }

@@ -1,4 +1,3 @@
-import RNFetchBlob from 'react-native-blob-util'
 import type {
   AttachmentKind,
   AttachmentProvider,
@@ -6,11 +5,13 @@ import type {
 } from '../attachmentProvider'
 import {
   copyManagedFile,
+  deleteManagedFile,
   fileExists,
+  managedDocumentDir,
   stripFileScheme,
 } from '../../../shared/lib/localFileStore'
 
-const ATTACHMENT_ROOT_DIR = `${RNFetchBlob.fs.dirs.DocumentDir}/draft-attachments`
+const ATTACHMENT_ROOT_DIR = `${managedDocumentDir}/draft-attachments`
 
 const DEFAULT_EXTENSION_MAP: Record<AttachmentKind, string> = {
   image: 'jpg',
@@ -66,7 +67,7 @@ export class LocalAttachmentProvider implements AttachmentProvider {
   }
 
   async removeAttachment(uri: string): Promise<void> {
-    if (/^https?:\/\//.test(uri)) {
+    if (/^https?:\/\//.test(uri) || /^data:/.test(uri)) {
       return
     }
 
@@ -77,6 +78,6 @@ export class LocalAttachmentProvider implements AttachmentProvider {
       return
     }
 
-    await RNFetchBlob.fs.unlink(filePath)
+    await deleteManagedFile(filePath)
   }
 }

@@ -2,6 +2,7 @@ import ReactTestRenderer from 'react-test-renderer';
 import type {RichDocument, WidgetBlock} from '../../../entities/document/types';
 import {
   flushNoteEditorModalEffects,
+  mockH5EditorProps,
   resetNoteEditorModalTestState,
 } from './NoteEditorModal.testUtils';
 import {
@@ -72,9 +73,7 @@ const insertWidgetBlock = ({
     ];
   }
 
-  const targetIndex = blocks.findIndex(
-    block => block.type === 'widget' && block.id === afterBlockId,
-  );
+  const targetIndex = blocks.findIndex(block => block.id === afterBlockId);
 
   if (targetIndex === -1) {
     return [...blocks, widgetBlock];
@@ -190,6 +189,59 @@ test.each(widgetInsertionCases)('$name', async ({
 
   await ReactTestRenderer.act(() => {
     findLastButtonByText(renderer, buttonLabel).props.onPress();
+  });
+
+  await ReactTestRenderer.act(() => {
+    findLastButtonByText(renderer, '保存').props.onPress();
+  });
+
+  expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
+});
+
+test('inserts new widget after a targeted text block in h5 mode', async () => {
+  const metricWidgetBlock: WidgetBlock = {
+    id: 'widget-draft-metric',
+    type: 'widget',
+    widget: {
+      id: 'draft-metric',
+      type: 'metric',
+      title: '关键指标',
+      description: '补充说明',
+      props: {
+        value: '0',
+        unit: '%',
+      },
+    },
+  };
+  const initialDocument = buildWidgetDocument(
+    [
+      buildParagraphBlock('paragraph-1', '前段'),
+      buildParagraphBlock('paragraph-2', '后段'),
+      ...buildExistingWidgetBlocks(),
+    ],
+    '前段\n\n后段',
+  );
+  const expectedDocument = buildWidgetDocument(
+    insertWidgetBlock({
+      afterBlockId: 'paragraph-1',
+      blocks: initialDocument.blocks,
+      widgetBlock: metricWidgetBlock,
+    }),
+    '前段\n\n后段',
+  );
+  const {onChangeDocument, renderer} = await renderWidgetModal({
+    noteDocument: initialDocument,
+  });
+
+  await openH5Mode(renderer);
+  expect(mockH5EditorProps.current?.document).toEqual(initialDocument);
+  await dispatchWidgetEvent({
+    type: 'widget-insert-request',
+    afterBlockId: 'paragraph-1',
+  });
+
+  await ReactTestRenderer.act(() => {
+    findLastButtonByText(renderer, '指标卡片').props.onPress();
   });
 
   await ReactTestRenderer.act(() => {

@@ -1,4 +1,5 @@
 import type {RichDocument, WidgetBlock} from '../document/types';
+import type {Note} from './types';
 import type {WidgetSchema} from '../widget/types';
 
 const EMPTY_DOCUMENT: RichDocument = {
@@ -8,10 +9,58 @@ const EMPTY_DOCUMENT: RichDocument = {
 
 export type WidgetMoveDirection = 'up' | 'down';
 
+export const createNoteDocumentMirrorInput = (content: string): string => {
+  if (!content.trim()) {
+    return '';
+  }
+
+  return content
+    .replace(/\[图片(\d+)\]/g, (_marker, index: string) => {
+      return `\n\n图片占位 ${parseInt(index, 10) + 1}\n\n`;
+    })
+    .replace(/\[音频(\d+)\]/g, (_marker, index: string) => {
+      return `\n\n音频占位 ${parseInt(index, 10) + 1}\n\n`;
+    })
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
+
+const createMirrorTextBlocks = (
+  plainText: string,
+): RichDocument['blocks'] => {
+  return plainText
+    .split(/\n\s*\n/)
+    .map(part => part.trim())
+    .filter(part => part.length > 0)
+    .map((text, index) => ({
+      id: `block-${index + 1}`,
+      type: 'paragraph' as const,
+      text,
+    }));
+};
+
+export const createNoteTextMirrorDocument = (
+  content: string,
+): RichDocument => {
+  const plainText = createNoteDocumentMirrorInput(content);
+
+  return {
+    version: '1.0',
+    blocks: createMirrorTextBlocks(plainText),
+    plainText,
+  };
+};
+
 const isWidgetBlock = (
   block: RichDocument['blocks'][number],
 ): block is WidgetBlock => {
   return block.type === 'widget';
+};
+
+const isNonWidgetBlock = (
+  block: RichDocument['blocks'][number],
+): block is Exclude<RichDocument['blocks'][number], WidgetBlock> => {
+  return !isWidgetBlock(block);
 };
 
 const resolveWidgetInsertIndex = (
@@ -25,7 +74,7 @@ const resolveWidgetInsertIndex = (
   }
 
   const targetBlockIndex = blocks.findIndex(block => {
-    return block.id === afterBlockId && isWidgetBlock(block);
+    return block.id === afterBlockId;
   });
 
   return targetBlockIndex === -1 ? blocks.length : targetBlockIndex + 1;
@@ -170,6 +219,41 @@ export const moveWidgetBlock = (
   };
 };
 
+export const repositionWidgetBlock = (
+  document: RichDocument,
+  blockId: string,
+  afterBlockId?: string | null,
+): RichDocument => {
+  const currentIndex = document.blocks.findIndex(block => {
+    return block.id === blockId && isWidgetBlock(block);
+  });
+
+  if (currentIndex === -1 || afterBlockId === blockId) {
+    return document;
+  }
+
+  const targetBlock = document.blocks[currentIndex];
+  const remainingBlocks = document.blocks.filter(block => block.id !== blockId);
+  const insertIndex = resolveWidgetInsertIndex(remainingBlocks, afterBlockId);
+  const nextBlocks = [
+    ...remainingBlocks.slice(0, insertIndex),
+    targetBlock,
+    ...remainingBlocks.slice(insertIndex),
+  ];
+
+  if (
+    nextBlocks.length === document.blocks.length &&
+    nextBlocks.every((block, index) => block === document.blocks[index])
+  ) {
+    return document;
+  }
+
+  return {
+    ...document,
+    blocks: nextBlocks,
+  };
+};
+
 export const appendWidgetBlock = (
   document: RichDocument | undefined,
   widget: WidgetSchema,
@@ -189,10 +273,62 @@ export const mergeTextDocumentWithWidgets = (
   textDocument: RichDocument,
   existingDocument?: RichDocument,
 ): RichDocument => {
+  if (!existingDocument || !hasWidgetBlocks(existingDocument)) {
+    return textDocument;
+  }
+
+  const nextTextBlocks = textDocument.blocks.filter(isNonWidgetBlock);
+  let textBlockIndex = 0;
+
+  const nextBlocks: RichDocument['blocks'] = [];
+
+  existingDocument.blocks.forEach(block => {
+    if (isWidgetBlock(block)) {
+      nextBlocks.push(block);
+      return;
+    }
+
+    const nextTextBlock = nextTextBlocks[textBlockIndex];
+
+    if (!nextTextBlock || isWidgetBlock(nextTextBlock)) {
+      return;
+    }
+
+    textBlockIndex += 1;
+    nextBlocks.push({
+      ...nextTextBlock,
+      id: block.id,
+    });
+  });
+
+  if (textBlockIndex < nextTextBlocks.length) {
+    nextBlocks.push(...nextTextBlocks.slice(textBlockIndex));
+  }
+
   return {
     ...textDocument,
-    blocks: [...textDocument.blocks, ...extractWidgetBlocks(existingDocument)],
+    blocks: nextBlocks,
   };
+};
+
+export const createLiveNoteDocument = ({
+  content,
+  document,
+}: {
+  content: string;
+  document?: RichDocument;
+}): RichDocument => {
+  return mergeTextDocumentWithWidgets(
+    createNoteTextMirrorDocument(content),
+    document,
+  );
+};
+
+export const getNotePlainTextPreview = ({
+  content,
+  document,
+}: Pick<Note, 'content' | 'document'>): string => {
+  return document?.plainText ?? createNoteDocumentMirrorInput(content);
 };
 
 export const appendWidgetSchemasToDocument = (

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import {getNotePlainTextPreview} from '../../../entities/note/document';
 import type {Note} from '../../../entities/note/types';
 import {generateThemeColors} from '../../../shared/theme/colors';
 import {trashStyles} from './trashStyles';
@@ -74,7 +75,7 @@ export const TrashList: React.FC<TrashListProps> = ({
             <Text
               style={[trashStyles.noteContent, {color: theme.textLight}]}
               numberOfLines={2}>
-              {note.content}
+              {getNotePlainTextPreview(note)}
             </Text>
             <Text style={[trashStyles.deletedAt, {color: theme.textLight}]}>
               删除于:{' '}

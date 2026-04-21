@@ -2,6 +2,7 @@ import RNFetchBlob from 'react-native-blob-util';
 import {Platform} from 'react-native';
 
 const FILE_URI_PREFIX = 'file://';
+export const managedDocumentDir = RNFetchBlob.fs.dirs.DocumentDir;
 
 const getDirectoryName = (filePath: string): string => {
   const pathSegments = filePath.split('/');
@@ -16,7 +17,7 @@ export const stripFileScheme = (filePath: string): string => {
 };
 
 export const toPlatformFileUri = (filePath: string): string => {
-  if (/^https?:\/\//.test(filePath)) {
+  if (/^https?:\/\//.test(filePath) || /^data:/.test(filePath)) {
     return filePath;
   }
 
@@ -49,7 +50,7 @@ export const copyManagedFile = async (
   sourceUri: string,
   targetPath: string,
 ): Promise<string> => {
-  if (/^https?:\/\//.test(sourceUri)) {
+  if (/^https?:\/\//.test(sourceUri) || /^data:/.test(sourceUri)) {
     return sourceUri;
   }
 
@@ -68,4 +69,8 @@ export const copyManagedFile = async (
   }
 
   return toPlatformFileUri(normalizedTargetPath);
+};
+
+export const deleteManagedFile = async (filePath: string): Promise<void> => {
+  await RNFetchBlob.fs.unlink(stripFileScheme(filePath));
 };

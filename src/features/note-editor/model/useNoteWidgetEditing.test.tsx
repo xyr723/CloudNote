@@ -4,6 +4,7 @@ import type {RichDocument} from '../../../entities/document/types';
 import {
   insertWidgetBlock,
   moveWidgetBlock,
+  repositionWidgetBlock,
   removeWidgetBlock,
   replaceWidgetBlock,
 } from '../../../entities/note/document';
@@ -101,6 +102,81 @@ describe('useNoteWidgetEditing', () => {
       insertWidgetBlock(initialDocument, savedWidget, null),
     );
     expect(getWidgetEditing().activeWidgetEditor).toBeNull();
+  });
+
+  test('creates a widget after a requested text block from h5 insert request', async () => {
+    const initialDocument: RichDocument = {
+      version: '1.0',
+      blocks: [
+        {
+          id: 'paragraph-1',
+          type: 'paragraph',
+          text: '前文',
+        },
+        {
+          id: 'paragraph-2',
+          type: 'paragraph',
+          text: '后文',
+        },
+        {
+          id: 'widget-block-1',
+          type: 'widget',
+          widget: buildWidget('widget-1'),
+        },
+      ],
+      plainText: '前文\n\n后文',
+    };
+    const appliedDocuments: RichDocument[] = [];
+    let latestWidgetEditing: ReturnType<typeof useNoteWidgetEditing> | null =
+      null;
+
+    const Probe = () => {
+      const [document, setDocument] = useState<RichDocument>(initialDocument);
+
+      latestWidgetEditing = useNoteWidgetEditing({
+        applyDocumentChange: nextDocument => {
+          appliedDocuments.push(nextDocument);
+          setDocument(nextDocument);
+        },
+        getCurrentDocument: () => document,
+        visible: true,
+      });
+
+      return null;
+    };
+
+    await ReactTestRenderer.act(() => {
+      ReactTestRenderer.create(<Probe />);
+    });
+
+    await ReactTestRenderer.act(() => {
+      latestWidgetEditing?.handleH5WidgetEvent({
+        type: 'widget-insert-request',
+        afterBlockId: 'paragraph-1',
+      });
+    });
+
+    await ReactTestRenderer.act(() => {
+      latestWidgetEditing?.handleSelectWidgetType('quote');
+    });
+
+    const savedWidget: WidgetSchema = {
+      id: 'quote-after-text',
+      type: 'quote',
+      title: '引用',
+      props: {
+        content: '新的引用',
+      },
+    };
+
+    await ReactTestRenderer.act(() => {
+      latestWidgetEditing?.handleSaveWidget(savedWidget);
+    });
+
+    expect(appliedDocuments).toHaveLength(1);
+    expect(appliedDocuments[0]).toEqual(
+      insertWidgetBlock(initialDocument, savedWidget, 'paragraph-1'),
+    );
   });
 
   test('opens edit mode from h5 request and saves the edited widget back to document', async () => {
@@ -281,6 +357,74 @@ describe('useNoteWidgetEditing', () => {
     expect(appliedDocuments).toHaveLength(1);
     expect(appliedDocuments[0]).toEqual(
       moveWidgetBlock(initialDocument, 'widget-block-2', 'up'),
+    );
+  });
+
+  test('reorders widget blocks when h5 reorder request arrives', async () => {
+    const firstWidgetBlock = {
+      id: 'widget-block-1',
+      type: 'widget' as const,
+      widget: buildWidget('widget-1'),
+    };
+    const secondWidgetBlock = {
+      id: 'widget-block-2',
+      type: 'widget' as const,
+      widget: buildWidget('widget-2'),
+    };
+    const initialDocument: RichDocument = {
+      version: '1.0',
+      blocks: [
+        {
+          id: 'paragraph-1',
+          type: 'paragraph',
+          text: '前文',
+        },
+        firstWidgetBlock,
+        {
+          id: 'paragraph-2',
+          type: 'paragraph',
+          text: '后文',
+        },
+        secondWidgetBlock,
+      ],
+      plainText: '前文\n\n后文',
+    };
+    const appliedDocuments: RichDocument[] = [];
+    let latestWidgetEditing: ReturnType<typeof useNoteWidgetEditing> | null =
+      null;
+
+    const Probe = () => {
+      const [document, setDocument] = useState<RichDocument>(initialDocument);
+
+      latestWidgetEditing = useNoteWidgetEditing({
+        applyDocumentChange: nextDocument => {
+          appliedDocuments.push(nextDocument);
+          setDocument(nextDocument);
+        },
+        getCurrentDocument: () => document,
+        visible: true,
+      });
+
+      return null;
+    };
+
+    await ReactTestRenderer.act(() => {
+      ReactTestRenderer.create(<Probe />);
+    });
+
+    await ReactTestRenderer.act(() => {
+      latestWidgetEditing?.handleH5WidgetEvent({
+        type: 'widget-reorder-request',
+        blockId: 'widget-block-1',
+        widgetId: 'widget-1',
+        widgetType: 'todo-list',
+        afterBlockId: 'paragraph-2',
+      } as any);
+    });
+
+    expect(appliedDocuments).toHaveLength(1);
+    expect(appliedDocuments[0]).toEqual(
+      repositionWidgetBlock(initialDocument, 'widget-block-1', 'paragraph-2'),
     );
   });
 });

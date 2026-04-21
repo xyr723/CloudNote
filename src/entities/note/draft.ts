@@ -1,4 +1,5 @@
 import type {RichDocument} from '../document/types';
+import {createLiveNoteDocument} from './document';
 import type {Note, TextSegment} from './types';
 
 export interface NoteDraft {
@@ -15,6 +16,10 @@ export interface NoteDraft {
 export const EMPTY_NOTE_DRAFT: NoteDraft = {
   title: '',
   content: '',
+  document: createLiveNoteDocument({
+    content: '',
+    document: undefined,
+  }),
 };
 
 export const createEmptyNoteDraft = (): NoteDraft => {
@@ -30,6 +35,23 @@ export const createDraftFromNote = (note: Note): NoteDraft => {
     audios: note.audios,
     fontSize: note.fontSize,
     textSegments: note.textSegments,
-    document: note.document,
+    document: createLiveNoteDocument({
+      content: note.content,
+      document: note.document,
+    }),
+  };
+};
+
+export const applyDraftContentChange = (
+  draft: NoteDraft,
+  content: string,
+): NoteDraft => {
+  return {
+    ...draft,
+    content,
+    document: createLiveNoteDocument({
+      content,
+      document: draft.document,
+    }),
   };
 };

@@ -1,4 +1,4 @@
-import {hasWidgetBlocks} from '../../../entities/note/document';
+import {createLiveNoteDocument, hasWidgetBlocks} from '../../../entities/note/document';
 import type {NoteDraft} from '../../../entities/note/draft';
 import type {Dispatch, SetStateAction} from 'react';
 import type {Note} from '../../../entities/note/types';
@@ -10,12 +10,18 @@ export const SYNC_ERROR_DURATION = 3000;
 const WELCOME_NOTE_ID = 'MQ==';
 
 export const createWelcomeNote = (): Note => {
+  const content =
+    '这是一个简单的笔记示例：\n\n今天的待办：\n1. 早起晨跑\n2. 准备早餐\n3. 阅读一小时\n4. 整理房间\n\n小贴士：\n- 点击笔记可以编辑内容\n- 点击右下角的"+"按钮创建新笔记\n- 长按笔记可以删除\n- 在顶部搜索框搜索笔记\n- 保持记录的习惯\n- 整理思维，提高效率';
+
   return {
     id: WELCOME_NOTE_ID,
     title: '欢迎使用云笔记',
-    content:
-      '这是一个简单的笔记示例：\n\n今天的待办：\n1. 早起晨跑\n2. 准备早餐\n3. 阅读一小时\n4. 整理房间\n\n小贴士：\n- 点击笔记可以编辑内容\n- 点击右下角的"+"按钮创建新笔记\n- 长按笔记可以删除\n- 在顶部搜索框搜索笔记\n- 保持记录的习惯\n- 整理思维，提高效率',
+    content,
     timestamp: new Date(),
+    document: createLiveNoteDocument({
+      content,
+      document: undefined,
+    }),
   };
 };
 
@@ -49,7 +55,10 @@ export const mergeDraftIntoNote = (note: Note, draft: NoteDraft): Note => {
     audios: draft.audios,
     fontSize: draft.fontSize,
     textSegments: draft.textSegments,
-    document: draft.document,
+    document: createLiveNoteDocument({
+      content: draft.content,
+      document: draft.document,
+    }),
   };
 };
 
@@ -63,7 +72,10 @@ export const createNoteFromDraft = (draft: NoteDraft): Note => {
     audios: draft.audios,
     fontSize: draft.fontSize,
     textSegments: draft.textSegments,
-    document: draft.document,
+    document: createLiveNoteDocument({
+      content: draft.content,
+      document: draft.document,
+    }),
   };
 };
 

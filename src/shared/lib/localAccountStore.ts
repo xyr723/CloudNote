@@ -1,10 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CryptoJS from 'crypto-js';
-import RNFetchBlob from 'react-native-blob-util';
 import type {Account, AccountSession} from '../../entities/account/types';
 import {
   copyManagedFile,
   fileExists,
+  managedDocumentDir,
   toPlatformFileUri,
 } from './localFileStore';
 
@@ -241,7 +241,7 @@ export const localAccountStore = {
     }
 
     const fileExtension = avatarUri.split('.').pop()?.split('?')[0] || 'jpg';
-    const targetPath = `${RNFetchBlob.fs.dirs.DocumentDir}/avatars/${username}_${Date.now()}.${fileExtension}`;
+    const targetPath = `${managedDocumentDir}/avatars/${username}_${Date.now()}.${fileExtension}`;
     const avatarPath = await copyManagedFile(avatarUri, targetPath);
     const updatedAccount: StoredAccount = {
       ...account,

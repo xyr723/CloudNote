@@ -66,6 +66,10 @@ test('opens widget editor in h5 mode and saves edited todo widget back to docume
   });
 
   expect(
+    renderer.root.findByProps({testID: 'note-h5-widget-inline-panel'}),
+  ).toBeTruthy();
+
+  expect(
     renderer.root.findAllByType(TextInput).some(input => {
       return input.props.placeholder === '组件标题';
     }),
@@ -163,6 +167,65 @@ test('reorders widget blocks when h5 widget move event arrives', async () => {
     widgetType: 'metric',
     direction: 'up',
   });
+
+  expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
+  expect(mockH5EditorProps.current?.document).toEqual(expectedDocument);
+});
+
+test('reorders widget blocks to the requested text block when h5 reorder event arrives', async () => {
+  const initialDocument = buildWidgetDocument(
+    [
+      buildParagraphBlock('paragraph-1', '前段'),
+      {
+        id: 'widget-block-1',
+        type: 'widget',
+        widget: {
+          id: 'widget-1',
+          type: 'todo-list',
+          title: '原待办',
+          props: {
+            items: ['事项一'],
+          },
+        },
+      },
+      buildParagraphBlock('paragraph-2', '后段'),
+      {
+        id: 'widget-block-2',
+        type: 'widget',
+        widget: {
+          id: 'widget-2',
+          type: 'metric',
+          title: '原指标',
+          props: {
+            value: '85',
+          },
+        },
+      },
+    ],
+    '前段\n\n后段',
+  );
+  const expectedDocument = buildWidgetDocument(
+    [
+      initialDocument.blocks[0],
+      initialDocument.blocks[2],
+      initialDocument.blocks[1],
+      initialDocument.blocks[3],
+    ],
+    '前段\n\n后段',
+  );
+  const {onChangeDocument, renderer} = await renderWidgetModal({
+    noteDocument: initialDocument,
+  });
+
+  await openH5Mode(renderer);
+  expect(mockH5EditorProps.current?.document).toEqual(initialDocument);
+  await dispatchWidgetEvent({
+    type: 'widget-reorder-request',
+    blockId: 'widget-block-1',
+    widgetId: 'widget-1',
+    widgetType: 'todo-list',
+    afterBlockId: 'paragraph-2',
+  } as any);
 
   expect(onChangeDocument).toHaveBeenCalledWith(expectedDocument);
   expect(mockH5EditorProps.current?.document).toEqual(expectedDocument);

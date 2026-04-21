@@ -110,6 +110,46 @@ const multiWidgetDocument: RichDocument = {
   ],
   plainText: '正文',
 };
+const interleavedWidgetDocument: RichDocument = {
+  version: '1.0',
+  blocks: [
+    {
+      id: 'paragraph-1',
+      type: 'paragraph',
+      text: '首段',
+    },
+    {
+      id: 'widget-block-1',
+      type: 'widget',
+      widget: {
+        id: 'widget-1',
+        type: 'todo-list',
+        title: '待办组件',
+        props: {
+          items: ['一', '二'],
+        },
+      },
+    },
+    {
+      id: 'paragraph-2',
+      type: 'paragraph',
+      text: '尾段',
+    },
+    {
+      id: 'widget-block-2',
+      type: 'widget',
+      widget: {
+        id: 'widget-2',
+        type: 'metric',
+        title: '指标组件',
+        props: {
+          value: '85',
+        },
+      },
+    },
+  ],
+  plainText: '首段\n\n尾段',
+};
 
 describe('H5TextDocumentEditor', () => {
   beforeEach(() => {
@@ -289,7 +329,7 @@ describe('H5TextDocumentEditor', () => {
     expect(renderedHtml).toContain('contenteditable="false"');
   });
 
-  test('renders inline media action buttons inside the h5 editor shell', async () => {
+  test('renders inline media action buttons and hidden file picker inside the h5 editor shell', async () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
     await ReactTestRenderer.act(async () => {
@@ -306,6 +346,9 @@ describe('H5TextDocumentEditor', () => {
     const renderedHtml =
       renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.children;
 
+    expect(renderedHtml).toContain(
+      'data-note-media-insert-action="pick-image-file"',
+    );
     expect(renderedHtml).toContain('data-note-media-insert-action="pick-image"');
     expect(renderedHtml).toContain(
       'data-note-media-insert-action="capture-image"',
@@ -313,6 +356,11 @@ describe('H5TextDocumentEditor', () => {
     expect(renderedHtml).toContain(
       'data-note-media-insert-action="record-audio"',
     );
+    expect(renderedHtml).toContain('id="note-media-file-input"');
+    expect(renderedHtml).toContain('type="file"');
+    expect(renderedHtml).toContain('accept="image/*"');
+    expect(renderedHtml).toContain('multiple');
+    expect(renderedHtml).toContain('>上传图片<');
     expect(renderedHtml).toContain('>相册<');
     expect(renderedHtml).toContain('>拍照<');
     expect(renderedHtml).toContain('>录音<');
@@ -347,14 +395,14 @@ describe('H5TextDocumentEditor', () => {
     expect(renderedHtml).toContain('data-widget-action="delete"');
   });
 
-  test('renders insert buttons before first widget and after each widget block', async () => {
+  test('renders insert buttons after text blocks and widget blocks', async () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
     await ReactTestRenderer.act(async () => {
       renderer = ReactTestRenderer.create(
         <H5TextDocumentEditor
-          content="正文"
-          document={multiWidgetDocument}
+          content={interleavedWidgetDocument.plainText ?? '首段\n\n尾段'}
+          document={interleavedWidgetDocument}
           fontSize={16}
           onChangeState={() => {}}
           theme={theme}
@@ -368,16 +416,22 @@ describe('H5TextDocumentEditor', () => {
       renderedHtml.match(/data-widget-insert-request="true"/g) ?? []
     ).length;
 
-    expect(insertButtonCount).toBe(3);
+    expect(insertButtonCount).toBeGreaterThanOrEqual(3);
+    expect(renderedHtml).toContain(
+      'data-widget-insert-after-block-id="paragraph-1"',
+    );
     expect(renderedHtml).toContain(
       'data-widget-insert-after-block-id="widget-block-1"',
+    );
+    expect(renderedHtml).toContain(
+      'data-widget-insert-after-block-id="paragraph-2"',
     );
     expect(renderedHtml).toContain(
       'data-widget-insert-after-block-id="widget-block-2"',
     );
   });
 
-  test('renders widget move actions with boundary disabled states', async () => {
+  test('renders widget move actions with boundary disabled states and drag handles', async () => {
     let renderer: ReactTestRenderer.ReactTestRenderer;
 
     await ReactTestRenderer.act(async () => {
@@ -403,8 +457,13 @@ describe('H5TextDocumentEditor', () => {
     ).toBe(2);
     expect(renderedHtml).toContain('data-widget-action="move-up" disabled');
     expect(renderedHtml).toContain('data-widget-action="move-down" disabled');
+    expect((renderedHtml.match(/data-widget-drag-handle="true"/g) ?? []).length).toBe(
+      2,
+    );
+    expect(renderedHtml).toContain('draggable="true"');
     expect(renderedHtml).toContain('>上移<');
     expect(renderedHtml).toContain('>下移<');
+    expect(renderedHtml).toContain('>拖拽<');
   });
 
   test('ignores legacy widget-select messages', async () => {
@@ -500,6 +559,17 @@ describe('H5TextDocumentEditor', () => {
           }),
         },
       });
+      onMessage({
+        nativeEvent: {
+          data: JSON.stringify({
+            type: 'widget-reorder-request',
+            blockId: 'widget-block-2',
+            widgetId: 'widget-2',
+            widgetType: 'metric',
+            afterBlockId: 'paragraph-1',
+          }),
+        },
+      });
     });
 
     expect(onWidgetEvent).toHaveBeenNthCalledWith(1, {
@@ -524,6 +594,13 @@ describe('H5TextDocumentEditor', () => {
       widgetId: 'widget-1',
       widgetType: 'todo-list',
       direction: 'up',
+    });
+    expect(onWidgetEvent).toHaveBeenNthCalledWith(5, {
+      type: 'widget-reorder-request',
+      blockId: 'widget-block-2',
+      widgetId: 'widget-2',
+      widgetType: 'metric',
+      afterBlockId: 'paragraph-1',
     });
   });
 
@@ -556,6 +633,40 @@ describe('H5TextDocumentEditor', () => {
     expect(onMediaInsertRequest).toHaveBeenCalledWith({
       type: 'media-insert-request',
       action: 'pick-image',
+    });
+  });
+
+  test('forwards inline image asset insert messages to react native', async () => {
+    const onMediaInsertRequest = jest.fn();
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <H5TextDocumentEditor
+          content="正文"
+          fontSize={16}
+          onMediaInsertRequest={onMediaInsertRequest}
+          theme={theme}
+        />,
+      );
+    });
+
+    await ReactTestRenderer.act(async () => {
+      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.onMessage({
+        nativeEvent: {
+          data: JSON.stringify({
+            type: 'media-insert-request',
+            action: 'insert-image-assets',
+            assets: [{uri: 'data:image/png;base64,abc'}],
+          }),
+        },
+      });
+    });
+
+    expect(onMediaInsertRequest).toHaveBeenCalledWith({
+      type: 'media-insert-request',
+      action: 'insert-image-assets',
+      assets: [{uri: 'data:image/png;base64,abc'}],
     });
   });
 

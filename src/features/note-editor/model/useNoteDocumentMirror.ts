@@ -2,12 +2,9 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import type {RichDocument} from '../../../entities/document/types';
 import {
   appendWidgetSchemasToDocument,
-  mergeTextDocumentWithWidgets,
+  createLiveNoteDocument,
 } from '../../../entities/note/document';
 import type {WidgetSchema} from '../../../entities/widget/types';
-import {
-  createNoteTextMirrorDocument,
-} from './noteEditorDocument';
 
 type UseNoteDocumentMirrorInput = {
   noteContent: string;
@@ -23,10 +20,10 @@ const createResolvedDraftDocument = ({
   content: string;
   document?: RichDocument;
 }): RichDocument => {
-  return mergeTextDocumentWithWidgets(
-    createNoteTextMirrorDocument(content),
+  return createLiveNoteDocument({
+    content,
     document,
-  );
+  });
 };
 
 export const useNoteDocumentMirror = ({
@@ -93,10 +90,10 @@ export const useNoteDocumentMirror = ({
         return;
       }
 
-      const nextDocument = mergeTextDocumentWithWidgets(
-        createNoteTextMirrorDocument(nextContent),
-        draftDocumentRef.current,
-      );
+      const nextDocument = createLiveNoteDocument({
+        content: nextContent,
+        document: draftDocumentRef.current,
+      });
       const currentDocumentSignature = JSON.stringify(
         draftDocumentRef.current ?? null,
       );

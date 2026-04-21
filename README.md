@@ -332,7 +332,7 @@ export interface AiProvider {
 
 ## 本地开发
 
-当前工程仍基于 React Native CLI，可继续使用以下命令：
+当前工程已接入 Expo runtime baseline，但仍保留 React Native CLI 工作流，可继续使用以下命令：
 
 ```bash
 yarn
@@ -343,7 +343,22 @@ yarn lint
 yarn test
 ```
 
-后续迁入 Expo 后，会补充 Expo 相关命令与多端启动方式。
+Expo CLI 当前也已可使用：
+
+```bash
+yarn expo:start
+yarn expo:android
+yarn expo:ios
+yarn expo:web
+```
+
+Expo Router 已开始接管 `auth / notes` 文件路由，当前由 `/(auth)` 和 `/(notes)` 组织登录与首页入口。
+
+Web / PWA baseline 已推进到图片选择、录音 fallback 与最小 PWA 配置。
+
+note editor 已开始拆到独立 Expo Router 页面，当前由 `/(notes)/editor` 接管新建与编辑入口。
+
+首页内部 modal 当前只保留旧入口兼容，不再作为 Expo Router notes 页的主编辑入口。
 
 ## 当前状态
 
@@ -352,7 +367,7 @@ yarn test
 - README 已替换为项目专用架构文档。
 - 已建立 `src/` 目录下的实体类型与 provider 骨架。
 - 已引入 `providerRegistry`，作为认证、AI、同步、附件、回收站等能力的统一入口。
-- 旧的 `chatComplete.ts` 已改为通过 AI provider 调用，不再硬编码 API Key。
+- 旧的 `app/utils/chatComplete.ts` 兼容 shim 已删除，AI 调用已统一收口到 provider registry，不再硬编码 API Key。
 - 首页主业务已迁到 `src/features/home/**`。
 - 旧 `EditNotePage.tsx` 已删除，编辑器入口已切到 `src/features/note-editor/**`。
 - 旧 `TrashPage.tsx` 已删除，回收站已切到 `src/features/trash/**`。
@@ -361,6 +376,7 @@ yarn test
 - 头像选择、图片选择与附件保存已收口到 `src/shared/account/**` 和 `src/shared/media/**` 边界。
 - `HomeScreen` 中 profile / settings 的显隐编排已下沉到 `src/features/profile/**`。
 - 全局 theme 偏好状态与持久化已进一步收口到 `src/shared/theme/**`。
+- 旧的 `app/theme/colors.ts` 兼容 shim 已删除，主题能力已统一收口到 `src/shared/theme/**`。
 - `App.tsx` 的页面编排已进一步收口到 `src/features/app-shell/**`。
 - `App.tsx` 中认证导航、session 恢复和用户状态管理已下沉到 `src/features/auth/**`。
 - 默认 `EditorProvider` 已落到 `src/providers/editor/**`，最小 `RichDocument -> HTML` 转换链路已打通。
@@ -371,7 +387,7 @@ yarn test
 - `NoteEditorModal` 已接入“编辑 / 预览”模式切换，H5 预览开始进入正式编辑入口。
 - `NoteEditorModal` 已新增 H5 正文编辑模式，当前可通过 `WebView` 回写 `content + textSegments` 到 RN 状态。
 - AI provider 返回的 `widgets` 已接入 note editor 草稿文档状态，当前会统一追加到正文尾部并参与后续预览与同步。
-- `NoteEditorPreviewPane` 预览态已优先合并当前文本解析结果与草稿中的 widget blocks，不再只依赖纯文本 parse。
+- `NoteEditorPreviewPane` 预览态当前直接消费 live `draft.document`，不再走 parse + merge 回退链路。
 - 含图片 / 音频的笔记当前也可进入 H5 编辑模式，媒体 marker 会作为不可编辑占位块保留。
 - H5 编辑态已新增 widget bridge 协议，当前会向 RN 侧转发 `widget-edit-request / widget-delete / widget-move / widget-insert-request`。
 - `src/features/widget-editor/**` 已落地，当前提供统一 `WidgetEditorSheet`，并覆盖 `todo-list / action-card / form / quote / metric / timeline` 的专用 editor。
@@ -382,7 +398,8 @@ yarn test
 - H5 模式下，`A+ / A-` 已通过现有 `fontSize + textSegments` 同步链支持全局字号调整。
 - H5 模式下，已支持删除已存在的图片 / 音频 marker，并复用 RN 侧媒体删除链同步 content、segments 与附件数组。
 - H5 模式下，已支持通过 RN 工具栏复用现有相册 / 拍照 / 录音入口，在当前光标位置新增图片 / 音频 marker。
-- H5 编辑器内部当前仍没有独立文件选择器、拖拽上传或粘贴上传能力。
+- H5 模式下，编辑器内部已新增“上传图片”入口，并支持文件选择、拖拽上传、粘贴上传，统一复用现有图片插入与附件保存链路。
+- H5 模式下，widget 已支持在正文内联上下文里打开类型选择 / 编辑面板，支持拖拽排序，并支持在任意 text block 或 widget block 后插入。
 - `ProfileModal` 中头像确认弹层与上传编排已下沉到 `src/features/profile/**`。
 - note-editor 的图片入口弹层与相册 / 拍照动作编排已下沉到 `src/features/note-editor/**`。
 - note-editor 的录音权限、临时路径与 start / stop session 编排已下沉到 `src/features/note-editor/**`。
@@ -392,17 +409,25 @@ yarn test
 - note-editor 的文本输入块与内容区渲染接线已进一步收口到 `src/features/note-editor/**`。
 - note-editor 的空态输入块与内容区空态切换已进一步收口到 `src/features/note-editor/**`。
 - note-editor 的最终内容分发已进一步收口到 `src/features/note-editor/**`。
+- Expo runtime baseline 已开始，当前已切到 Expo CLI 驱动的 bare app 配置。
+- Expo Router 已开始接管 `auth / notes` 文件路由，当前由 `/(auth)` 和 `/(notes)` 组织登录与首页入口。
+- Web / PWA baseline 已推进到图片选择、录音 fallback 与最小 PWA 配置。
+- Web 端 note editor 当前也已切到统一 controller / document / widget 编排，支持 H5 模式下的内部媒体请求与 widget 内联编辑。
+- note editor 已开始拆到独立 Expo Router 页面，当前由 `/(notes)/editor` 接管新建与编辑入口。
+- 首页内部 modal 当前只保留旧入口兼容，不再作为 Expo Router notes 页的主编辑入口。
+- `createDraftFromNote / createNoteFromDraft / mergeDraftIntoNote` 当前会自动归一化 live `document` mirror，降低离开编辑器后的双轨漂移。
+- `localNoteStore` 当前会在 `loadNotes / saveNotes` 两端归一化已有 `document` 的 live mirror，减少旧持久化数据继续扩散。
+- `createEmptyNoteDraft` 与 `createWelcomeNote` 当前也会默认带上 text mirror `document`，让新建态和内置示例笔记直接进入统一结构。
+- 首页卡片与回收站列表当前也优先消费 `document.plainText`，不再各自重复猜测 marker 展示文本。
 
 仍未完成的高风险遗留项：
 
-- H5 编辑器内部仍未提供独立文件选择器、拖拽上传或粘贴上传入口。
-- H5 编辑态里的 widget 已支持新增 / 编辑 / 删除、按位置插入和上移 / 下移排序，但仍不支持 WebView 内联编辑、拖拽排序和正文任意位置插入。
-- Expo 迁移尚未开始。
+- Web 端当前已具备图片选择、录音 fallback、H5 模式下的内部媒体请求与 widget 内联编辑，但仍不是与移动端完全相同的 `WebView + HTML bridge` 宿主。
+- 编辑器主链当前仍是 `native + content + textSegments` 与 `H5 + document` 双轨并存，后续仍需要继续收口到 `document-first`。
 
 后续建议按以下顺序推进：
 
-1. 先评估 H5 编辑器内部是否需要补独立媒体上传入口
-2. 再决定是否把 `document` 继续收口为唯一事实来源，逐步替代当前 `content + textSegments` 镜像关系
-3. 最后推进 Expo 迁移
+1. 继续收口到 `H5 + document-first` 主编辑链路，逐步退出当前 `native + content + textSegments` 双轨状态
+2. 再决定是否把 Web 端当前 RN H5 shell 升级为与移动端同一套 `WebView + HTML bridge` 宿主
 
 这样成本最低，回滚也最容易。

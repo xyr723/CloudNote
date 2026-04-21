@@ -4,22 +4,31 @@ import {AuthFlow} from '../../auth/ui/AuthFlow';
 import {HomeScreen} from '../../home/ui/HomeScreen';
 import {useThemePreferences} from '../../../shared/theme/useThemePreferences';
 
-export const AppShell: React.FC = () => {
-  const {theme, ...themePreferences} = useThemePreferences();
+type AppShellProps = {
+  withNavigationContainer?: boolean;
+};
 
-  return (
-    <NavigationContainer>
-      <AuthFlow theme={theme}>
-        {({onSignOut, setUser, user}) => (
-          <HomeScreen
-            onSignOut={onSignOut}
-            setUser={setUser}
-            theme={theme}
-            themePreferences={themePreferences}
-            user={user}
-          />
-        )}
-      </AuthFlow>
-    </NavigationContainer>
+export const AppShell: React.FC<AppShellProps> = ({
+  withNavigationContainer = true,
+}) => {
+  const {theme, ...themePreferences} = useThemePreferences();
+  const content = (
+    <AuthFlow theme={theme}>
+      {({onSignOut, setUser, user}) => (
+        <HomeScreen
+          onSignOut={onSignOut}
+          setUser={setUser}
+          theme={theme}
+          themePreferences={themePreferences}
+          user={user}
+        />
+      )}
+    </AuthFlow>
   );
+
+  if (!withNavigationContainer) {
+    return content;
+  }
+
+  return <NavigationContainer>{content}</NavigationContainer>;
 };

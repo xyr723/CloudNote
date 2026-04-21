@@ -1,7 +1,7 @@
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React from 'react';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import type {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import {providerRegistry} from '../../../providers/providerRegistry';
+import {AuthSessionProvider, type AuthSessionUser, useAuthSession} from '../model/AuthSessionProvider';
 import type {AuthTheme} from './types';
 import {LoginScreen} from './LoginScreen';
 import {RegisterScreen} from './RegisterScreen';
@@ -14,11 +14,7 @@ type AuthStackParamList = {
 
 type AuthNavigationProp = NativeStackNavigationProp<AuthStackParamList>;
 
-export type AuthFlowUser = {
-  avatar?: string;
-  isLoggedIn: boolean;
-  username: string;
-};
+export type AuthFlowUser = AuthSessionUser;
 
 type AuthFlowProps = {
   children: (props: {
@@ -31,74 +27,8 @@ type AuthFlowProps = {
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
 
-const guestUser: AuthFlowUser = {
-  username: '',
-  isLoggedIn: false,
-};
-
-export const AuthFlow: React.FC<AuthFlowProps> = ({children, theme}) => {
-  const [user, setUser] = useState<AuthFlowUser>(guestUser);
-  const authProvider = useMemo(() => providerRegistry.getAuthProvider(), []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const restoreSession = async () => {
-      try {
-        const session = await authProvider.getSession();
-
-        if (!isMounted) {
-          return;
-        }
-
-        if (session.isLoggedIn && session.user) {
-          setUser({
-            avatar: session.user.avatar,
-            isLoggedIn: true,
-            username: session.user.username,
-          });
-          return;
-        }
-
-        setUser(guestUser);
-      } catch (error) {
-        console.error('检查登录状态失败:', error);
-      }
-    };
-
-    restoreSession().catch(error => {
-      console.error('检查登录状态失败:', error);
-    });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [authProvider]);
-
-  const handleLogin = useCallback(
-    async (username: string, password: string) => {
-      const account = await authProvider.signIn({username, password});
-
-      setUser({
-        avatar: account.avatar,
-        isLoggedIn: true,
-        username: account.username,
-      });
-    },
-    [authProvider],
-  );
-
-  const handleRegister = useCallback(
-    async (username: string, password: string) => {
-      await authProvider.signUp({username, password});
-    },
-    [authProvider],
-  );
-
-  const handleSignOut = useCallback(async () => {
-    await authProvider.signOut();
-    setUser(guestUser);
-  }, [authProvider]);
+const AuthFlowContent: React.FC<AuthFlowProps> = ({children, theme}) => {
+  const {setUser, signIn, signOut, signUp, user} = useAuthSession();
 
   if (user.isLoggedIn) {
     return (
@@ -109,7 +39,7 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({children, theme}) => {
           presentation: 'card',
         }}>
         <Stack.Screen name="Home">
-          {() => children({onSignOut: handleSignOut, setUser, user})}
+          {() => children({onSignOut: signOut, setUser, user})}
         </Stack.Screen>
       </Stack.Navigator>
     );
@@ -126,7 +56,7 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({children, theme}) => {
       <Stack.Screen name="Login">
         {({navigation}: {navigation: AuthNavigationProp}) => (
           <LoginScreen
-            onLogin={handleLogin}
+            onLogin={signIn}
             onRegister={() => navigation.navigate('Register')}
             theme={theme}
           />
@@ -136,11 +66,19 @@ export const AuthFlow: React.FC<AuthFlowProps> = ({children, theme}) => {
         {({navigation}: {navigation: AuthNavigationProp}) => (
           <RegisterScreen
             onBack={() => navigation.navigate('Login')}
-            onRegister={handleRegister}
+            onRegister={signUp}
             theme={theme}
           />
         )}
       </Stack.Screen>
     </Stack.Navigator>
+  );
+};
+
+export const AuthFlow: React.FC<AuthFlowProps> = ({children, theme}) => {
+  return (
+    <AuthSessionProvider>
+      <AuthFlowContent theme={theme}>{children}</AuthFlowContent>
+    </AuthSessionProvider>
   );
 };

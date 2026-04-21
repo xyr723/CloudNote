@@ -19,7 +19,14 @@ export const mockH5EditorProps: {
     onDeleteMedia?: (media: {kind: 'image' | 'audio'; index: number}) => void;
     onMediaInsertRequest?: (event: {
       type: 'media-insert-request';
-      action: 'pick-image' | 'capture-image' | 'record-audio';
+      action:
+        | 'pick-image'
+        | 'capture-image'
+        | 'record-audio'
+        | 'insert-image-assets';
+      assets?: Array<{
+        uri: string;
+      }>;
     }) => void;
     onSelectionChange?: (
       selection: {start: number; end: number},
@@ -30,7 +37,8 @@ export const mockH5EditorProps: {
         | 'widget-edit-request'
         | 'widget-delete'
         | 'widget-move'
-        | 'widget-insert-request';
+        | 'widget-insert-request'
+        | 'widget-reorder-request';
       blockId?: string;
       widgetId?: string;
       widgetType?: string;

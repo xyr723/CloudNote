@@ -119,6 +119,11 @@ export const useNoteEditorController = ({
   });
   const handleH5MediaInsertRequest = useCallback(
     (event: H5TextEditorMediaInsertRequestEvent) => {
+      if (event.action === 'insert-image-assets') {
+        void media.handleInlineImageAssets(event.assets);
+        return;
+      }
+
       if (event.action === 'pick-image') {
         void media.handleImagePicker();
         return;
@@ -134,6 +139,7 @@ export const useNoteEditorController = ({
     [
       media.handleCamera,
       media.handleImagePicker,
+      media.handleInlineImageAssets,
       recording.handleRecordingToggle,
     ],
   );

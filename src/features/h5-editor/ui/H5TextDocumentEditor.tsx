@@ -186,6 +186,7 @@ export const H5TextDocumentEditor: React.FC<H5TextDocumentEditorProps> = ({
       message.type === 'widget-edit-request' ||
       message.type === 'widget-delete' ||
       message.type === 'widget-move' ||
+      message.type === 'widget-reorder-request' ||
       message.type === 'widget-insert-request'
     ) {
       onWidgetEvent?.(message);

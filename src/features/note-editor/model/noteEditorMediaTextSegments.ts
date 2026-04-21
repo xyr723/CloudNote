@@ -209,16 +209,19 @@ export const syncImageMarkersInTextSegments = ({
     fontSize,
     textSegments,
   });
-  const cleanedTextSegments = normalizeTextSegmentsContent(
-    resolvedTextSegments.map(segment => ({
-      ...segment,
-      text: removeInvalidImageMarkersFromSegmentText(segment.text, imageCount),
-    })),
-    fontSize,
+  const invalidMarkersRemovedTextSegments = resolvedTextSegments.map(segment => ({
+    ...segment,
+    text: removeInvalidImageMarkersFromSegmentText(segment.text, imageCount),
+  }));
+  const didRemoveInvalidMarkers = invalidMarkersRemovedTextSegments.some(
+    (segment, index) => segment.text !== resolvedTextSegments[index].text,
   );
-  const cleanedContent = normalizeMarkerContent(
-    getTextSegmentsContent(cleanedTextSegments),
-  );
+  const cleanedTextSegments = didRemoveInvalidMarkers
+    ? normalizeTextSegmentsContent(invalidMarkersRemovedTextSegments, fontSize)
+    : resolvedTextSegments;
+  const cleanedContent = didRemoveInvalidMarkers
+    ? normalizeMarkerContent(getTextSegmentsContent(cleanedTextSegments))
+    : getTextSegmentsContent(cleanedTextSegments);
   const nextContent = syncImageMarkers({
     content,
     imageCount,

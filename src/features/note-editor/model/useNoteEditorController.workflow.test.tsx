@@ -139,7 +139,9 @@ describe('useNoteEditorController workflow', () => {
 
     const expectedDocument = mergeTextDocumentWithWidgets(
       createNoteTextMirrorDocument('原文续写内容'),
-      appendWidgetSchemasToDocument(undefined, [aiWidget]),
+      appendWidgetSchemasToDocument(createNoteTextMirrorDocument('原文'), [
+        aiWidget,
+      ]),
     );
 
     expect(onChangeContent).toHaveBeenCalledWith('原文续写内容');

@@ -1,14 +1,18 @@
 import type {RichDocument, WidgetBlock} from '../document/types';
+import type {Note} from './types';
 import type {WidgetSchema} from '../widget/types';
 import {
   appendWidgetBlock,
   appendWidgetSchemasToDocument,
+  createLiveNoteDocument,
   extractWidgetBlocks,
   findWidgetBlock,
+  getNotePlainTextPreview,
   hasWidgetBlocks,
   insertWidgetBlock,
   mergeTextDocumentWithWidgets,
   moveWidgetBlock,
+  repositionWidgetBlock,
   removeWidgetBlock,
   replaceWidgetBlock,
 } from './document';
@@ -55,7 +59,7 @@ describe('note document helpers', () => {
     expect(extractWidgetBlocks(document)).toEqual([widgetBlock]);
   });
 
-  test('mergeTextDocumentWithWidgets appends existing widget blocks after text blocks', () => {
+  test('mergeTextDocumentWithWidgets keeps existing widget positions while refreshing text blocks', () => {
     const textDocument: RichDocument = {
       version: '1.0',
       blocks: [
@@ -84,10 +88,95 @@ describe('note document helpers', () => {
     expect(mergeTextDocumentWithWidgets(textDocument, existingDocument)).toEqual(
       {
         version: '1.0',
-        blocks: [textDocument.blocks[0], widgetBlock],
+        blocks: [
+          {
+            ...textDocument.blocks[0],
+            id: 'paragraph-old',
+          },
+          widgetBlock,
+        ],
         plainText: '新的正文',
       },
     );
+  });
+
+  test('createLiveNoteDocument rebuilds mirror text blocks and preserves widget order', () => {
+    const widgetBlock = buildWidgetBlock('existing');
+    const existingDocument: RichDocument = {
+      version: '1.0',
+      blocks: [
+        {
+          id: 'paragraph-old',
+          type: 'paragraph',
+          text: '旧正文',
+        },
+        widgetBlock,
+      ],
+      plainText: '旧正文',
+    };
+
+    expect(
+      createLiveNoteDocument({
+        content: '新正文[图片0]',
+        document: existingDocument,
+      }),
+    ).toEqual({
+      version: '1.0',
+      blocks: [
+        {
+          id: 'paragraph-old',
+          type: 'paragraph',
+          text: '新正文',
+        },
+        widgetBlock,
+        {
+          id: 'block-2',
+          type: 'paragraph',
+          text: '图片占位 1',
+        },
+      ],
+      plainText: '新正文\n\n图片占位 1',
+    });
+  });
+
+  test('getNotePlainTextPreview prefers document plainText when available', () => {
+    const note = {
+      id: 'note-1',
+      title: '标题',
+      content: '前文[图片0]后文',
+      timestamp: new Date('2026-04-21T00:00:00.000Z'),
+      document: {
+        version: '1.0' as const,
+        blocks: [
+          {
+            id: 'block-1',
+            type: 'paragraph' as const,
+            text: '前文',
+          },
+          {
+            id: 'block-2',
+            type: 'paragraph' as const,
+            text: '图片占位 1',
+          },
+          {
+            id: 'block-3',
+            type: 'paragraph' as const,
+            text: '后文',
+          },
+        ],
+        plainText: '前文\n\n图片占位 1\n\n后文',
+      },
+    } satisfies Note;
+
+    expect(getNotePlainTextPreview(note)).toBe('前文\n\n图片占位 1\n\n后文');
+  });
+
+  test('getNotePlainTextPreview falls back to normalized mirror content', () => {
+    expect(
+      getNotePlainTextPreview({
+        content: '前文[音频0]后文',
+      }),
+    ).toBe('前文\n\n音频占位 1\n\n后文');
   });
 
   test('appendWidgetSchemasToDocument appends mapped widget blocks to document tail', () => {
@@ -305,6 +394,43 @@ describe('note document helpers', () => {
     });
   });
 
+  test('insertWidgetBlock inserts after the target text block', () => {
+    const firstWidgetBlock = buildWidgetBlock('1');
+    const document: RichDocument = {
+      version: '1.0',
+      blocks: [
+        {
+          id: 'paragraph-1',
+          type: 'paragraph',
+          text: '前文',
+        },
+        {
+          id: 'paragraph-2',
+          type: 'paragraph',
+          text: '后文',
+        },
+        firstWidgetBlock,
+      ],
+      plainText: '前文\n\n后文',
+    };
+    const widget = buildWidget('middle');
+
+    expect(insertWidgetBlock(document, widget, 'paragraph-1')).toEqual({
+      version: '1.0',
+      blocks: [
+        document.blocks[0],
+        {
+          id: 'widget-middle',
+          type: 'widget',
+          widget,
+        },
+        document.blocks[1],
+        firstWidgetBlock,
+      ],
+      plainText: '前文\n\n后文',
+    });
+  });
+
   test('insertWidgetBlock falls back to appending when afterBlockId is stale', () => {
     const firstWidgetBlock = buildWidgetBlock('1');
     const secondWidgetBlock = buildWidgetBlock('2');
@@ -365,6 +491,42 @@ describe('note document helpers', () => {
           text: '后文',
         },
         firstWidgetBlock,
+      ],
+      plainText: '前文\n\n后文',
+    });
+  });
+
+  test('repositionWidgetBlock moves a widget after the requested text block', () => {
+    const firstWidgetBlock = buildWidgetBlock('1');
+    const secondWidgetBlock = buildWidgetBlock('2');
+    const document: RichDocument = {
+      version: '1.0',
+      blocks: [
+        {
+          id: 'paragraph-1',
+          type: 'paragraph',
+          text: '前文',
+        },
+        firstWidgetBlock,
+        {
+          id: 'paragraph-2',
+          type: 'paragraph',
+          text: '后文',
+        },
+        secondWidgetBlock,
+      ],
+      plainText: '前文\n\n后文',
+    };
+
+    expect(
+      repositionWidgetBlock(document, firstWidgetBlock.id, 'paragraph-2'),
+    ).toEqual({
+      version: '1.0',
+      blocks: [
+        document.blocks[0],
+        document.blocks[2],
+        firstWidgetBlock,
+        secondWidgetBlock,
       ],
       plainText: '前文\n\n后文',
     });

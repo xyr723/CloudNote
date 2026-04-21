@@ -1,3 +1,4 @@
+import {applyDraftContentChange} from '../../../entities/note/draft';
 import React, {useCallback, useMemo, useState} from 'react';
 import {
   FlatList,
@@ -22,6 +23,9 @@ import {homeScreenStyles} from './homeScreenStyles';
 import {ProfileEntry} from '../../profile/ui/ProfileEntry';
 
 type HomeScreenProps = {
+  editorPresentation?: 'modal' | 'route';
+  onOpenCreateEditorRoute?: () => void;
+  onOpenEditEditorRoute?: (note: Note) => void;
   onSignOut: () => Promise<void>;
   setUser: React.Dispatch<
     React.SetStateAction<{
@@ -40,6 +44,9 @@ type HomeScreenProps = {
 };
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
+  editorPresentation = 'modal',
+  onOpenCreateEditorRoute,
+  onOpenEditEditorRoute,
   onSignOut,
   setUser,
   theme,
@@ -115,12 +122,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     ({item}: {item: Note}) => (
       <HomeNoteItem
         note={item}
-        onPress={() => handleEditNote(item)}
+        onPress={() => {
+          if (editorPresentation === 'route' && onOpenEditEditorRoute) {
+            onOpenEditEditorRoute(item);
+            return;
+          }
+
+          handleEditNote(item);
+        }}
         onLongPress={() => handleDeleteNote(item.id)}
         theme={theme}
       />
     ),
-    [handleDeleteNote, handleEditNote, theme],
+    [
+      editorPresentation,
+      handleDeleteNote,
+      handleEditNote,
+      onOpenEditEditorRoute,
+      theme,
+    ],
   );
 
   return (
@@ -173,7 +193,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
       <TouchableOpacity
         style={[homeScreenStyles.addButton, {backgroundColor: theme.accent}]}
-        onPress={handleCreateNote}>
+        onPress={() => {
+          if (editorPresentation === 'route' && onOpenCreateEditorRoute) {
+            onOpenCreateEditorRoute();
+            return;
+          }
+
+          handleCreateNote();
+        }}>
         <Text style={homeScreenStyles.addButtonText}>+</Text>
       </TouchableOpacity>
       <HomeOverlayModals
@@ -193,35 +220,39 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         showSyncErrorModal={showSyncErrorModal}
         theme={theme}
       />
-      <HomeEditorModal
-        currentNote={currentNote}
-        isEditing={isEditing}
-        modalVisible={modalVisible}
-        onChangeAudios={(audios) =>
-          setCurrentNote(previousNote => ({...previousNote, audios}))
-        }
-        onChangeContent={(text) =>
-          setCurrentNote(previousNote => ({...previousNote, content: text}))
-        }
-        onChangeDocument={(document) =>
-          setCurrentNote(previousNote => ({...previousNote, document}))
-        }
-        onChangeFontSize={(fontSize) =>
-          setCurrentNote(previousNote => ({...previousNote, fontSize}))
-        }
-        onChangeImages={(images) =>
-          setCurrentNote(previousNote => ({...previousNote, images}))
-        }
-        onChangeTextSegments={(textSegments) =>
-          setCurrentNote(previousNote => ({...previousNote, textSegments}))
-        }
-        onChangeTitle={(title) =>
-          setCurrentNote(previousNote => ({...previousNote, title}))
-        }
-        onClose={handleCloseModal}
-        onSave={handleSave}
-        theme={theme}
-      />
+      {editorPresentation === 'modal' ? (
+        <HomeEditorModal
+          currentNote={currentNote}
+          isEditing={isEditing}
+          modalVisible={modalVisible}
+          onChangeAudios={(audios) =>
+            setCurrentNote(previousNote => ({...previousNote, audios}))
+          }
+          onChangeContent={(text) =>
+            setCurrentNote(previousNote =>
+              applyDraftContentChange(previousNote, text),
+            )
+          }
+          onChangeDocument={(document) =>
+            setCurrentNote(previousNote => ({...previousNote, document}))
+          }
+          onChangeFontSize={(fontSize) =>
+            setCurrentNote(previousNote => ({...previousNote, fontSize}))
+          }
+          onChangeImages={(images) =>
+            setCurrentNote(previousNote => ({...previousNote, images}))
+          }
+          onChangeTextSegments={(textSegments) =>
+            setCurrentNote(previousNote => ({...previousNote, textSegments}))
+          }
+          onChangeTitle={(title) =>
+            setCurrentNote(previousNote => ({...previousNote, title}))
+          }
+          onClose={handleCloseModal}
+          onSave={handleSave}
+          theme={theme}
+        />
+      ) : null}
     </SafeAreaView>
   );
 };

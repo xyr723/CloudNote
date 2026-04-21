@@ -3,6 +3,7 @@ import {
   findWidgetBlock,
   insertWidgetBlock,
   moveWidgetBlock,
+  repositionWidgetBlock,
   removeWidgetBlock,
   replaceWidgetBlock,
 } from '../../../entities/note/document';
@@ -178,6 +179,26 @@ export const useNoteWidgetEditing = ({
           currentDocument,
           event.blockId,
           event.direction,
+        );
+
+        if (nextDocument !== currentDocument) {
+          applyDocumentChange(nextDocument);
+        }
+
+        return;
+      }
+
+      if (event.type === 'widget-reorder-request') {
+        const targetBlock = findWidgetBlock(currentDocument, event.blockId);
+
+        if (!targetBlock || targetBlock.widget.id !== event.widgetId) {
+          return;
+        }
+
+        const nextDocument = repositionWidgetBlock(
+          currentDocument,
+          event.blockId,
+          event.afterBlockId,
         );
 
         if (nextDocument !== currentDocument) {

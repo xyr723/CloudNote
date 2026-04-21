@@ -200,6 +200,53 @@ test('inserts image markers in h5 mode through internal media pick request', asy
   ]);
 });
 
+test('inserts image markers in h5 mode through inline image asset requests', async () => {
+  mockSaveAttachment.mockResolvedValue('file:///image-inline-0.jpg');
+
+  const {callbacks, renderer} = await renderNoteEditorModal({
+    noteOverrides: {
+      content: 'abcd',
+      images: [],
+      fontSize: 16,
+      textSegments: [{text: 'abcd', fontSize: 18, isBold: true}],
+    },
+  });
+
+  await openH5Mode(renderer);
+
+  await ReactTestRenderer.act(() => {
+    mockH5EditorProps.current?.onSelectionChange?.({start: 2, end: 2}, 2);
+  });
+
+  await ReactTestRenderer.act(async () => {
+    mockH5EditorProps.current?.onMediaInsertRequest?.({
+      type: 'media-insert-request',
+      action: 'insert-image-assets',
+      assets: [{uri: 'data:image/png;base64,abc'}],
+    } as any);
+    await Promise.resolve();
+  });
+
+  expect(mockPickImagesFromLibrary).not.toHaveBeenCalled();
+  expect(mockSaveAttachment).toHaveBeenCalledWith({
+    index: 0,
+    kind: 'image',
+    noteId: expect.stringMatching(/^temp_/),
+    preferredExtension: undefined,
+    uri: 'data:image/png;base64,abc',
+  });
+  expect(callbacks.onChangeImages).toHaveBeenCalledWith([
+    'file:///image-inline-0.jpg',
+  ]);
+  expect(callbacks.onChangeContent).toHaveBeenCalledWith('ab[图片0]cd');
+  expect(callbacks.onChangeDocument).toHaveBeenLastCalledWith(
+    buildMirrorDocument('ab[图片0]cd'),
+  );
+  expect(callbacks.onChangeTextSegments).toHaveBeenCalledWith([
+    {text: 'ab[图片0]cd', fontSize: 18, isBold: true},
+  ]);
+});
+
 test('inserts image markers in h5 mode through internal camera request', async () => {
   mockSaveAttachment.mockResolvedValue('file:///image-0.jpg');
   mockCaptureImage.mockResolvedValue({uri: 'file:///camera-0.jpg'});

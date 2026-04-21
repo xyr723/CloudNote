@@ -1,5 +1,6 @@
 import type {TextSegment} from '../../../entities/note/types';
 import type {WidgetType} from '../../../entities/widget/types';
+import type {PickedImageAsset} from '../../../shared/media/imagePicker';
 import type {ThemeColors} from '../../../shared/theme/colors';
 
 export type H5TextEditorState = {
@@ -18,16 +19,24 @@ export type H5TextEditorDeleteMediaPayload = {
 };
 
 export type H5TextEditorMediaInsertAction =
+  | 'pick-image-file'
   | 'pick-image'
   | 'capture-image'
-  | 'record-audio';
+  | 'record-audio'
+  | 'insert-image-assets';
 
 export type H5WidgetMoveDirection = 'up' | 'down';
 
-export type H5TextEditorMediaInsertRequestEvent = {
-  type: 'media-insert-request';
-  action: H5TextEditorMediaInsertAction;
-};
+export type H5TextEditorMediaInsertRequestEvent =
+  | {
+      type: 'media-insert-request';
+      action: 'pick-image' | 'capture-image' | 'record-audio';
+    }
+  | {
+      type: 'media-insert-request';
+      action: 'insert-image-assets';
+      assets: PickedImageAsset[];
+    };
 
 export type H5TextEditorSelectionPayload = {
   start: number;
@@ -57,6 +66,13 @@ export type H5WidgetBridgeEvent =
     }
   | {
       type: 'widget-insert-request';
+      afterBlockId?: string | null;
+    }
+  | {
+      type: 'widget-reorder-request';
+      blockId: string;
+      widgetId: string;
+      widgetType: WidgetType;
       afterBlockId?: string | null;
     };
 
@@ -96,13 +112,29 @@ const isMediaKind = (value: unknown): value is 'image' | 'audio' => {
   return value === 'image' || value === 'audio';
 };
 
+const isPickedImageAsset = (value: unknown): value is PickedImageAsset => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const asset = value as Partial<PickedImageAsset>;
+
+  return typeof asset.uri === 'string' && asset.uri.length > 0;
+};
+
+const isPickedImageAssetList = (value: unknown): value is PickedImageAsset[] => {
+  return Array.isArray(value) && value.every(isPickedImageAsset);
+};
+
 const isMediaInsertAction = (
   value: unknown,
 ): value is H5TextEditorMediaInsertAction => {
   return (
+    value === 'pick-image-file' ||
     value === 'pick-image' ||
     value === 'capture-image' ||
-    value === 'record-audio'
+    value === 'record-audio' ||
+    value === 'insert-image-assets'
   );
 };
 
@@ -135,6 +167,7 @@ export const parseH5TextEditorMessage = (data: string): H5TextEditorMessage => {
   try {
     const message = JSON.parse(data) as {
       action?: unknown;
+      assets?: unknown;
       afterBlockId?: unknown;
       blockId?: unknown;
       content?: unknown;
@@ -188,14 +221,28 @@ export const parseH5TextEditorMessage = (data: string): H5TextEditorMessage => {
       };
     }
 
-    if (
-      message.type === 'media-insert-request' &&
-      isMediaInsertAction(message.action)
-    ) {
-      return {
-        type: 'media-insert-request',
-        action: message.action,
-      };
+    if (message.type === 'media-insert-request') {
+      if (
+        message.action === 'insert-image-assets' &&
+        isPickedImageAssetList(message.assets)
+      ) {
+        return {
+          type: 'media-insert-request',
+          action: 'insert-image-assets',
+          assets: message.assets,
+        };
+      }
+
+      if (
+        isMediaInsertAction(message.action) &&
+        message.action !== 'insert-image-assets' &&
+        message.action !== 'pick-image-file'
+      ) {
+        return {
+          type: 'media-insert-request',
+          action: message.action,
+        };
+      }
     }
 
     if (
@@ -230,6 +277,24 @@ export const parseH5TextEditorMessage = (data: string): H5TextEditorMessage => {
     }
 
     if (
+      message.type === 'widget-reorder-request' &&
+      isWidgetMessageIdentifier(message.blockId) &&
+      isWidgetMessageIdentifier(message.widgetId) &&
+      isWidgetType(message.widgetType) &&
+      (typeof message.afterBlockId === 'string' ||
+        typeof message.afterBlockId === 'undefined' ||
+        message.afterBlockId === null)
+    ) {
+      return {
+        type: 'widget-reorder-request',
+        blockId: message.blockId,
+        widgetId: message.widgetId,
+        widgetType: message.widgetType,
+        afterBlockId: message.afterBlockId,
+      };
+    }
+
+    if (
       message.type === 'widget-insert-request' &&
       (typeof message.afterBlockId === 'string' ||
         typeof message.afterBlockId === 'undefined' ||
@@ -257,6 +322,7 @@ const createBridgeScript = (): string => {
         }
 
         var mediaActions = document.getElementById('note-media-actions');
+        var mediaFileInput = document.getElementById('note-media-file-input');
 
         var normalizeText = function (value) {
           return (value || '')
@@ -287,6 +353,28 @@ const createBridgeScript = (): string => {
               node.nodeType === Node.ELEMENT_NODE &&
               node.classList.contains('note-text-segment'),
           );
+        };
+
+        var isTextBlockElement = function (node) {
+          return Boolean(
+            node &&
+              node.nodeType === Node.ELEMENT_NODE &&
+              node.hasAttribute('data-note-text-block-id'),
+          );
+        };
+
+        var hasFollowingTextBlockElement = function (node) {
+          var sibling = node ? node.nextSibling : null;
+
+          while (sibling) {
+            if (isTextBlockElement(sibling)) {
+              return true;
+            }
+
+            sibling = sibling.nextSibling;
+          }
+
+          return false;
         };
 
         var getDefaultStyle = function () {
@@ -392,6 +480,20 @@ const createBridgeScript = (): string => {
             return;
           }
 
+          if (isTextBlockElement(node)) {
+            var nextStyle = readSegmentStyle(node, currentStyle);
+
+            Array.from(node.childNodes).forEach(function (childNode) {
+              serializeNode(childNode, nextStyle, segments);
+            });
+
+            if (hasFollowingTextBlockElement(node)) {
+              appendSegmentText(segments, '\\n\\n', currentStyle);
+            }
+
+            return;
+          }
+
           if (node.tagName === 'BR') {
             appendSegmentText(segments, '\\n', currentStyle);
             return;
@@ -456,6 +558,15 @@ const createBridgeScript = (): string => {
 
           if (isWidgetElement(node)) {
             return 0;
+          }
+
+          if (isTextBlockElement(node)) {
+            return (
+              Array.from(node.childNodes).reduce(function (total, childNode) {
+                return total + getSerializedNodeLength(childNode);
+              }, 0) +
+              (hasFollowingTextBlockElement(node) ? 2 : 0)
+            );
           }
 
           if (node.tagName === 'BR') {
@@ -590,6 +701,128 @@ const createBridgeScript = (): string => {
           );
         };
 
+        var postMediaInsertRequest = function (payload) {
+          if (!window.ReactNativeWebView) {
+            return;
+          }
+
+          window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+        };
+
+        var isImageFile = function (file) {
+          return Boolean(
+            file &&
+              typeof file.type === 'string' &&
+              file.type.indexOf('image/') === 0,
+          );
+        };
+
+        var extractImageFiles = function (transfer) {
+          if (!transfer) {
+            return [];
+          }
+
+          var directFiles = Array.from(transfer.files || []).filter(isImageFile);
+
+          if (directFiles.length > 0) {
+            return directFiles;
+          }
+
+          if (!transfer.items) {
+            return [];
+          }
+
+          return Array.from(transfer.items)
+            .map(function (item) {
+              if (
+                !item ||
+                item.kind !== 'file' ||
+                typeof item.getAsFile !== 'function'
+              ) {
+                return null;
+              }
+
+              return item.getAsFile();
+            })
+            .filter(isImageFile);
+        };
+
+        var readFileAsDataUrl = function (file) {
+          return new Promise(function (resolve, reject) {
+            var reader = new FileReader();
+
+            reader.onload = function () {
+              resolve(typeof reader.result === 'string' ? reader.result : '');
+            };
+
+            reader.onerror = function () {
+              reject(reader.error || new Error('Failed to read image file'));
+            };
+
+            reader.readAsDataURL(file);
+          });
+        };
+
+        var handleImageFiles = function (files) {
+          if (!window.ReactNativeWebView || files.length === 0) {
+            return;
+          }
+
+          Promise.all(files.map(readFileAsDataUrl))
+            .then(function (uris) {
+              var assets = uris
+                .filter(function (uri) {
+                  return typeof uri === 'string' && uri.length > 0;
+                })
+                .map(function (uri) {
+                  return {
+                    uri: uri,
+                  };
+                });
+
+              if (assets.length === 0) {
+                return;
+              }
+
+              postMediaInsertRequest({
+                type: 'media-insert-request',
+                action: 'insert-image-assets',
+                assets: assets,
+              });
+            })
+            .catch(function (error) {
+              console.error('Failed to read image files', error);
+            });
+        };
+
+        var resolveWidgetMeta = function (element) {
+          var widgetElement =
+            element &&
+            typeof element.closest === 'function'
+              ? element.closest('[data-widget-block-id]')
+              : null;
+
+          if (!widgetElement) {
+            return null;
+          }
+
+          var blockId = widgetElement.getAttribute('data-widget-block-id');
+          var widgetId = widgetElement.getAttribute('data-widget-id');
+          var widgetType = widgetElement.getAttribute('data-widget-type');
+
+          if (!blockId || !widgetId || !widgetType) {
+            return null;
+          }
+
+          return {
+            blockId: blockId,
+            widgetId: widgetId,
+            widgetType: widgetType,
+          };
+        };
+
+        var draggedWidgetMeta = null;
+
         window.__cloudNoteH5PostChange = postChange;
         window.__cloudNoteH5ApplyFormat = function (commandType) {
           if (!editor || typeof document.execCommand !== 'function') {
@@ -701,8 +934,15 @@ const createBridgeScript = (): string => {
           var clipboardData =
             event.clipboardData ||
             window.clipboardData;
+          var imageFiles = extractImageFiles(clipboardData);
 
           if (!clipboardData) {
+            return;
+          }
+
+          if (imageFiles.length > 0) {
+            event.preventDefault();
+            handleImageFiles(imageFiles);
             return;
           }
 
@@ -710,6 +950,104 @@ const createBridgeScript = (): string => {
           insertPlainTextAtSelection(clipboardData.getData('text'));
           postChange();
           postSelectionChange();
+        });
+
+        editor.addEventListener('dragstart', function (event) {
+          var target = event.target;
+
+          if (!target || typeof target.closest !== 'function') {
+            return;
+          }
+
+          var dragHandle = target.closest('[data-widget-drag-handle]');
+
+          if (!dragHandle) {
+            return;
+          }
+
+          var widgetMeta = resolveWidgetMeta(dragHandle);
+
+          if (!widgetMeta) {
+            return;
+          }
+
+          draggedWidgetMeta = widgetMeta;
+
+          if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = 'move';
+            event.dataTransfer.setData('text/plain', widgetMeta.blockId);
+          }
+        });
+
+        editor.addEventListener('dragend', function () {
+          draggedWidgetMeta = null;
+        });
+
+        editor.addEventListener('dragover', function (event) {
+          var target = event.target;
+
+          if (
+            draggedWidgetMeta &&
+            target &&
+            typeof target.closest === 'function' &&
+            target.closest('[data-widget-insert-request]')
+          ) {
+            event.preventDefault();
+
+            if (event.dataTransfer) {
+              event.dataTransfer.dropEffect = 'move';
+            }
+
+            return;
+          }
+
+          var imageFiles = extractImageFiles(event.dataTransfer);
+
+          if (imageFiles.length === 0) {
+            return;
+          }
+
+          event.preventDefault();
+
+          if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = 'copy';
+          }
+        });
+
+        editor.addEventListener('drop', function (event) {
+          var target = event.target;
+          var widgetInsertButton =
+            target && typeof target.closest === 'function'
+              ? target.closest('[data-widget-insert-request]')
+              : null;
+
+          if (draggedWidgetMeta && widgetInsertButton && window.ReactNativeWebView) {
+            event.preventDefault();
+            event.stopPropagation();
+            window.ReactNativeWebView.postMessage(
+              JSON.stringify({
+                type: 'widget-reorder-request',
+                blockId: draggedWidgetMeta.blockId,
+                widgetId: draggedWidgetMeta.widgetId,
+                widgetType: draggedWidgetMeta.widgetType,
+                afterBlockId:
+                  widgetInsertButton.getAttribute(
+                    'data-widget-insert-after-block-id',
+                  ) || null,
+              }),
+            );
+            draggedWidgetMeta = null;
+            return;
+          }
+
+          var imageFiles = extractImageFiles(event.dataTransfer);
+
+          if (imageFiles.length === 0) {
+            return;
+          }
+
+          event.preventDefault();
+          handleImageFiles(imageFiles);
         });
 
         editor.addEventListener('click', function (event) {
@@ -762,28 +1100,6 @@ const createBridgeScript = (): string => {
           ) {
             return;
           }
-
-          var resolveWidgetMeta = function (element) {
-            var widgetElement = element.closest('[data-widget-block-id]');
-
-            if (!widgetElement) {
-              return null;
-            }
-
-            var blockId = widgetElement.getAttribute('data-widget-block-id');
-            var widgetId = widgetElement.getAttribute('data-widget-id');
-            var widgetType = widgetElement.getAttribute('data-widget-type');
-
-            if (!blockId || !widgetId || !widgetType) {
-              return null;
-            }
-
-            return {
-              blockId: blockId,
-              widgetId: widgetId,
-              widgetType: widgetType,
-            };
-          };
 
           var widgetActionButton = target.closest('[data-widget-action]');
 
@@ -852,8 +1168,7 @@ const createBridgeScript = (): string => {
 
             if (
               !target ||
-              typeof target.closest !== 'function' ||
-              !window.ReactNativeWebView
+              typeof target.closest !== 'function'
             ) {
               return;
             }
@@ -868,6 +1183,18 @@ const createBridgeScript = (): string => {
               'data-note-media-insert-action',
             );
 
+            if (action === 'pick-image-file') {
+              event.preventDefault();
+              event.stopPropagation();
+
+              if (mediaFileInput) {
+                mediaFileInput.value = '';
+                mediaFileInput.click();
+              }
+
+              return;
+            }
+
             if (
               action !== 'pick-image' &&
               action !== 'capture-image' &&
@@ -878,12 +1205,22 @@ const createBridgeScript = (): string => {
 
             event.preventDefault();
             event.stopPropagation();
-            window.ReactNativeWebView.postMessage(
-              JSON.stringify({
-                type: 'media-insert-request',
-                action: action,
-              }),
-            );
+            postMediaInsertRequest({
+              type: 'media-insert-request',
+              action: action,
+            });
+          });
+        }
+
+        if (mediaFileInput) {
+          mediaFileInput.addEventListener('change', function (event) {
+            var target = event.target;
+            var imageFiles = Array.from(
+              (target && target.files) || [],
+            ).filter(isImageFile);
+
+            handleImageFiles(imageFiles);
+            mediaFileInput.value = '';
           });
         }
 
@@ -910,6 +1247,8 @@ export const createH5TextEditorHtml = ({
 }): string => {
   const mediaActionsHtml = `
     <div id="note-media-actions" class="note-media-actions">
+      <input id="note-media-file-input" type="file" accept="image/*" multiple style="display: none;" />
+      <button type="button" class="note-media-action-button" data-note-media-insert-action="pick-image-file">上传图片</button>
       <button type="button" class="note-media-action-button" data-note-media-insert-action="pick-image">相册</button>
       <button type="button" class="note-media-action-button" data-note-media-insert-action="capture-image">拍照</button>
       <button type="button" class="note-media-action-button" data-note-media-insert-action="record-audio">录音</button>
@@ -957,6 +1296,10 @@ export const createH5TextEditorHtml = ({
         color: ${defaultTextColor};
         white-space: pre-wrap;
         word-break: break-word;
+      }
+
+      .note-text-block {
+        min-height: 1.7em;
       }
 
       .note-marker {

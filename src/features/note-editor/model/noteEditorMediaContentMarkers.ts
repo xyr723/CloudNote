@@ -99,7 +99,10 @@ export const syncImageMarkers = ({
   invalidMarkers.forEach(marker => {
     nextContent = nextContent.replace(marker, '');
   });
-  nextContent = normalizeMarkerContent(nextContent);
+
+  if (invalidMarkers.length > 0) {
+    nextContent = normalizeMarkerContent(nextContent);
+  }
 
   if (isUserDelete) {
     return nextContent;

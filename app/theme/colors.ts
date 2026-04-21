@@ -1,1 +1,0 @@
-export * from '../../src/shared/theme/colors';

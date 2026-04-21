@@ -1,5 +1,6 @@
 import React from 'react';
 import {Image, Text, TouchableOpacity} from 'react-native';
+import {getNotePlainTextPreview} from '../../../entities/note/document';
 import {generateThemeColors} from '../../../shared/theme/colors';
 import type {Note} from '../../../entities/note/types';
 import {homeScreenStyles} from './homeScreenStyles';
@@ -23,7 +24,7 @@ export const HomeNoteItem: React.FC<HomeNoteItemProps> = ({
     : -1;
   const firstImage =
     firstImageIndex >= 0 && note.images ? note.images[firstImageIndex] : null;
-  const displayContent = note.content.replace(/\[图片\d+\]/g, '').trim();
+  const displayContent = getNotePlainTextPreview(note);
 
   return (
     <TouchableOpacity
