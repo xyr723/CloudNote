@@ -66,6 +66,11 @@ yarn-error.log
 # testing
 /coverage
 
+# Local secrets
+.env
+.env.*
+!.env.example
+
 # Yarn
 .yarn/*
 !.yarn/patches
@@ -78,3 +83,6 @@ yarn-error.log
 .expo
 dist/
 web-build/
+
+# Local agent/tooling state
+.serena/
