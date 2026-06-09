@@ -110,6 +110,211 @@ Run: `./node_modules/.bin/jest --runInBand src/shared/config/expoRouterEntry.tes
 
 Expected: PASS
 
+## Chunk 15: native 输入统一 state handler 收口
+
+### Task 17: 让 native 文本输入链与 H5 一样走统一 content state
+
+**Files:**
+- Modify: `src/features/note-editor/ui/types.ts`
+- Modify: `src/features/note-editor/ui/EditNoteContent.tsx`
+- Modify: `src/features/note-editor/ui/EditNoteContentBlocks.tsx`
+- Modify: `src/features/note-editor/ui/EditNoteTextTokenInput.tsx`
+- Modify: `src/features/note-editor/ui/EditNoteEmptyStateInput.tsx`
+- Modify: `src/features/note-editor/ui/NoteEditorContentPane.tsx`
+- Modify: `src/features/note-editor/model/useNoteEditorController.ts`
+- Modify: `src/features/note-editor/ui/EditNoteContent.interactions.test.tsx`
+- Modify: `src/features/note-editor/model/useNoteEditorController.workflow.test.tsx`
+- Modify: `README.md`
+
+- [x] **Step 1: 先补失败测试，锁定 native 输入会发出统一 state**
+
+覆盖：
+
+- `EditNoteContent` 中的 native 文本 token 修改会一次发出 `content + textSegments`
+- `useNoteEditorController` 会提供对应的 native state handler，并在应用新内容时保留结构化 `document`
+- 空白输入态开始输入时，也会带上默认 text segment 一起发出
+
+- [x] **Step 2: 调整 native 文本输入和 controller 接线**
+
+实现要点：
+
+- 为 native 文本输入补一个统一的 `onChangeState`
+- `EditNoteTextTokenInput / EditNoteEmptyStateInput` 优先走这条统一 state 通道
+- `NoteEditorContentPane` 在 native 模式下改接 `controller.handleNativeChangeState`
+- controller 内统一同步 `content / textSegments / live document mirror`
+
+- [x] **Step 3: 跑回归与整体验证**
+
+Run:
+
+```bash
+./node_modules/.bin/jest --runInBand \
+  src/features/note-editor/ui/EditNoteContent.interactions.test.tsx \
+  src/features/note-editor/model/useNoteEditorController.workflow.test.tsx \
+  src/features/note-editor/ui/NoteEditorModal.ai.test.tsx \
+  src/features/note-editor/ui/NoteEditorModal.audio.test.tsx \
+  src/features/note-editor/ui/EditNoteContent.render.test.tsx \
+  src/features/note-editor/ui/EditNoteContentBlocks.test.tsx
+./node_modules/.bin/jest --runInBand
+./node_modules/.bin/tsc --noEmit
+git diff --check
+```
+
+Expected: PASS
+
+## Chunk 16: `document-first` state handler 剩余边界收口
+
+### Task 18: 把媒体、录音、AI 和主要格式化链路并到同一个 controller state handler
+
+**Files:**
+- Modify: `src/features/note-editor/ui/types.ts`
+- Modify: `src/features/note-editor/model/useNoteFormattingState.ts`
+- Modify: `src/features/note-editor/model/useNoteFormatting.ts`
+- Modify: `src/features/note-editor/model/useNoteMediaState.ts`
+- Modify: `src/features/note-editor/model/useNoteMedia.ts`
+- Modify: `src/features/note-editor/model/useNoteRecording.ts`
+- Modify: `src/features/note-editor/model/useNoteEditorActions.ts`
+- Modify: `src/features/note-editor/model/useNoteEditorController.ts`
+- Modify: `src/features/note-editor/model/useNoteFormatting.test.tsx`
+- Modify: `src/features/note-editor/model/useNoteMedia.test.tsx`
+- Modify: `src/features/note-editor/model/useNoteRecording.test.tsx`
+- Modify: `src/features/note-editor/model/useNoteEditorActions.test.tsx`
+- Modify: `src/features/note-editor/model/useNoteEditorController.workflow.test.tsx`
+- Modify: `README.md`
+
+- [x] **Step 1: 先补失败测试，锁定统一 state patch 行为**
+
+覆盖：
+
+- `useNoteFormatting` 在字号变化时可直接发出 `{content, textSegments, fontSize}` 统一 patch
+- `useNoteMedia / useNoteRecording` 在图片 / 录音插入时可直接发出带 `images / audios / textSegments` 的统一 patch
+- `useNoteEditorActions` 改成单一 AI completion callback
+- controller 会把格式化链路的 granular patch 合并后再统一同步 `content`
+- AI completion 只提交一次最终 `document`
+
+- [x] **Step 2: 调整 hooks 和 controller 的接线**
+
+实现要点：
+
+- hooks 增加可选 `onChangeState`
+- controller 增加统一 `applyEditorChangeState`
+- controller 对 formatting / media / recording 的 granular callback 做同 tick patch 合并
+- AI 改成单入口 completion handler，统一产出下一份 `textSegments + document`
+
+- [x] **Step 3: 跑针对性回归**
+
+Run:
+
+```bash
+./node_modules/.bin/jest --runInBand \
+  src/features/note-editor/model/useNoteFormatting.test.tsx \
+  src/features/note-editor/model/useNoteMedia.test.tsx \
+  src/features/note-editor/model/useNoteRecording.test.tsx \
+  src/features/note-editor/model/useNoteEditorActions.test.tsx \
+  src/features/note-editor/model/useNoteEditorController.workflow.test.tsx
+```
+
+Expected: PASS
+
+## Chunk 17: Web `iframe + HTML bridge` 宿主统一
+
+### Task 19: 把 Web H5 editor 从 RN shell 切到和移动端同协议的 iframe host
+
+**Files:**
+- Modify: `src/features/h5-editor/model/h5TextEditorBridge.ts`
+- Modify: `src/features/h5-editor/ui/H5TextDocumentEditor.web.tsx`
+- Create: `src/features/h5-editor/ui/H5TextDocumentEditor.web.test.tsx`
+- Modify: `src/features/note-editor/ui/NoteEditorModal.web.test.tsx`
+- Modify: `README.md`
+
+- [x] **Step 1: 先补失败测试，锁定 iframe host 行为**
+
+覆盖：
+
+- Web host 渲染 `iframe/srcDoc`
+- Web host 复用 shared bridge html / sync script / format script
+- iframe bridge message 能回传 richer `document`
+- `NoteEditorModal.web` 通过 bridge message 继续完成媒体请求与 widget 编辑
+
+- [x] **Step 2: 实现 iframe host 和 bridge 双端消息协议**
+
+实现要点：
+
+- bridge 支持 `ReactNativeWebView.postMessage` 与 `window.parent.postMessage`
+- Web host 通过 `contentWindow.postMessage` 注入 sync / format script
+- Web host 通过 `window.message` 监听 bridge payload，并复用现有 parser / document 重建逻辑
+
+- [x] **Step 3: 跑 Web editor 相关回归**
+
+Run:
+
+```bash
+./node_modules/.bin/jest --runInBand \
+  src/features/h5-editor/ui/H5TextDocumentEditor.test.tsx \
+  src/features/h5-editor/ui/H5TextDocumentEditor.web.test.tsx \
+  src/features/note-editor/ui/NoteEditorModal.web.test.tsx \
+  src/features/note-editor/ui/NoteEditorModal.h5.core.test.tsx
+```
+
+Expected: PASS
+
+## Chunk 14: H5 block-aware document state 收口
+
+### Task 16: 让 H5 content-change 回传按 block 对齐的 richer document state
+
+**Files:**
+- Modify: `src/entities/note/document.ts`
+- Modify: `src/features/h5-editor/model/h5TextEditorBridge.ts`
+- Modify: `src/features/h5-editor/ui/H5TextDocumentEditor.tsx`
+- Modify: `src/features/h5-editor/ui/H5TextDocumentEditor.web.tsx`
+- Modify: `src/features/note-editor/model/useNoteEditorController.ts`
+- Modify: `src/features/note-editor/ui/NoteEditorContentPane.tsx`
+- Modify: `src/features/note-editor/ui/NoteEditorModal.tsx`
+- Modify: `src/features/note-editor/ui/NoteEditorModal.web.tsx`
+- Modify: `src/features/h5-editor/ui/H5TextDocumentEditor.test.tsx`
+- Modify: `src/features/note-editor/model/useNoteEditorController.workflow.test.tsx`
+- Modify: `src/entities/note/draft.test.ts`
+- Modify: `src/features/home/model/homeNoteUtils.test.ts`
+- Modify: `src/shared/lib/localNoteStore.test.ts`
+- Modify: `README.md`
+
+- [x] **Step 1: 先补失败测试，锁定 H5 会回传 block-aware document state**
+
+覆盖：
+
+- `H5TextDocumentEditor` 在收到 `content-change` 时，会基于 text block snapshots 重建 richer `document`
+- `useNoteEditorController` 会优先消费这份 `document-aware` H5 state，而不是只依赖 `content` 再镜像推导
+
+- [x] **Step 2: 调整 H5 bridge / host / controller 接线**
+
+实现要点：
+
+- H5 bridge 的 `content-change` 增加按 block id 对齐的 text block snapshots
+- 原生 H5 host 基于 snapshots + 当前 document 重建 richer `document`，并把它一并回传给上层
+- Web H5 shell 也在 `onChangeState` 中附带 live `document`
+- `useNoteEditorController` 新增统一 H5 state handler，先应用 richer `document`，再同步 `content / textSegments`
+
+- [x] **Step 3: 补上上层回归并跑验证**
+
+Run:
+
+```bash
+./node_modules/.bin/jest --runInBand \
+  src/features/h5-editor/ui/H5TextDocumentEditor.test.tsx \
+  src/features/note-editor/model/useNoteEditorController.workflow.test.tsx \
+  src/features/note-editor/ui/NoteEditorModal.h5.core.test.tsx \
+  src/features/note-editor/ui/NoteEditorModal.web.test.tsx \
+  src/features/note-editor/model/useNoteDocumentMirror.test.tsx \
+  src/entities/note/document.test.ts \
+  src/entities/note/draft.test.ts \
+  src/features/home/model/homeNoteUtils.test.ts \
+  src/shared/lib/localNoteStore.test.ts
+./node_modules/.bin/tsc --noEmit
+git diff --check
+```
+
+Expected: PASS
+
 ## Chunk 4: 最终验证
 
 ### Task 4: 跑整合验证
@@ -572,6 +777,43 @@ Run:
   src/features/note-editor/ui/NoteEditorModal.web.test.tsx \
   src/features/note-editor/ui/NoteEditorModal.h5.media.test.tsx \
   src/features/note-editor/ui/NoteEditorModal.widgets.editor.test.tsx
+./node_modules/.bin/jest --runInBand
+./node_modules/.bin/tsc --noEmit
+git diff --check
+```
+
+Expected: PASS
+
+## Chunk 13: live document mirror 非 widget 文本块保结构收口
+
+### Task 15: 刷新 mirror 时保留已有 `heading / quote / code / list`
+
+**Files:**
+- Modify: `src/entities/note/document.ts`
+- Modify: `src/entities/note/document.test.ts`
+- Modify: `README.md`
+
+- [x] **Step 1: 先补失败测试，锁定 live mirror 刷新不会把已有非 widget 文本块一律压平**
+
+覆盖：
+
+- `createLiveNoteDocument` 在刷新正文时仍保留已有 `heading / quote / code / list` block 的类型与基础元数据
+- `list` block 会根据新的 mirror text 继续回写 `items`
+
+- [x] **Step 2: 调整 mirror merge 策略**
+
+实现要点：
+
+- `createLiveNoteDocument` 仍以当前 `content` 作为 mirror 文本事实源
+- 但在 merge 时复用已有非 widget block 的 `type / id / level / ordered` 等元数据
+- 不再要求“只有 widget blocks 才值得保留”
+
+- [x] **Step 3: 跑回归与整体验证**
+
+Run:
+
+```bash
+./node_modules/.bin/jest --runInBand src/entities/note/document.test.ts
 ./node_modules/.bin/jest --runInBand
 ./node_modules/.bin/tsc --noEmit
 git diff --check

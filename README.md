@@ -419,15 +419,20 @@ note editor 已开始拆到独立 Expo Router 页面，当前由 `/(notes)/edito
 - `localNoteStore` 当前会在 `loadNotes / saveNotes` 两端归一化已有 `document` 的 live mirror，减少旧持久化数据继续扩散。
 - `createEmptyNoteDraft` 与 `createWelcomeNote` 当前也会默认带上 text mirror `document`，让新建态和内置示例笔记直接进入统一结构。
 - 首页卡片与回收站列表当前也优先消费 `document.plainText`，不再各自重复猜测 marker 展示文本。
+- live `document` mirror 当前也会尽量保留已有 `heading / quote / code / list` 非 widget block 类型，不再在刷新时一律压回 paragraph。
+- 原生 H5 bridge 当前也会按 text block snapshot 回传 richer `document` state，controller 会优先接收这份 block-aware `document`，减少再从 `content` 反推 mirror 时的丢型风险。
+- native 文本输入链当前也开始走统一 state handler，`EditNoteContent` 会一次回传 `content + textSegments`，controller 再统一同步 `document`，不再继续分散在输入组件里双写。
+- note editor 的媒体、录音、AI 续写与主要格式化链路当前也已并到同一个 `document-first` state handler，controller 会在同 tick 合并 granular patch，再统一同步 `content / textSegments / images / audios / fontSize / document`。
+- Web 端 H5 宿主当前也已从临时 RN TextInput shell 切到 `iframe + 同一套 HTML bridge`，复用移动端同源的 HTML、sync script、format script 与 bridge message parser。
 
 仍未完成的高风险遗留项：
 
-- Web 端当前已具备图片选择、录音 fallback、H5 模式下的内部媒体请求与 widget 内联编辑，但仍不是与移动端完全相同的 `WebView + HTML bridge` 宿主。
-- 编辑器主链当前仍是 `native + content + textSegments` 与 `H5 + document` 双轨并存，后续仍需要继续收口到 `document-first`。
+- H5 widget 当前虽然已经支持内联选择 / 编辑 / 拖拽排序，但表单编辑能力仍在宿主外层 sheet 里，尚未完全下沉到纯 DOM 内联体验。
+- Web / PWA 仍缺更大范围的真机与发布级回归，当前只验证到构建、导出与核心编辑链路可跑通。
 
 后续建议按以下顺序推进：
 
-1. 继续收口到 `H5 + document-first` 主编辑链路，逐步退出当前 `native + content + textSegments` 双轨状态
-2. 再决定是否把 Web 端当前 RN H5 shell 升级为与移动端同一套 `WebView + HTML bridge` 宿主
+1. 决定是否把 widget 表单也继续下沉到 H5 DOM 内联编辑，减少宿主外层 sheet 切换
+2. 对 Web / PWA 做更大一轮端到端验证，再决定是否继续补更完整的媒体与离线体验
 
 这样成本最低，回滚也最容易。
