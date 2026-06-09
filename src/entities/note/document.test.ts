@@ -139,6 +139,61 @@ describe('note document helpers', () => {
     });
   });
 
+  test('createLiveNoteDocument preserves existing non-widget block types while refreshing mirror text', () => {
+    const existingDocument: RichDocument = {
+      version: '1.0',
+      blocks: [
+        {
+          id: 'heading-1',
+          type: 'heading',
+          level: 2,
+          text: '旧标题',
+        },
+        {
+          id: 'list-1',
+          type: 'list',
+          items: ['旧事项一', '旧事项二'],
+          ordered: true,
+        },
+        {
+          id: 'quote-1',
+          type: 'quote',
+          text: '旧引用',
+        },
+      ],
+      plainText: '旧标题\n\n旧事项一\n旧事项二\n\n旧引用',
+    };
+
+    expect(
+      createLiveNoteDocument({
+        content: '新标题\n\n事项一\n事项二\n\n新引用',
+        document: existingDocument,
+      }),
+    ).toEqual({
+      version: '1.0',
+      blocks: [
+        {
+          id: 'heading-1',
+          type: 'heading',
+          level: 2,
+          text: '新标题',
+        },
+        {
+          id: 'list-1',
+          type: 'list',
+          items: ['事项一', '事项二'],
+          ordered: true,
+        },
+        {
+          id: 'quote-1',
+          type: 'quote',
+          text: '新引用',
+        },
+      ],
+      plainText: '新标题\n\n事项一\n事项二\n\n新引用',
+    });
+  });
+
   test('getNotePlainTextPreview prefers document plainText when available', () => {
     const note = {
       id: 'note-1',

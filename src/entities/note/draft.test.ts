@@ -75,6 +75,57 @@ describe('note draft helpers', () => {
     });
   });
 
+  test('createDraftFromNote preserves existing structured text blocks while refreshing mirror text', () => {
+    const note = {
+      id: 'note-2',
+      title: '标题',
+      content: '新标题\n\n事项一\n事项二',
+      timestamp: new Date('2026-04-21T00:00:00.000Z'),
+      document: {
+        version: '1.0' as const,
+        blocks: [
+          {
+            id: 'heading-1',
+            type: 'heading' as const,
+            level: 2 as const,
+            text: '旧标题',
+          },
+          {
+            id: 'list-1',
+            type: 'list' as const,
+            items: ['旧事项'],
+            ordered: true,
+          },
+        ],
+        plainText: '旧标题\n\n旧事项',
+      },
+    };
+
+    expect(createDraftFromNote(note)).toMatchObject({
+      id: 'note-2',
+      title: '标题',
+      content: '新标题\n\n事项一\n事项二',
+      document: {
+        version: '1.0',
+        blocks: [
+          {
+            id: 'heading-1',
+            type: 'heading',
+            level: 2,
+            text: '新标题',
+          },
+          {
+            id: 'list-1',
+            type: 'list',
+            items: ['事项一', '事项二'],
+            ordered: true,
+          },
+        ],
+        plainText: '新标题\n\n事项一\n事项二',
+      },
+    });
+  });
+
   test('applyDraftContentChange refreshes live document mirror and preserves widgets', () => {
     expect(
       applyDraftContentChange(

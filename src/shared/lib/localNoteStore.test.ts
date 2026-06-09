@@ -184,6 +184,71 @@ describe('localNoteStore', () => {
     ]);
   });
 
+  test('preserves structured text blocks when normalizing stale live document mirror on load', async () => {
+    await AsyncStorage.setItem(
+      'notes_alice',
+      encodeNotesPayload([
+        {
+          id: 'note-structured-stale',
+          title: '旧结构',
+          content: '新标题\n\n事项一\n事项二',
+          timestamp: '2026-03-16T00:00:00.000Z',
+          document: {
+            version: '1.0',
+            blocks: [
+              {
+                id: 'heading-1',
+                type: 'heading',
+                level: 2,
+                text: '旧标题',
+              },
+              {
+                id: 'list-1',
+                type: 'list',
+                items: ['旧事项'],
+                ordered: true,
+              },
+            ],
+            plainText: '旧标题\n\n旧事项',
+          },
+        },
+      ]),
+    );
+
+    await expect(localNoteStore.loadNotes('alice')).resolves.toEqual([
+      {
+        id: 'note-structured-stale',
+        title: '旧结构',
+        content: '新标题\n\n事项一\n事项二',
+        timestamp: new Date('2026-03-16T00:00:00.000Z'),
+        images: undefined,
+        audios: undefined,
+        fontSize: undefined,
+        textSegments: undefined,
+        document: {
+          version: '1.0',
+          blocks: [
+            {
+              id: 'heading-1',
+              type: 'heading',
+              level: 2,
+              text: '新标题',
+            },
+            {
+              id: 'list-1',
+              type: 'list',
+              items: ['事项一', '事项二'],
+              ordered: true,
+            },
+          ],
+          plainText: '新标题\n\n事项一\n事项二',
+        },
+        deletedAt: undefined,
+        isHidden: undefined,
+      },
+    ]);
+  });
+
   test('normalizes stale live document mirror before saving notes', async () => {
     await localNoteStore.saveNotes('alice', [
       {

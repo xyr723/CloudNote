@@ -80,6 +80,53 @@ describe('homeNoteUtils', () => {
     });
   });
 
+  test('createNoteFromDraft preserves structured text blocks while refreshing stale mirror', () => {
+    const draft: NoteDraft = {
+      title: '标题',
+      content: '新标题\n\n事项一\n事项二',
+      document: {
+        version: '1.0',
+        blocks: [
+          {
+            id: 'heading-1',
+            type: 'heading',
+            level: 2,
+            text: '旧标题',
+          },
+          {
+            id: 'list-1',
+            type: 'list',
+            items: ['旧事项'],
+            ordered: true,
+          },
+        ],
+        plainText: '旧标题\n\n旧事项',
+      },
+    };
+
+    expect(createNoteFromDraft(draft)).toMatchObject({
+      content: '新标题\n\n事项一\n事项二',
+      document: {
+        version: '1.0',
+        blocks: [
+          {
+            id: 'heading-1',
+            type: 'heading',
+            level: 2,
+            text: '新标题',
+          },
+          {
+            id: 'list-1',
+            type: 'list',
+            items: ['事项一', '事项二'],
+            ordered: true,
+          },
+        ],
+        plainText: '新标题\n\n事项一\n事项二',
+      },
+    });
+  });
+
   test('mergeDraftIntoNote keeps document payload', () => {
     const note: Note = {
       id: 'note-1',

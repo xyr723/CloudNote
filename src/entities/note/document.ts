@@ -63,6 +63,49 @@ const isNonWidgetBlock = (
   return !isWidgetBlock(block);
 };
 
+const isMirrorTextBlock = (
+  block: RichDocument['blocks'][number],
+): block is Extract<RichDocument['blocks'][number], {text: string}> => {
+  return !isWidgetBlock(block) && 'text' in block;
+};
+
+const createListItemsFromMirrorText = (text: string): string[] => {
+  return text
+    .split('\n')
+    .map(item => item.trim())
+    .filter(item => item.length > 0);
+};
+
+const mergeMirrorTextBlockWithExistingBlock = ({
+  existingBlock,
+  nextTextBlock,
+}: {
+  existingBlock: Exclude<RichDocument['blocks'][number], WidgetBlock>;
+  nextTextBlock: Extract<RichDocument['blocks'][number], {text: string}>;
+}): Exclude<RichDocument['blocks'][number], WidgetBlock> => {
+  if (existingBlock.type === 'list') {
+    return {
+      ...existingBlock,
+      items: createListItemsFromMirrorText(nextTextBlock.text),
+    };
+  }
+
+  return {
+    ...existingBlock,
+    text: nextTextBlock.text,
+  };
+};
+
+const getNonWidgetBlockText = (
+  block: Exclude<RichDocument['blocks'][number], WidgetBlock>,
+): string => {
+  if (block.type === 'list') {
+    return block.items.join('\n');
+  }
+
+  return block.text;
+};
+
 const resolveWidgetInsertIndex = (
   blocks: RichDocument['blocks'],
   afterBlockId?: string | null,
@@ -273,11 +316,11 @@ export const mergeTextDocumentWithWidgets = (
   textDocument: RichDocument,
   existingDocument?: RichDocument,
 ): RichDocument => {
-  if (!existingDocument || !hasWidgetBlocks(existingDocument)) {
+  if (!existingDocument) {
     return textDocument;
   }
 
-  const nextTextBlocks = textDocument.blocks.filter(isNonWidgetBlock);
+  const nextTextBlocks = textDocument.blocks.filter(isMirrorTextBlock);
   let textBlockIndex = 0;
 
   const nextBlocks: RichDocument['blocks'] = [];
@@ -295,10 +338,12 @@ export const mergeTextDocumentWithWidgets = (
     }
 
     textBlockIndex += 1;
-    nextBlocks.push({
-      ...nextTextBlock,
-      id: block.id,
-    });
+    nextBlocks.push(
+      mergeMirrorTextBlockWithExistingBlock({
+        existingBlock: block,
+        nextTextBlock,
+      }),
+    );
   });
 
   if (textBlockIndex < nextTextBlocks.length) {
@@ -308,6 +353,70 @@ export const mergeTextDocumentWithWidgets = (
   return {
     ...textDocument,
     blocks: nextBlocks,
+  };
+};
+
+export const applyTextBlockSnapshotsToDocument = (
+  document: RichDocument | undefined,
+  textBlocks: Array<{
+    id: string;
+    text: string;
+  }>,
+): RichDocument | null => {
+  if (!document) {
+    return null;
+  }
+
+  const existingTextBlocks = document.blocks.filter(isNonWidgetBlock);
+
+  if (
+    existingTextBlocks.length === 0 ||
+    existingTextBlocks.length !== textBlocks.length
+  ) {
+    return null;
+  }
+
+  const snapshotsById = new Map(textBlocks.map(block => [block.id, block]));
+
+  if (snapshotsById.size !== textBlocks.length) {
+    return null;
+  }
+
+  const nextBlocks = document.blocks.map(block => {
+    if (isWidgetBlock(block)) {
+      return block;
+    }
+
+    const snapshot = snapshotsById.get(block.id);
+
+    if (!snapshot) {
+      return null;
+    }
+
+    return mergeMirrorTextBlockWithExistingBlock({
+      existingBlock: block,
+      nextTextBlock: {
+        id: snapshot.id,
+        type: 'paragraph',
+        text: snapshot.text,
+      },
+    });
+  });
+
+  if (nextBlocks.some(block => block === null)) {
+    return null;
+  }
+
+  const resolvedBlocks = nextBlocks as RichDocument['blocks'];
+  const plainText = resolvedBlocks
+    .filter(isNonWidgetBlock)
+    .map(getNonWidgetBlockText)
+    .join('\n\n');
+
+  return {
+    ...document,
+    blocks: resolvedBlocks,
+    plainText,
   };
 };
 
