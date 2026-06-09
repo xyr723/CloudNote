@@ -56,10 +56,13 @@ export const buildWidget = (id: string): WidgetSchema => ({
 
 export const createPassThroughMirrorHandlers = (
   overrides: Partial<{
+    handleApplyDocumentChange: (document: RichDocument) => void;
     handleAppendWidgets: (widgets: WidgetSchema[]) => void;
   }> = {},
 ) => {
   return {
+    handleApplyDocumentChange:
+      overrides.handleApplyDocumentChange ?? (() => {}),
     handleAppendWidgets: overrides.handleAppendWidgets ?? (() => {}),
     handleMirrorContentChange: (
       nextContent: string,

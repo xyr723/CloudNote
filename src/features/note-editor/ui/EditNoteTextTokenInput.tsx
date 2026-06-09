@@ -8,9 +8,14 @@ import {
 } from '../model/noteEditorContentTokens';
 import {getTextSegmentsContent} from '../model/noteEditorTextSegments';
 import {styles} from './styles';
-import type {EditableTextSegment, EditorSelection} from './types';
+import type {
+  EditableTextSegment,
+  EditorSelection,
+  NoteEditorTextChangeState,
+} from './types';
 
 type EditNoteTextTokenInputProps = {
+  onChangeState?: (state: NoteEditorTextChangeState) => void;
   onContentChange: (content: string) => void;
   onSelectionChange: (
     selection: EditorSelection,
@@ -52,6 +57,7 @@ export const createTextInputStyle = ({
 };
 
 export const EditNoteTextTokenInput: React.FC<EditNoteTextTokenInputProps> = ({
+  onChangeState,
   onContentChange,
   onSelectionChange,
   onTextSegmentsChange,
@@ -80,8 +86,17 @@ export const EditNoteTextTokenInput: React.FC<EditNoteTextTokenInputProps> = ({
             text +
             currentSegment.text.slice(token.segmentTextEnd),
         };
+        const nextState = {
+          content: getTextSegmentsContent(nextTextSegments),
+          textSegments: nextTextSegments,
+        };
 
-        onContentChange(getTextSegmentsContent(nextTextSegments));
+        if (onChangeState) {
+          onChangeState(nextState);
+          return;
+        }
+
+        onContentChange(nextState.content);
         onTextSegmentsChange?.(nextTextSegments);
       }}
       onSelectionChange={event => {

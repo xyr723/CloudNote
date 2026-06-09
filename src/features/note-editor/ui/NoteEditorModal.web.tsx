@@ -160,6 +160,7 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
     onChangeFontSize,
     onChangeImages,
     onChangeTextSegments,
+    handleApplyDocumentChange,
     handleAppendWidgets,
     handleMirrorContentChange,
   });
@@ -274,7 +275,7 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
                     document={draftDocument}
                     formatCommand={controller.h5FormatCommand ?? undefined}
                     fontSize={controller.formatting.fontSize}
-                    onChangeState={controller.formatting.handleReplaceRichTextContent}
+                    onChangeState={controller.handleH5ChangeState}
                     onMediaInsertRequest={controller.handleH5MediaInsertRequest}
                     onSelectionChange={
                       controller.formatting.handleEditorSelectionChange

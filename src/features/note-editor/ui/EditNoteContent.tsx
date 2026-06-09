@@ -9,6 +9,7 @@ import type {
   EditableTextSegment,
   EditorSelection,
   NoteEditorTheme,
+  NoteEditorTextChangeState,
 } from './types';
 
 type EditNoteContentProps = {
@@ -20,6 +21,7 @@ type EditNoteContentProps = {
   isBold: boolean;
   isItalic: boolean;
   isPlaying: boolean;
+  onChangeState?: (state: NoteEditorTextChangeState) => void;
   onContentChange: (content: string) => void;
   onDeleteAudio: (audioIndex: number) => void;
   onDeleteImage: (imageIndex: number) => void;
@@ -42,6 +44,7 @@ export const EditNoteContent: React.FC<EditNoteContentProps> = ({
   isBold,
   isItalic,
   isPlaying,
+  onChangeState,
   onContentChange,
   onDeleteAudio,
   onDeleteImage,
@@ -78,6 +81,7 @@ export const EditNoteContent: React.FC<EditNoteContentProps> = ({
           fontSize={fontSize}
           isBold={isBold}
           isItalic={isItalic}
+          onChangeState={onChangeState}
           onContentChange={onContentChange}
           onSelectionChange={onSelectionChange}
           placeholderTextColor={theme.textLight}
@@ -94,6 +98,7 @@ export const EditNoteContent: React.FC<EditNoteContentProps> = ({
         currentAudioIndex={currentAudioIndex}
         images={images}
         isPlaying={isPlaying}
+        onChangeState={onChangeState}
         onContentChange={onContentChange}
         onDeleteAudio={onDeleteAudio}
         onDeleteImage={onDeleteImage}

@@ -54,6 +54,7 @@ export const mockH5EditorProps: {
     }>;
     onChangeState: (state: {
       content: string;
+      document?: RichDocument;
       textSegments: Array<{
         text: string;
         fontSize: number;

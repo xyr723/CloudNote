@@ -31,20 +31,22 @@ describe('useNoteEditorController workflow', () => {
         {text: '文', fontSize: 20, isBold: true},
       ],
     };
+    const onChangeContent = jest.fn();
     const onChangeFontSize = jest.fn();
     const onChangeTextSegments = jest.fn();
     const {controllerRef} = await renderUseNoteEditorController({
       mirrorHandlers: createPassThroughMirrorHandlers(),
       note,
-      onChangeContent: () => {},
+      onChangeContent,
       onChangeFontSize,
       onChangeTextSegments,
     });
 
-    await ReactTestRenderer.act(() => {
+    await ReactTestRenderer.act(async () => {
       controllerRef.current?.handleQueueH5FormatCommand('bold');
       controllerRef.current?.handleQueueH5FormatCommand('italic');
       controllerRef.current?.formatting.handleIncreaseFontSize();
+      await Promise.resolve();
     });
 
     const controller = controllerRef.current!;
@@ -54,6 +56,7 @@ describe('useNoteEditorController workflow', () => {
       type: 'italic',
     });
     expect(onChangeFontSize).toHaveBeenCalledWith(18);
+    expect(onChangeContent).toHaveBeenCalledWith('原文');
     expect(onChangeTextSegments).toHaveBeenCalledWith([
       {text: '原', fontSize: 18, isItalic: true},
       {text: '文', fontSize: 18, isBold: true},
@@ -120,6 +123,7 @@ describe('useNoteEditorController workflow', () => {
         onChangeContent,
         onChangeFontSize: () => {},
         onChangeTextSegments,
+        handleApplyDocumentChange: documentMirror.handleApplyDocumentChange,
         handleAppendWidgets: documentMirror.handleAppendWidgets,
         handleMirrorContentChange: documentMirror.handleMirrorContentChange,
       });
@@ -145,6 +149,7 @@ describe('useNoteEditorController workflow', () => {
     );
 
     expect(onChangeContent).toHaveBeenCalledWith('原文续写内容');
+    expect(onChangeDocument).toHaveBeenCalledTimes(1);
     expect(onChangeDocument).toHaveBeenLastCalledWith(expectedDocument);
     expect(onChangeTextSegments).toHaveBeenCalledWith([
       {
@@ -155,5 +160,194 @@ describe('useNoteEditorController workflow', () => {
       },
     ]);
     expect(controllerRef.current!.editorContent).toBe('原文续写内容');
+  });
+
+  test('applies document-aware h5 state before mirror fallback flattens block metadata', async () => {
+    const onChangeContent = jest.fn();
+    const onChangeDocument = jest.fn();
+    const onChangeTextSegments = jest.fn();
+    let controllerRef: {
+      current: ReturnType<typeof useNoteEditorController> | null;
+    } = {
+      current: null,
+    };
+
+    const note = {
+      title: '标题',
+      content: '旧标题\n\n旧事项',
+      fontSize: 16,
+      textSegments: [{text: '旧标题\n\n旧事项', fontSize: 16}],
+    };
+    const structuredDocument: RichDocument = {
+      version: '1.0',
+      blocks: [
+        {
+          id: 'heading-1',
+          type: 'heading',
+          level: 2,
+          text: '新标题',
+        },
+        {
+          id: 'widget-block-1',
+          type: 'widget',
+          widget: buildWidget('todo-1'),
+        },
+        {
+          id: 'list-1',
+          type: 'list',
+          items: ['事项一', '事项二'],
+          ordered: true,
+        },
+      ],
+      plainText: '新标题\n\n事项一\n事项二',
+    };
+
+    const Probe = () => {
+      const [document, setDocument] = useState<RichDocument | undefined>(
+        undefined,
+      );
+      const documentMirror = useNoteDocumentMirror({
+        noteContent: note.content,
+        noteDocument: document,
+        onChangeDocument: nextDocument => {
+          setDocument(nextDocument);
+          onChangeDocument(nextDocument);
+        },
+        visible: true,
+      });
+
+      controllerRef.current = useNoteEditorController({
+        visible: true,
+        note,
+        draftDocument: documentMirror.draftDocument,
+        onSave: async () => {},
+        onChangeContent,
+        onChangeFontSize: () => {},
+        onChangeTextSegments,
+        handleApplyDocumentChange: documentMirror.handleApplyDocumentChange,
+        handleAppendWidgets: documentMirror.handleAppendWidgets,
+        handleMirrorContentChange: documentMirror.handleMirrorContentChange,
+      });
+
+      return null;
+    };
+
+    await ReactTestRenderer.act(() => {
+      ReactTestRenderer.create(<Probe />);
+    });
+
+    await ReactTestRenderer.act(() => {
+      controllerRef.current?.handleH5ChangeState({
+        content: '新标题\n\n事项一\n事项二',
+        textSegments: [{text: '新标题\n\n事项一\n事项二', fontSize: 16}],
+        document: structuredDocument,
+      });
+    });
+
+    expect(onChangeDocument).toHaveBeenLastCalledWith(structuredDocument);
+    expect(onChangeContent).toHaveBeenCalledWith('新标题\n\n事项一\n事项二');
+    expect(onChangeTextSegments).toHaveBeenCalledWith([
+      {text: '新标题\n\n事项一\n事项二', fontSize: 16},
+    ]);
+  });
+
+  test('applies unified native editor state while preserving structured document blocks', async () => {
+    const onChangeContent = jest.fn();
+    const onChangeDocument = jest.fn();
+    const onChangeTextSegments = jest.fn();
+    let controllerRef: {
+      current: ReturnType<typeof useNoteEditorController> | null;
+    } = {
+      current: null,
+    };
+
+    const note = {
+      title: '标题',
+      content: '旧标题\n\n旧事项',
+      fontSize: 16,
+      textSegments: [{text: '旧标题\n\n旧事项', fontSize: 16}],
+    };
+    const initialDocument: RichDocument = {
+      version: '1.0',
+      blocks: [
+        {
+          id: 'heading-1',
+          type: 'heading',
+          level: 2,
+          text: '旧标题',
+        },
+        {
+          id: 'list-1',
+          type: 'list',
+          items: ['旧事项'],
+          ordered: true,
+        },
+      ],
+      plainText: '旧标题\n\n旧事项',
+    };
+
+    const Probe = () => {
+      const [document, setDocument] = useState<RichDocument | undefined>(
+        initialDocument,
+      );
+      const documentMirror = useNoteDocumentMirror({
+        noteContent: note.content,
+        noteDocument: document,
+        onChangeDocument: nextDocument => {
+          setDocument(nextDocument);
+          onChangeDocument(nextDocument);
+        },
+        visible: true,
+      });
+
+      controllerRef.current = useNoteEditorController({
+        visible: true,
+        note,
+        draftDocument: documentMirror.draftDocument,
+        onSave: async () => {},
+        onChangeContent,
+        onChangeFontSize: () => {},
+        onChangeTextSegments,
+        handleApplyDocumentChange: documentMirror.handleApplyDocumentChange,
+        handleAppendWidgets: documentMirror.handleAppendWidgets,
+        handleMirrorContentChange: documentMirror.handleMirrorContentChange,
+      });
+
+      return null;
+    };
+
+    await ReactTestRenderer.act(() => {
+      ReactTestRenderer.create(<Probe />);
+    });
+
+    await ReactTestRenderer.act(() => {
+      controllerRef.current?.handleNativeChangeState({
+        content: '新标题\n\n事项一\n事项二',
+        textSegments: [{text: '新标题\n\n事项一\n事项二', fontSize: 16}],
+      });
+    });
+
+    expect(onChangeContent).toHaveBeenCalledWith('新标题\n\n事项一\n事项二');
+    expect(onChangeTextSegments).toHaveBeenCalledWith([
+      {text: '新标题\n\n事项一\n事项二', fontSize: 16},
+    ]);
+    expect(onChangeDocument).toHaveBeenLastCalledWith({
+      version: '1.0',
+      blocks: [
+        {
+          id: 'heading-1',
+          type: 'heading',
+          level: 2,
+          text: '新标题',
+        },
+        {
+          id: 'list-1',
+          type: 'list',
+          items: ['事项一', '事项二'],
+          ordered: true,
+        },
+      ],
+      plainText: '新标题\n\n事项一\n事项二',
+    });
   });
 });

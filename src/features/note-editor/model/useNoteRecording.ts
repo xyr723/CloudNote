@@ -1,7 +1,10 @@
 import {useCallback} from 'react';
 import {Alert} from 'react-native';
 import {saveNoteAttachment} from '../../../shared/media/noteAttachmentStore';
-import type {EditableTextSegment} from '../ui/types';
+import type {
+  EditableTextSegment,
+  NoteEditorChangeState,
+} from '../ui/types';
 import {insertMarkerAtCursor} from './noteEditorMediaContentMarkers';
 import {insertMarkerIntoTextSegments} from './noteEditorMediaTextSegments';
 import {useAudioRecordingSession} from './useAudioRecordingSession';
@@ -15,6 +18,7 @@ type UseNoteRecordingInput = {
   cursorPosition: number;
   fontSize: number;
   noteId?: string;
+  onChangeState?: (state: NoteEditorChangeState) => void;
   textSegments?: EditableTextSegment[];
   tempNoteId: string;
 };
@@ -28,6 +32,7 @@ export const useNoteRecording = ({
   cursorPosition,
   fontSize,
   noteId,
+  onChangeState,
   textSegments,
   tempNoteId,
 }: UseNoteRecordingInput) => {
@@ -76,6 +81,15 @@ export const useNoteRecording = ({
         textSegments,
       });
 
+      if (onChangeState) {
+        onChangeState({
+          audios: nextAudios,
+          content: nextContent,
+          textSegments: nextTextSegments,
+        });
+        return;
+      }
+
       applyAudiosChange(nextAudios);
       applyContentChange(nextContent);
       applyTextSegmentsChange?.(nextTextSegments);
@@ -91,6 +105,7 @@ export const useNoteRecording = ({
     content,
     cursorPosition,
     fontSize,
+    onChangeState,
     recordingSession,
     storeAudioAttachment,
     textSegments,

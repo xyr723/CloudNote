@@ -102,6 +102,7 @@ const NoteEditorModal: React.FC<NoteEditorModalProps> = ({
     onChangeFontSize,
     onChangeImages,
     onChangeTextSegments,
+    handleApplyDocumentChange,
     handleAppendWidgets,
     handleMirrorContentChange,
   });

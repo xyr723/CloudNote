@@ -83,6 +83,59 @@ describe('useNoteEditorActions', () => {
     expect(actions.showAiThinkingModal).toBe(false);
   });
 
+  test('passes ai completion through a single callback', async () => {
+    const completionResult = {
+      text: '续写内容',
+      widgets: [
+        {
+          id: 'todo-1',
+          type: 'todo-list' as const,
+          title: '待办',
+          props: {
+            items: ['一', '二'],
+          },
+        },
+      ],
+      metadata: {
+        provider: 'mock',
+        model: 'mock-model',
+        usedFallback: false,
+      },
+    };
+    const completeNoteEditorTextWithAiMock =
+      completeNoteEditorTextWithAi as jest.MockedFunction<
+        typeof completeNoteEditorTextWithAi
+      >;
+    completeNoteEditorTextWithAiMock.mockResolvedValue(completionResult);
+    const onApplyAiCompletion = jest.fn();
+    let latestActions: ReturnType<typeof useNoteEditorActions> | null = null;
+
+    const Probe = () => {
+      latestActions = useNoteEditorActions({
+        audiosCount: 0,
+        content: '原文',
+        hasWidgets: false,
+        imagesCount: 0,
+        onAppendText: () => {},
+        onApplyAiCompletion,
+        onSave: async () => {},
+        title: '标题',
+      } as any);
+
+      return null;
+    };
+
+    await ReactTestRenderer.act(() => {
+      ReactTestRenderer.create(<Probe />);
+    });
+
+    await ReactTestRenderer.act(async () => {
+      await latestActions?.handleAiComplete();
+    });
+
+    expect(onApplyAiCompletion).toHaveBeenCalledWith(completionResult);
+  });
+
   test('shows validation modal when title is empty', async () => {
     const onSave = jest.fn();
     let latestActions: ReturnType<typeof useNoteEditorActions> | null = null;

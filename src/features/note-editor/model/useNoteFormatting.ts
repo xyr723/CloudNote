@@ -3,6 +3,7 @@ import type {NoteDraft} from '../../../entities/note/draft';
 import type {
   EditableTextSegment,
   EditorSelection,
+  NoteEditorChangeState,
 } from '../ui/types';
 import {
   appendTextToTextSegments,
@@ -21,7 +22,8 @@ type FormattableNote = Pick<NoteDraft, 'content' | 'fontSize' | 'textSegments'>;
 
 type UseNoteFormattingInput = {
   note: FormattableNote;
-  onChangeContent: (content: string) => void;
+  onChangeContent?: (content: string) => void;
+  onChangeState?: (state: NoteEditorChangeState) => void;
   onChangeFontSize?: (size: number) => void;
   onChangeTextSegments?: (segments: EditableTextSegment[]) => void;
 };
@@ -29,6 +31,7 @@ type UseNoteFormattingInput = {
 export const useNoteFormatting = ({
   note,
   onChangeContent,
+  onChangeState,
   onChangeFontSize,
   onChangeTextSegments,
 }: UseNoteFormattingInput) => {
@@ -47,28 +50,95 @@ export const useNoteFormatting = ({
     setFontSize,
     setIsBold,
     setIsItalic,
+    setTextSegments,
     syncSelectionToContentEnd,
     textSegments,
   } = formattingState;
+
+  const emitChangeState = useCallback(
+    (nextState: NoteEditorChangeState) => {
+      onChangeState?.(nextState);
+    },
+    [onChangeState],
+  );
 
   const applyContentReplacement = useCallback(
     (nextContent: string, nextTextSegments: EditableTextSegment[]) => {
       syncSelectionToContentEnd(nextContent);
       applyTextSegmentsChange(nextTextSegments);
-      onChangeContent(nextContent);
+      if (onChangeState) {
+        emitChangeState({
+          content: nextContent,
+          textSegments: nextTextSegments,
+        });
+        return;
+      }
+
+      onChangeContent?.(nextContent);
     },
-    [applyTextSegmentsChange, onChangeContent, syncSelectionToContentEnd],
+    [
+      applyTextSegmentsChange,
+      emitChangeState,
+      onChangeContent,
+      onChangeState,
+      syncSelectionToContentEnd,
+    ],
+  );
+
+  const applyExternalRichTextState = useCallback(
+    ({
+      content: nextContent,
+      fontSize: nextFontSize,
+      textSegments: nextTextSegments,
+    }: {
+      content: string;
+      fontSize?: number;
+      textSegments?: EditableTextSegment[];
+    }) => {
+      if (typeof nextFontSize === 'number') {
+        setFontSize(nextFontSize);
+      }
+
+      syncSelectionToContentEnd(nextContent);
+      setTextSegments(
+        replaceRichTextSegmentsState({
+          content: nextContent,
+          fallbackFontSize: nextFontSize ?? fontSize,
+          textSegments: nextTextSegments,
+        }),
+      );
+    },
+    [fontSize, setFontSize, setTextSegments, syncSelectionToContentEnd],
   );
 
   const handleFontSizeChange = useCallback(
     (nextSize: number) => {
-      setFontSize(nextSize);
-      applyTextSegmentsChange(
-        setGlobalTextSegmentsFontSize(textSegments, nextSize),
+      const nextTextSegments = setGlobalTextSegmentsFontSize(
+        textSegments,
+        nextSize,
       );
+
+      setFontSize(nextSize);
+      applyTextSegmentsChange(nextTextSegments);
+      if (onChangeState) {
+        emitChangeState({
+          content: getTextSegmentsContent(nextTextSegments),
+          fontSize: nextSize,
+          textSegments: nextTextSegments,
+        });
+        return;
+      }
+
       onChangeFontSize?.(nextSize);
     },
-    [applyTextSegmentsChange, onChangeFontSize, setFontSize, textSegments],
+    [
+      applyTextSegmentsChange,
+      emitChangeState,
+      onChangeFontSize,
+      onChangeState,
+      setFontSize,
+      textSegments,
+    ],
   );
 
   const handleSelectionStyleToggle = useCallback(
@@ -91,9 +161,16 @@ export const useNoteFormatting = ({
     }) => {
       if (selection.start === selection.end) {
         const nextValue = !currentValue;
+        const nextTextSegments = toggleGlobalStyle(textSegments, nextValue);
 
         setCurrentValue(nextValue);
-        applyTextSegmentsChange(toggleGlobalStyle(textSegments, nextValue));
+        applyTextSegmentsChange(nextTextSegments);
+        if (onChangeState) {
+          emitChangeState({
+            content: getTextSegmentsContent(nextTextSegments),
+            textSegments: nextTextSegments,
+          });
+        }
         return;
       }
 
@@ -104,9 +181,24 @@ export const useNoteFormatting = ({
       }
 
       applyTextSegmentsChange(result.textSegments);
-      onChangeContent(result.content);
+      if (onChangeState) {
+        emitChangeState({
+          content: result.content,
+          textSegments: result.textSegments,
+        });
+        return;
+      }
+
+      onChangeContent?.(result.content);
     },
-    [applyTextSegmentsChange, onChangeContent, selection, textSegments],
+    [
+      applyTextSegmentsChange,
+      emitChangeState,
+      onChangeContent,
+      onChangeState,
+      selection,
+      textSegments,
+    ],
   );
 
   const handleIncreaseFontSize = useCallback(() => {
@@ -146,11 +238,27 @@ export const useNoteFormatting = ({
         appendedText,
         fontSize,
       );
+      const nextContent = getTextSegmentsContent(nextTextSegments);
 
       applyTextSegmentsChange(nextTextSegments);
-      onChangeContent(getTextSegmentsContent(nextTextSegments));
+      if (onChangeState) {
+        emitChangeState({
+          content: nextContent,
+          textSegments: nextTextSegments,
+        });
+        return;
+      }
+
+      onChangeContent?.(nextContent);
     },
-    [applyTextSegmentsChange, fontSize, onChangeContent, textSegments],
+    [
+      applyTextSegmentsChange,
+      emitChangeState,
+      fontSize,
+      onChangeContent,
+      onChangeState,
+      textSegments,
+    ],
   );
 
   const handleReplaceTextContent = useCallback(
@@ -191,6 +299,7 @@ export const useNoteFormatting = ({
     applyTextSegmentsChange,
     cursorPosition,
     fontSize,
+    applyExternalRichTextState,
     handleAppendText,
     handleBoldToggle,
     handleDecreaseFontSize,

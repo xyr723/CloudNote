@@ -122,4 +122,49 @@ describe('useNoteMedia', () => {
       {text: '正文\n[图片0]', fontSize: 18, isBold: true},
     ]);
   });
+
+  test('emits a unified state patch when inserting images', async () => {
+    mockSaveNoteAttachment.mockResolvedValue('file:///image-0.jpg');
+    mockPickImagesFromLibrary.mockResolvedValue([
+      {uri: 'file:///source-0.jpg'},
+    ]);
+
+    const onChangeState = jest.fn();
+    const note = {
+      title: '标题',
+      content: 'abcd',
+      fontSize: 16,
+      images: [],
+      textSegments: [{text: 'abcd', fontSize: 18, isBold: true}],
+    };
+    let latestMedia: ReturnType<typeof useNoteMedia> | null = null;
+
+    const Probe = () => {
+      latestMedia = useNoteMedia({
+        content: note.content,
+        cursorPosition: 2,
+        fontSize: 16,
+        note,
+        onChangeState,
+        tempNoteId: 'temp-note-id',
+        textSegments: note.textSegments,
+      } as any);
+
+      return null;
+    };
+
+    await ReactTestRenderer.act(() => {
+      ReactTestRenderer.create(<Probe />);
+    });
+
+    await ReactTestRenderer.act(async () => {
+      await latestMedia?.handleImagePicker();
+    });
+
+    expect(onChangeState).toHaveBeenLastCalledWith({
+      content: 'ab[图片0]cd',
+      images: ['file:///image-0.jpg'],
+      textSegments: [{text: 'ab[图片0]cd', fontSize: 18, isBold: true}],
+    });
+  });
 });

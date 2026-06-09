@@ -187,3 +187,42 @@ test('increases global font size and syncs all text segments', async () => {
     {text: '文', fontSize: 18, isBold: true},
   ]);
 });
+
+test('emits a unified state patch when formatting changes font size', async () => {
+  const onChangeState = jest.fn();
+  const note = {
+    content: '原文',
+    fontSize: 16,
+    textSegments: [
+      {text: '原', fontSize: 14, isItalic: true},
+      {text: '文', fontSize: 20, isBold: true},
+    ],
+  };
+  let latestFormatting: ReturnType<typeof useNoteFormatting> | null = null;
+
+  const Probe = () => {
+    latestFormatting = useNoteFormatting({
+      note,
+      onChangeState,
+    } as any);
+
+    return null;
+  };
+
+  await ReactTestRenderer.act(() => {
+    ReactTestRenderer.create(<Probe />);
+  });
+
+  await ReactTestRenderer.act(() => {
+    latestFormatting?.handleIncreaseFontSize();
+  });
+
+  expect(onChangeState).toHaveBeenCalledWith({
+    content: '原文',
+    fontSize: 18,
+    textSegments: [
+      {text: '原', fontSize: 18, isItalic: true},
+      {text: '文', fontSize: 18, isBold: true},
+    ],
+  });
+});

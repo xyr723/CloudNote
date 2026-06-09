@@ -7,6 +7,7 @@ import type {
   EditableTextSegment,
   EditorSelection,
   NoteEditorTheme,
+  NoteEditorTextChangeState,
 } from './types';
 
 type EditNoteContentBlocksProps = {
@@ -14,6 +15,7 @@ type EditNoteContentBlocksProps = {
   currentAudioIndex: number;
   images: string[];
   isPlaying: boolean;
+  onChangeState?: (state: NoteEditorTextChangeState) => void;
   onContentChange: (content: string) => void;
   onDeleteAudio: (audioIndex: number) => void;
   onDeleteImage: (imageIndex: number) => void;
@@ -33,6 +35,7 @@ export const EditNoteContentBlocks: React.FC<EditNoteContentBlocksProps> = ({
   currentAudioIndex,
   images,
   isPlaying,
+  onChangeState,
   onContentChange,
   onDeleteAudio,
   onDeleteImage,
@@ -81,6 +84,7 @@ export const EditNoteContentBlocks: React.FC<EditNoteContentBlocksProps> = ({
         return (
           <EditNoteTextTokenInput
             key={`text-${index}`}
+            onChangeState={onChangeState}
             onContentChange={onContentChange}
             onSelectionChange={onSelectionChange}
             onTextSegmentsChange={onTextSegmentsChange}

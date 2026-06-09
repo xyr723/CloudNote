@@ -1,6 +1,9 @@
 import {useCallback, useEffect, useState} from 'react';
 import type {NoteDraft} from '../../../entities/note/draft';
-import type {EditableTextSegment} from '../ui/types';
+import type {
+  EditableTextSegment,
+  NoteEditorChangeState,
+} from '../ui/types';
 
 type ApplyImageInsertionState = {
   content: string;
@@ -11,8 +14,9 @@ type ApplyImageInsertionState = {
 type UseNoteMediaStateInput = {
   externalContent: string;
   note: Pick<NoteDraft, 'audios' | 'images'>;
+  onChangeState?: (state: NoteEditorChangeState) => void;
   onChangeAudios?: (audios: string[]) => void;
-  onChangeContent: (content: string) => void;
+  onChangeContent?: (content: string) => void;
   onChangeImages?: (images: string[]) => void;
   onChangeTextSegments?: (segments: EditableTextSegment[]) => void;
 };
@@ -24,6 +28,7 @@ const resolveMediaItems = (items?: string[]): string[] => {
 export const useNoteMediaState = ({
   externalContent,
   note,
+  onChangeState,
   onChangeAudios,
   onChangeContent,
   onChangeImages,
@@ -46,47 +51,110 @@ export const useNoteMediaState = ({
     setContent(externalContent);
   }, [externalContent]);
 
+  const applyStateChange = useCallback(
+    (nextState: NoteEditorChangeState) => {
+      if (typeof nextState.images !== 'undefined') {
+        setImages(nextState.images);
+      }
+
+      if (typeof nextState.audios !== 'undefined') {
+        setAudios(nextState.audios);
+      }
+
+      setContent(nextState.content);
+      onChangeState?.(nextState);
+    },
+    [onChangeState],
+  );
+
   const applyContentChange = useCallback(
     (nextContent: string) => {
       setContent(nextContent);
-      onChangeContent(nextContent);
+      if (onChangeState) {
+        onChangeState({
+          content: nextContent,
+        });
+        return;
+      }
+
+      onChangeContent?.(nextContent);
     },
-    [onChangeContent],
+    [onChangeContent, onChangeState],
   );
 
   const applyImagesChange = useCallback(
     (nextImages: string[]) => {
       setImages(nextImages);
+      if (onChangeState) {
+        onChangeState({
+          content,
+          images: nextImages,
+        });
+        return;
+      }
+
       onChangeImages?.(nextImages);
     },
-    [onChangeImages],
+    [content, onChangeImages, onChangeState],
   );
 
   const applyAudiosChange = useCallback(
     (nextAudios: string[]) => {
       setAudios(nextAudios);
+      if (onChangeState) {
+        onChangeState({
+          audios: nextAudios,
+          content,
+        });
+        return;
+      }
+
       onChangeAudios?.(nextAudios);
     },
-    [onChangeAudios],
+    [content, onChangeAudios, onChangeState],
   );
 
   const applyTextSegmentsChange = useCallback(
     (nextTextSegments: EditableTextSegment[]) => {
+      if (onChangeState) {
+        onChangeState({
+          content,
+          textSegments: nextTextSegments,
+        });
+        return;
+      }
+
       onChangeTextSegments?.(nextTextSegments);
     },
-    [onChangeTextSegments],
+    [content, onChangeState, onChangeTextSegments],
   );
 
   const applyImageInsertionState = useCallback(
     (nextState: ApplyImageInsertionState) => {
-      applyImagesChange(nextState.images);
-      applyContentChange(nextState.content);
+      setImages(nextState.images);
+      setContent(nextState.content);
+      if (onChangeState) {
+        onChangeState({
+          content: nextState.content,
+          images: nextState.images,
+          textSegments: nextState.textSegments,
+        });
+        return;
+      }
+
+      onChangeImages?.(nextState.images);
+      onChangeContent?.(nextState.content);
 
       if (nextState.textSegments) {
-        applyTextSegmentsChange(nextState.textSegments);
+        onChangeTextSegments?.(nextState.textSegments);
       }
     },
-    [applyContentChange, applyImagesChange, applyTextSegmentsChange],
+    [
+      onChangeContent,
+      onChangeImages,
+      onChangeState,
+      onChangeTextSegments,
+    ],
   );
 
   return {
@@ -94,6 +162,7 @@ export const useNoteMediaState = ({
     applyContentChange,
     applyImageInsertionState,
     applyImagesChange,
+    applyStateChange,
     applyTextSegmentsChange,
     audios,
     content,

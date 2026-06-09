@@ -50,6 +50,36 @@ test('updates split text segments together with content', async () => {
   ]);
 });
 
+test('emits unified native editor state when text token content changes', async () => {
+  const onChangeState = jest.fn();
+  const renderer = await renderEditNoteContent({
+    props: {
+      content: 'abcd',
+      onChangeState,
+      textSegments: [
+        {text: 'a', fontSize: 16, isBold: false},
+        {text: 'bc', fontSize: 16, isBold: true},
+        {text: 'd', fontSize: 16, isBold: false},
+      ],
+    } as any,
+  });
+
+  const textInputs = renderer.root.findAllByType(TextInput);
+
+  await ReactTestRenderer.act(() => {
+    textInputs[1].props.onChangeText('bx');
+  });
+
+  expect(onChangeState).toHaveBeenCalledWith({
+    content: 'abxd',
+    textSegments: [
+      {text: 'a', fontSize: 16, isBold: false},
+      {text: 'bx', fontSize: 16, isBold: true},
+      {text: 'd', fontSize: 16, isBold: false},
+    ],
+  });
+});
+
 test('keeps absolute cursor position when selection changes after image token', async () => {
   const onSelectionChange = jest.fn();
   const renderer = await renderEditNoteContent({
@@ -70,4 +100,32 @@ test('keeps absolute cursor position when selection changes after image token', 
   });
 
   expect(onSelectionChange).toHaveBeenCalledWith({start: 1, end: 1}, 6);
+});
+
+test('emits unified native editor state with default text segment from empty state input', async () => {
+  const onChangeState = jest.fn();
+  const renderer = await renderEditNoteContent({
+    props: {
+      onChangeState,
+    } as any,
+  });
+
+  const textInput = renderer.root.findByType(TextInput);
+
+  await ReactTestRenderer.act(() => {
+    textInput.props.onChangeText('首行');
+  });
+
+  expect(onChangeState).toHaveBeenCalledWith({
+    content: '首行',
+    textSegments: [
+      {
+        text: '首行',
+        fontSize: 16,
+        isBold: false,
+        isItalic: false,
+        color: '#666666',
+      },
+    ],
+  });
 });

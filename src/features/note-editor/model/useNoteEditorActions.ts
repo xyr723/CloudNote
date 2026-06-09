@@ -1,5 +1,6 @@
 import {useCallback, useState} from 'react';
 import {Alert} from 'react-native';
+import type {AiCompletionResult} from '../../../providers/ai/aiProvider';
 import type {WidgetSchema} from '../../../entities/widget/types';
 import {completeNoteEditorTextWithAi} from './noteEditorAi';
 
@@ -8,7 +9,8 @@ type UseNoteEditorActionsInput = {
   content: string;
   hasWidgets: boolean;
   imagesCount: number;
-  onAppendText: (text: string) => void;
+  onAppendText?: (text: string) => void;
+  onApplyAiCompletion?: (result: AiCompletionResult) => void;
   onAppendWidgets?: (widgets: WidgetSchema[]) => void;
   onSave: () => Promise<void>;
   title: string;
@@ -20,6 +22,7 @@ export const useNoteEditorActions = ({
   hasWidgets,
   imagesCount,
   onAppendText,
+  onApplyAiCompletion,
   onAppendWidgets,
   onSave,
   title,
@@ -43,12 +46,17 @@ export const useNoteEditorActions = ({
         userPrompt,
       );
 
+      if (onApplyAiCompletion) {
+        onApplyAiCompletion(completionResult);
+        return;
+      }
+
       if (completionResult.widgets?.length) {
         onAppendWidgets?.(completionResult.widgets);
       }
 
       if (completionResult.text) {
-        onAppendText(completionResult.text);
+        onAppendText?.(completionResult.text);
       }
     } catch (error) {
       console.error('AI补全文本失败:', error);
@@ -57,7 +65,7 @@ export const useNoteEditorActions = ({
       setIsAiThinking(false);
       setShowAiThinkingModal(false);
     }
-  }, [content, onAppendText, onAppendWidgets]);
+  }, [content, onAppendText, onAppendWidgets, onApplyAiCompletion]);
 
   const handleSaveWithValidation = useCallback(async () => {
     if (!title.trim()) {

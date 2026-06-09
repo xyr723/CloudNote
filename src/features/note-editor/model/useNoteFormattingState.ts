@@ -71,6 +71,7 @@ export const useNoteFormattingState = ({
     setFontSize,
     setIsBold,
     setIsItalic,
+    setTextSegments,
     syncSelectionToContentEnd,
     textSegments,
   };

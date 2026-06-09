@@ -13,15 +13,19 @@ import {
   syncImageMediaState,
 } from './noteEditorMediaMutations';
 import {useNoteMediaState} from './useNoteMediaState';
-import type {EditableTextSegment} from '../ui/types';
+import type {
+  EditableTextSegment,
+  NoteEditorChangeState,
+} from '../ui/types';
 
 type UseNoteMediaInput = {
   content: string;
   cursorPosition: number;
   fontSize: number;
   note: NoteDraft;
+  onChangeState?: (state: NoteEditorChangeState) => void;
   onChangeAudios?: (audios: string[]) => void;
-  onChangeContent: (content: string) => void;
+  onChangeContent?: (content: string) => void;
   onChangeImages?: (images: string[]) => void;
   onChangeTextSegments?: (segments: EditableTextSegment[]) => void;
   tempNoteId: string;
@@ -35,6 +39,7 @@ export const useNoteMedia = ({
   cursorPosition,
   fontSize,
   note,
+  onChangeState,
   onChangeAudios,
   onChangeContent,
   onChangeImages,
@@ -48,6 +53,7 @@ export const useNoteMedia = ({
     applyContentChange,
     applyImageInsertionState,
     applyImagesChange,
+    applyStateChange,
     applyTextSegmentsChange,
     audios,
     content,
@@ -55,6 +61,7 @@ export const useNoteMedia = ({
   } = useNoteMediaState({
     externalContent,
     note,
+    onChangeState,
     onChangeAudios,
     onChangeContent,
     onChangeImages,
@@ -74,15 +81,25 @@ export const useNoteMedia = ({
       return;
     }
 
+    if (onChangeState) {
+      applyStateChange({
+        content: syncedState.content,
+        textSegments: syncedState.textSegments,
+      });
+      return;
+    }
+
     applyContentChange(syncedState.content);
     applyTextSegmentsChange(syncedState.textSegments);
   }, [
     applyContentChange,
+    applyStateChange,
     applyTextSegmentsChange,
     content,
     fontSize,
     images.length,
     isUserDelete,
+    onChangeState,
     textSegments,
   ]);
 
@@ -159,18 +176,6 @@ export const useNoteMedia = ({
     [handleImageAssetSelection],
   );
 
-  const scheduleImageDeletionCommit = useCallback(
-    (nextImages: string[]) => {
-      setTimeout(() => {
-        applyImagesChange(nextImages);
-        setTimeout(() => {
-          setIsUserDelete(false);
-        }, 100);
-      }, 50);
-    },
-    [applyImagesChange],
-  );
-
   const handleDeleteImage = useCallback(
     async (imageIndex: number) => {
       try {
@@ -185,9 +190,24 @@ export const useNoteMedia = ({
           totalImages: images.length,
         });
 
+        if (onChangeState) {
+          applyStateChange({
+            content: nextState.content,
+            images: nextImages,
+            textSegments: nextState.textSegments,
+          });
+          setTimeout(() => {
+            setIsUserDelete(false);
+          }, 100);
+          return;
+        }
+
         applyContentChange(nextState.content);
         applyTextSegmentsChange(nextState.textSegments);
-        scheduleImageDeletionCommit(nextImages);
+        applyImagesChange(nextImages);
+        setTimeout(() => {
+          setIsUserDelete(false);
+        }, 100);
       } catch (error) {
         console.error('删除图片失败:', error);
         Alert.alert('错误', '删除图片时发生错误');
@@ -196,11 +216,13 @@ export const useNoteMedia = ({
     },
     [
       applyContentChange,
+      applyStateChange,
       applyTextSegmentsChange,
       content,
       fontSize,
       images,
-      scheduleImageDeletionCommit,
+      onChangeState,
+      applyImagesChange,
       textSegments,
     ],
   );
@@ -219,6 +241,15 @@ export const useNoteMedia = ({
           totalAudios: audios.length,
         });
 
+        if (onChangeState) {
+          applyStateChange({
+            audios: nextAudios,
+            content: nextState.content,
+            textSegments: nextState.textSegments,
+          });
+          return;
+        }
+
         applyAudiosChange(nextAudios);
         applyContentChange(nextState.content);
         applyTextSegmentsChange(nextState.textSegments);
@@ -230,10 +261,12 @@ export const useNoteMedia = ({
     [
       applyAudiosChange,
       applyContentChange,
+      applyStateChange,
       applyTextSegmentsChange,
       audios,
       content,
       fontSize,
+      onChangeState,
       textSegments,
     ],
   );
