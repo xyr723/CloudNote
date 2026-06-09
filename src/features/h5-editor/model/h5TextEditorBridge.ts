@@ -1,11 +1,21 @@
+import type {RichDocument} from '../../../entities/document/types';
 import type {TextSegment} from '../../../entities/note/types';
 import type {WidgetType} from '../../../entities/widget/types';
 import type {PickedImageAsset} from '../../../shared/media/imagePicker';
 import type {ThemeColors} from '../../../shared/theme/colors';
 
+export const H5_TEXT_EDITOR_BRIDGE_MESSAGE_SOURCE = 'cloudnote-h5-editor';
+export const H5_TEXT_EDITOR_HOST_MESSAGE_SOURCE = 'cloudnote-h5-host';
+
 export type H5TextEditorState = {
   content: string;
+  document?: RichDocument;
   textSegments: TextSegment[];
+};
+
+export type H5TextBlockSnapshot = {
+  id: string;
+  text: string;
 };
 
 export type H5TextEditorFormatCommand = {
@@ -79,6 +89,7 @@ export type H5WidgetBridgeEvent =
 type H5TextEditorMessage =
   | ({
       type: 'content-change';
+      textBlocks?: H5TextBlockSnapshot[];
     } & H5TextEditorState)
   | ({
       type: 'selection-change';
@@ -106,6 +117,24 @@ const isTextSegment = (value: unknown): value is TextSegment => {
 
 const isTextSegmentList = (value: unknown): value is TextSegment[] => {
   return Array.isArray(value) && value.every(isTextSegment);
+};
+
+const isH5TextBlockSnapshot = (
+  value: unknown,
+): value is H5TextBlockSnapshot => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const snapshot = value as Partial<H5TextBlockSnapshot>;
+
+  return typeof snapshot.id === 'string' && typeof snapshot.text === 'string';
+};
+
+const isH5TextBlockSnapshotList = (
+  value: unknown,
+): value is H5TextBlockSnapshot[] => {
+  return Array.isArray(value) && value.every(isH5TextBlockSnapshot);
 };
 
 const isMediaKind = (value: unknown): value is 'image' | 'audio' => {
@@ -177,6 +206,7 @@ export const parseH5TextEditorMessage = (data: string): H5TextEditorMessage => {
       index?: unknown;
       kind?: unknown;
       start?: unknown;
+      textBlocks?: unknown;
       textSegments?: unknown;
       type?: unknown;
       widgetId?: unknown;
@@ -192,6 +222,9 @@ export const parseH5TextEditorMessage = (data: string): H5TextEditorMessage => {
         type: 'content-change',
         content: message.content,
         textSegments: message.textSegments,
+        textBlocks: isH5TextBlockSnapshotList(message.textBlocks)
+          ? message.textBlocks
+          : undefined,
       };
     }
 
@@ -518,6 +551,38 @@ const createBridgeScript = (): string => {
           return [createSegment('', getDefaultStyle())];
         };
 
+        var serializeTextBlock = function (node) {
+          var segments = [];
+          var defaultStyle = getDefaultStyle();
+          var nextStyle = readSegmentStyle(node, defaultStyle);
+
+          Array.from(node.childNodes).forEach(function (childNode) {
+            serializeNode(childNode, nextStyle, segments);
+          });
+
+          return normalizeSegments(segments)
+            .map(function (segment) {
+              return segment.text;
+            })
+            .join('');
+        };
+
+        var serializeTextBlocks = function () {
+          return Array.from(editor.childNodes)
+            .filter(function (node) {
+              return isTextBlockElement(node);
+            })
+            .map(function (node) {
+              return {
+                id: node.getAttribute('data-note-text-block-id') || '',
+                text: serializeTextBlock(node),
+              };
+            })
+            .filter(function (block) {
+              return block.id !== '';
+            });
+        };
+
         var serializeEditor = function () {
           var segments = [];
           var defaultStyle = getDefaultStyle();
@@ -536,6 +601,7 @@ const createBridgeScript = (): string => {
           return {
             content: content,
             textSegments: normalizedSegments,
+            textBlocks: serializeTextBlocks(),
           };
         };
 
@@ -664,49 +730,86 @@ const createBridgeScript = (): string => {
           };
         };
 
-        var postChange = function () {
-          if (!window.ReactNativeWebView) {
+        var bridgeMessageSource = ${JSON.stringify(
+          H5_TEXT_EDITOR_BRIDGE_MESSAGE_SOURCE,
+        )};
+        var hostMessageSource = ${JSON.stringify(
+          H5_TEXT_EDITOR_HOST_MESSAGE_SOURCE,
+        )};
+
+        var postBridgeMessage = function (payload) {
+          var serializedPayload = JSON.stringify(payload);
+
+          if (
+            window.ReactNativeWebView &&
+            typeof window.ReactNativeWebView.postMessage === 'function'
+          ) {
+            window.ReactNativeWebView.postMessage(serializedPayload);
             return;
           }
 
+          if (
+            window.parent &&
+            window.parent !== window &&
+            typeof window.parent.postMessage === 'function'
+          ) {
+            window.parent.postMessage(
+              {
+                source: bridgeMessageSource,
+                payload: serializedPayload,
+              },
+              '*',
+            );
+          }
+        };
+
+        window.addEventListener('message', function (event) {
+          var data = event && event.data;
+
+          if (
+            !data ||
+            typeof data !== 'object' ||
+            data.source !== hostMessageSource ||
+            typeof data.script !== 'string'
+          ) {
+            return;
+          }
+
+          try {
+            Function(data.script)();
+          } catch (error) {
+            console.error('Failed to execute H5 editor host command', error);
+          }
+        });
+
+        var postChange = function () {
           var state = serializeEditor();
 
-          window.ReactNativeWebView.postMessage(
-            JSON.stringify({
-              type: 'content-change',
-              content: state.content,
-              textSegments: state.textSegments,
-            }),
-          );
+          postBridgeMessage({
+            type: 'content-change',
+            content: state.content,
+            textBlocks: state.textBlocks,
+            textSegments: state.textSegments,
+          });
         };
 
         var postSelectionChange = function () {
-          if (!window.ReactNativeWebView) {
-            return;
-          }
-
           var selectionState = resolveSelectionState();
 
           if (!selectionState) {
             return;
           }
 
-          window.ReactNativeWebView.postMessage(
-            JSON.stringify({
-              type: 'selection-change',
-              start: selectionState.start,
-              end: selectionState.end,
-              cursorPosition: selectionState.cursorPosition,
-            }),
-          );
+          postBridgeMessage({
+            type: 'selection-change',
+            start: selectionState.start,
+            end: selectionState.end,
+            cursorPosition: selectionState.cursorPosition,
+          });
         };
 
         var postMediaInsertRequest = function (payload) {
-          if (!window.ReactNativeWebView) {
-            return;
-          }
-
-          window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+          postBridgeMessage(payload);
         };
 
         var isImageFile = function (file) {
@@ -764,7 +867,7 @@ const createBridgeScript = (): string => {
         };
 
         var handleImageFiles = function (files) {
-          if (!window.ReactNativeWebView || files.length === 0) {
+          if (files.length === 0) {
             return;
           }
 
@@ -1021,21 +1124,19 @@ const createBridgeScript = (): string => {
               ? target.closest('[data-widget-insert-request]')
               : null;
 
-          if (draggedWidgetMeta && widgetInsertButton && window.ReactNativeWebView) {
+          if (draggedWidgetMeta && widgetInsertButton) {
             event.preventDefault();
             event.stopPropagation();
-            window.ReactNativeWebView.postMessage(
-              JSON.stringify({
-                type: 'widget-reorder-request',
-                blockId: draggedWidgetMeta.blockId,
-                widgetId: draggedWidgetMeta.widgetId,
-                widgetType: draggedWidgetMeta.widgetType,
-                afterBlockId:
-                  widgetInsertButton.getAttribute(
-                    'data-widget-insert-after-block-id',
-                  ) || null,
-              }),
-            );
+            postBridgeMessage({
+              type: 'widget-reorder-request',
+              blockId: draggedWidgetMeta.blockId,
+              widgetId: draggedWidgetMeta.widgetId,
+              widgetType: draggedWidgetMeta.widgetType,
+              afterBlockId:
+                widgetInsertButton.getAttribute(
+                  'data-widget-insert-after-block-id',
+                ) || null,
+            });
             draggedWidgetMeta = null;
             return;
           }
@@ -1055,8 +1156,7 @@ const createBridgeScript = (): string => {
 
           if (
             !target ||
-            typeof target.closest !== 'function' ||
-            !window.ReactNativeWebView
+            typeof target.closest !== 'function'
           ) {
             return;
           }
@@ -1080,13 +1180,11 @@ const createBridgeScript = (): string => {
             return;
           }
 
-          window.ReactNativeWebView.postMessage(
-            JSON.stringify({
-              type: 'media-delete',
-              kind: kind,
-              index: index,
-            }),
-          );
+          postBridgeMessage({
+            type: 'media-delete',
+            kind: kind,
+            index: index,
+          });
           return;
         });
 
@@ -1095,8 +1193,7 @@ const createBridgeScript = (): string => {
 
           if (
             !target ||
-            typeof target.closest !== 'function' ||
-            !window.ReactNativeWebView
+            typeof target.closest !== 'function'
           ) {
             return;
           }
@@ -1121,25 +1218,23 @@ const createBridgeScript = (): string => {
 
             event.preventDefault();
             event.stopPropagation();
-            window.ReactNativeWebView.postMessage(
-              JSON.stringify({
-                type:
-                  widgetAction === 'edit'
-                    ? 'widget-edit-request'
-                    : widgetAction === 'delete'
-                      ? 'widget-delete'
-                      : 'widget-move',
-                blockId: widgetMeta.blockId,
-                widgetId: widgetMeta.widgetId,
-                widgetType: widgetMeta.widgetType,
-                direction:
-                  widgetAction === 'move-up'
-                    ? 'up'
-                    : widgetAction === 'move-down'
-                      ? 'down'
-                      : undefined,
-              }),
-            );
+            postBridgeMessage({
+              type:
+                widgetAction === 'edit'
+                  ? 'widget-edit-request'
+                  : widgetAction === 'delete'
+                    ? 'widget-delete'
+                    : 'widget-move',
+              blockId: widgetMeta.blockId,
+              widgetId: widgetMeta.widgetId,
+              widgetType: widgetMeta.widgetType,
+              direction:
+                widgetAction === 'move-up'
+                  ? 'up'
+                  : widgetAction === 'move-down'
+                    ? 'down'
+                    : undefined,
+            });
             return;
           }
 
@@ -1148,15 +1243,13 @@ const createBridgeScript = (): string => {
           if (widgetInsertButton) {
             event.preventDefault();
             event.stopPropagation();
-            window.ReactNativeWebView.postMessage(
-              JSON.stringify({
-                type: 'widget-insert-request',
-                afterBlockId:
-                  widgetInsertButton.getAttribute(
-                    'data-widget-insert-after-block-id',
-                  ) || null,
-              }),
-            );
+            postBridgeMessage({
+              type: 'widget-insert-request',
+              afterBlockId:
+                widgetInsertButton.getAttribute(
+                  'data-widget-insert-after-block-id',
+                ) || null,
+            });
             return;
           }
 

@@ -161,17 +161,14 @@ describe('H5TextDocumentEditor', () => {
 
     await ReactTestRenderer.act(async () => {
       renderer = ReactTestRenderer.create(
-        <H5TextDocumentEditor
-          content="初始内容"
-          fontSize={16}
-          theme={theme}
-        />,
+        <H5TextDocumentEditor content="初始内容" fontSize={16} theme={theme} />,
       );
     });
 
     expect(mockGetEditorProvider).not.toHaveBeenCalled();
     expect(
-      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.children,
+      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props
+        .children,
     ).toContain('contenteditable="true"');
   });
 
@@ -190,8 +187,9 @@ describe('H5TextDocumentEditor', () => {
       );
     });
 
-    const renderedHtml =
-      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.children;
+    const renderedHtml = renderer!.root.findByProps({
+      testID: 'mock-h5-text-editor',
+    }).props.children;
 
     expect(renderedHtml).toContain('class="note-text-segment"');
     expect(renderedHtml).toContain('data-note-font-size="18"');
@@ -217,28 +215,131 @@ describe('H5TextDocumentEditor', () => {
     });
 
     await ReactTestRenderer.act(async () => {
-      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.onMessage({
-        nativeEvent: {
-          data: JSON.stringify({
-            type: 'content-change',
-            content: '更新内容',
-            textSegments: [
-              {text: '更新', fontSize: 18, isItalic: true},
-              {text: '内容', fontSize: 18, isBold: true},
-            ],
-          }),
-        },
-      });
+      renderer!.root
+        .findByProps({testID: 'mock-h5-text-editor'})
+        .props.onMessage({
+          nativeEvent: {
+            data: JSON.stringify({
+              type: 'content-change',
+              content: '更新内容',
+              textSegments: [
+                {text: '更新', fontSize: 18, isItalic: true},
+                {text: '内容', fontSize: 18, isBold: true},
+              ],
+            }),
+          },
+        });
     });
 
     expect(onChangeState).toHaveBeenCalledWith({
       content: '更新内容',
+      document: {
+        version: '1.0',
+        blocks: [
+          {
+            id: 'block-1',
+            type: 'paragraph',
+            text: '更新内容',
+          },
+        ],
+        plainText: '更新内容',
+      },
       textSegments: [
         {text: '更新', fontSize: 18, isItalic: true},
         {text: '内容', fontSize: 18, isBold: true},
       ],
     });
     expect(onChangeContent).not.toHaveBeenCalled();
+  });
+
+  test('reconstructs document-aware state from h5 text block snapshots', async () => {
+    const onChangeState = jest.fn();
+    let renderer: ReactTestRenderer.ReactTestRenderer;
+    const structuredDocument: RichDocument = {
+      version: '1.0',
+      blocks: [
+        {
+          id: 'heading-1',
+          type: 'heading',
+          level: 2,
+          text: '旧标题',
+        },
+        {
+          id: 'widget-block-1',
+          type: 'widget',
+          widget: {
+            id: 'widget-1',
+            type: 'todo-list',
+            title: '待办组件',
+            props: {
+              items: ['一', '二'],
+            },
+          },
+        },
+        {
+          id: 'list-1',
+          type: 'list',
+          items: ['旧事项'],
+          ordered: true,
+        },
+      ],
+      plainText: '旧标题\n\n旧事项',
+    };
+
+    await ReactTestRenderer.act(async () => {
+      renderer = ReactTestRenderer.create(
+        <H5TextDocumentEditor
+          content="旧标题\n\n旧事项"
+          document={structuredDocument}
+          fontSize={16}
+          onChangeState={onChangeState}
+          textSegments={[{text: '旧标题\n\n旧事项', fontSize: 16}]}
+          theme={theme}
+        />,
+      );
+    });
+
+    await ReactTestRenderer.act(async () => {
+      renderer!.root
+        .findByProps({testID: 'mock-h5-text-editor'})
+        .props.onMessage({
+          nativeEvent: {
+            data: JSON.stringify({
+              type: 'content-change',
+              content: '新标题\n\n事项一\n事项二',
+              textSegments: [{text: '新标题\n\n事项一\n事项二', fontSize: 16}],
+              textBlocks: [
+                {id: 'heading-1', text: '新标题'},
+                {id: 'list-1', text: '事项一\n事项二'},
+              ],
+            }),
+          },
+        });
+    });
+
+    expect(onChangeState).toHaveBeenCalledWith({
+      content: '新标题\n\n事项一\n事项二',
+      textSegments: [{text: '新标题\n\n事项一\n事项二', fontSize: 16}],
+      document: {
+        version: '1.0',
+        blocks: [
+          {
+            id: 'heading-1',
+            type: 'heading',
+            level: 2,
+            text: '新标题',
+          },
+          structuredDocument.blocks[1],
+          {
+            id: 'list-1',
+            type: 'list',
+            items: ['事项一', '事项二'],
+            ordered: true,
+          },
+        ],
+        plainText: '新标题\n\n事项一\n事项二',
+      },
+    });
   });
 
   test('forwards media delete messages to react native', async () => {
@@ -258,15 +359,17 @@ describe('H5TextDocumentEditor', () => {
     });
 
     await ReactTestRenderer.act(async () => {
-      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.onMessage({
-        nativeEvent: {
-          data: JSON.stringify({
-            type: 'media-delete',
-            kind: 'image',
-            index: 0,
-          }),
-        },
-      });
+      renderer!.root
+        .findByProps({testID: 'mock-h5-text-editor'})
+        .props.onMessage({
+          nativeEvent: {
+            data: JSON.stringify({
+              type: 'media-delete',
+              kind: 'image',
+              index: 0,
+            }),
+          },
+        });
     });
 
     expect(onDeleteMedia).toHaveBeenCalledWith({
@@ -292,16 +395,18 @@ describe('H5TextDocumentEditor', () => {
     });
 
     await ReactTestRenderer.act(async () => {
-      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.onMessage({
-        nativeEvent: {
-          data: JSON.stringify({
-            type: 'selection-change',
-            start: 1,
-            end: 3,
-            cursorPosition: 1,
-          }),
-        },
-      });
+      renderer!.root
+        .findByProps({testID: 'mock-h5-text-editor'})
+        .props.onMessage({
+          nativeEvent: {
+            data: JSON.stringify({
+              type: 'selection-change',
+              start: 1,
+              end: 3,
+              cursorPosition: 1,
+            }),
+          },
+        });
     });
 
     expect(onSelectionChange).toHaveBeenCalledWith({start: 1, end: 3}, 1);
@@ -321,8 +426,9 @@ describe('H5TextDocumentEditor', () => {
       );
     });
 
-    const renderedHtml =
-      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.children;
+    const renderedHtml = renderer!.root.findByProps({
+      testID: 'mock-h5-text-editor',
+    }).props.children;
 
     expect(renderedHtml).toContain('data-note-marker="[图片0]"');
     expect(renderedHtml).toContain('data-note-marker="[音频1]"');
@@ -343,13 +449,16 @@ describe('H5TextDocumentEditor', () => {
       );
     });
 
-    const renderedHtml =
-      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.children;
+    const renderedHtml = renderer!.root.findByProps({
+      testID: 'mock-h5-text-editor',
+    }).props.children;
 
     expect(renderedHtml).toContain(
       'data-note-media-insert-action="pick-image-file"',
     );
-    expect(renderedHtml).toContain('data-note-media-insert-action="pick-image"');
+    expect(renderedHtml).toContain(
+      'data-note-media-insert-action="pick-image"',
+    );
     expect(renderedHtml).toContain(
       'data-note-media-insert-action="capture-image"',
     );
@@ -383,8 +492,9 @@ describe('H5TextDocumentEditor', () => {
       );
     });
 
-    const renderedHtml =
-      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.children;
+    const renderedHtml = renderer!.root.findByProps({
+      testID: 'mock-h5-text-editor',
+    }).props.children;
 
     expect(renderedHtml).toContain('data-widget-block-id="widget-block-1"');
     expect(renderedHtml).toContain('data-widget-id="widget-1"');
@@ -410,8 +520,9 @@ describe('H5TextDocumentEditor', () => {
       );
     });
 
-    const renderedHtml =
-      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.children;
+    const renderedHtml = renderer!.root.findByProps({
+      testID: 'mock-h5-text-editor',
+    }).props.children;
     const insertButtonCount = (
       renderedHtml.match(/data-widget-insert-request="true"/g) ?? []
     ).length;
@@ -446,20 +557,21 @@ describe('H5TextDocumentEditor', () => {
       );
     });
 
-    const renderedHtml =
-      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.children;
+    const renderedHtml = renderer!.root.findByProps({
+      testID: 'mock-h5-text-editor',
+    }).props.children;
 
-    expect((renderedHtml.match(/data-widget-action="move-up"/g) ?? []).length).toBe(
-      2,
-    );
+    expect(
+      (renderedHtml.match(/data-widget-action="move-up"/g) ?? []).length,
+    ).toBe(2);
     expect(
       (renderedHtml.match(/data-widget-action="move-down"/g) ?? []).length,
     ).toBe(2);
     expect(renderedHtml).toContain('data-widget-action="move-up" disabled');
     expect(renderedHtml).toContain('data-widget-action="move-down" disabled');
-    expect((renderedHtml.match(/data-widget-drag-handle="true"/g) ?? []).length).toBe(
-      2,
-    );
+    expect(
+      (renderedHtml.match(/data-widget-drag-handle="true"/g) ?? []).length,
+    ).toBe(2);
     expect(renderedHtml).toContain('draggable="true"');
     expect(renderedHtml).toContain('>上移<');
     expect(renderedHtml).toContain('>下移<');
@@ -483,16 +595,18 @@ describe('H5TextDocumentEditor', () => {
     });
 
     await ReactTestRenderer.act(async () => {
-      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.onMessage({
-        nativeEvent: {
-          data: JSON.stringify({
-            type: 'widget-select',
-            blockId: 'widget-block-1',
-            widgetId: 'widget-1',
-            widgetType: 'todo-list',
-          }),
-        },
-      });
+      renderer!.root
+        .findByProps({testID: 'mock-h5-text-editor'})
+        .props.onMessage({
+          nativeEvent: {
+            data: JSON.stringify({
+              type: 'widget-select',
+              blockId: 'widget-block-1',
+              widgetId: 'widget-1',
+              widgetType: 'todo-list',
+            }),
+          },
+        });
     });
 
     expect(onWidgetEvent).not.toHaveBeenCalled();
@@ -516,9 +630,9 @@ describe('H5TextDocumentEditor', () => {
     });
 
     await ReactTestRenderer.act(async () => {
-      const onMessage =
-        renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props
-          .onMessage;
+      const onMessage = renderer!.root.findByProps({
+        testID: 'mock-h5-text-editor',
+      }).props.onMessage;
 
       onMessage({
         nativeEvent: {
@@ -620,14 +734,16 @@ describe('H5TextDocumentEditor', () => {
     });
 
     await ReactTestRenderer.act(async () => {
-      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.onMessage({
-        nativeEvent: {
-          data: JSON.stringify({
-            type: 'media-insert-request',
-            action: 'pick-image',
-          }),
-        },
-      });
+      renderer!.root
+        .findByProps({testID: 'mock-h5-text-editor'})
+        .props.onMessage({
+          nativeEvent: {
+            data: JSON.stringify({
+              type: 'media-insert-request',
+              action: 'pick-image',
+            }),
+          },
+        });
     });
 
     expect(onMediaInsertRequest).toHaveBeenCalledWith({
@@ -652,15 +768,17 @@ describe('H5TextDocumentEditor', () => {
     });
 
     await ReactTestRenderer.act(async () => {
-      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.onMessage({
-        nativeEvent: {
-          data: JSON.stringify({
-            type: 'media-insert-request',
-            action: 'insert-image-assets',
-            assets: [{uri: 'data:image/png;base64,abc'}],
-          }),
-        },
-      });
+      renderer!.root
+        .findByProps({testID: 'mock-h5-text-editor'})
+        .props.onMessage({
+          nativeEvent: {
+            data: JSON.stringify({
+              type: 'media-insert-request',
+              action: 'insert-image-assets',
+              assets: [{uri: 'data:image/png;base64,abc'}],
+            }),
+          },
+        });
     });
 
     expect(onMediaInsertRequest).toHaveBeenCalledWith({
@@ -733,15 +851,17 @@ describe('H5TextDocumentEditor', () => {
     mockInjectJavaScript.mockClear();
 
     await ReactTestRenderer.act(async () => {
-      renderer!.root.findByProps({testID: 'mock-h5-text-editor'}).props.onMessage({
-        nativeEvent: {
-          data: JSON.stringify({
-            type: 'content-change',
-            content: '更新正文',
-            textSegments: [{text: '更新正文', fontSize: 16}],
-          }),
-        },
-      });
+      renderer!.root
+        .findByProps({testID: 'mock-h5-text-editor'})
+        .props.onMessage({
+          nativeEvent: {
+            data: JSON.stringify({
+              type: 'content-change',
+              content: '更新正文',
+              textSegments: [{text: '更新正文', fontSize: 16}],
+            }),
+          },
+        });
     });
 
     await ReactTestRenderer.act(async () => {

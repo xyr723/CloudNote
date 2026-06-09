@@ -65,6 +65,10 @@ const mockPickImagesFromLibrary =
 const mockSaveNoteAttachment =
   saveNoteAttachment as jest.MockedFunction<typeof saveNoteAttachment>;
 
+const originalWindow = (globalThis as {window?: unknown}).window;
+let iframeWindow: {postMessage: jest.Mock};
+let messageHandler: ((event: {data?: unknown; source?: unknown}) => void) | null;
+
 type RenderCallbacks = {
   onChangeAudios: jest.Mock<void, [string[]]>;
   onChangeContent: jest.Mock<void, [string]>;
@@ -150,6 +154,17 @@ const renderWebModal = async ({
         onChangeTextSegments={callbacks.onChangeTextSegments}
         theme={theme}
       />,
+      {
+        createNodeMock: element => {
+          if (element.type === 'iframe') {
+            return {
+              contentWindow: iframeWindow,
+            };
+          }
+
+          return null;
+        },
+      },
     );
   });
 
@@ -159,10 +174,53 @@ const renderWebModal = async ({
   };
 };
 
+const dispatchH5BridgeMessage = async (payload: unknown) => {
+  await ReactTestRenderer.act(async () => {
+    messageHandler?.({
+      data: {
+        payload: JSON.stringify(payload),
+        source: 'cloudnote-h5-editor',
+      },
+      source: iframeWindow,
+    });
+    await Promise.resolve();
+  });
+};
+
 describe('NoteEditorModal.web', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockCaptureImage.mockResolvedValue(null);
+    iframeWindow = {
+      postMessage: jest.fn(),
+    };
+    messageHandler = null;
+
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        addEventListener: jest.fn(
+          (
+            type: string,
+            listener: (event: {data?: unknown; source?: unknown}) => void,
+          ) => {
+            if (type === 'message') {
+              messageHandler = listener;
+            }
+          },
+        ),
+        removeEventListener: jest.fn(),
+      },
+      writable: true,
+    });
+  });
+
+  afterEach(() => {
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: originalWindow,
+      writable: true,
+    });
   });
 
   test('inserts image markers through the web image entry flow', async () => {
@@ -315,9 +373,16 @@ describe('NoteEditorModal.web', () => {
 
     await ReactTestRenderer.act(async () => {
       renderer.root
-        .findByProps({testID: 'web-h5-widget-edit-widget-block-1'})
-        .props.onPress();
+        .findByProps({'data-testid': 'web-h5-editor-frame'})
+        .props.onLoad();
       await Promise.resolve();
+    });
+
+    await dispatchH5BridgeMessage({
+      type: 'widget-edit-request',
+      blockId: 'widget-block-1',
+      widgetId: 'widget-1',
+      widgetType: 'todo-list',
     });
 
     expect(
@@ -361,22 +426,22 @@ describe('NoteEditorModal.web', () => {
 
     await ReactTestRenderer.act(async () => {
       renderer.root
-        .findByProps({testID: 'web-h5-editor-input'})
-        .props.onSelectionChange({
-          nativeEvent: {
-            selection: {
-              end: 2,
-              start: 2,
-            },
-          },
-        });
+        .findByProps({'data-testid': 'web-h5-editor-frame'})
+        .props.onLoad();
       await Promise.resolve();
     });
 
+    await dispatchH5BridgeMessage({
+      type: 'selection-change',
+      cursorPosition: 2,
+      end: 2,
+      start: 2,
+    });
+    await dispatchH5BridgeMessage({
+      type: 'media-insert-request',
+      action: 'pick-image',
+    });
     await ReactTestRenderer.act(async () => {
-      renderer.root
-        .findByProps({testID: 'web-h5-media-pick-image'})
-        .props.onPress();
       await Promise.resolve();
       await Promise.resolve();
     });

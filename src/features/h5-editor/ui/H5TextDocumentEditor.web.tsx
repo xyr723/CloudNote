@@ -1,29 +1,27 @@
-import React, {useEffect, useMemo, useRef, useState} from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {StyleSheet, View} from 'react-native';
 import type {RichDocument} from '../../../entities/document/types';
+import {
+  applyTextBlockSnapshotsToDocument,
+  createLiveNoteDocument,
+} from '../../../entities/note/document';
 import type {TextSegment} from '../../../entities/note/types';
 import type {ThemeColors} from '../../../shared/theme/colors';
-import {WidgetRenderer} from '../../widget-renderer/ui/WidgetRenderer';
 import {
-  replaceRichTextSegmentsState,
-  toggleBoldForSelection,
-  toggleItalicForSelection,
-} from '../../note-editor/model/noteEditorFormattingUtils';
-import type {
-  H5TextEditorDeleteMediaPayload,
-  H5TextEditorFormatCommand,
-  H5TextEditorMediaInsertRequestEvent,
-  H5TextEditorSelectionPayload,
-  H5TextEditorState,
-  H5WidgetBridgeEvent,
+  createH5TextEditorFormatScript,
+  createH5TextEditorHtml,
+  H5_TEXT_EDITOR_BRIDGE_MESSAGE_SOURCE,
+  H5_TEXT_EDITOR_HOST_MESSAGE_SOURCE,
+  parseH5TextEditorMessage,
+  createH5TextEditorSyncScript,
+  type H5TextEditorDeleteMediaPayload,
+  type H5TextEditorFormatCommand,
+  type H5TextEditorMediaInsertRequestEvent,
+  type H5TextEditorSelectionPayload,
+  type H5TextEditorState,
+  type H5WidgetBridgeEvent,
 } from '../model/h5TextEditorBridge';
+import {createH5TextEditorBodyHtml} from '../model/h5TextEditorMarkup';
 
 type H5TextDocumentEditorProps = {
   content: string;
@@ -42,40 +40,44 @@ type H5TextDocumentEditorProps = {
   theme: ThemeColors;
 };
 
-type MarkerItem = {
-  index: number;
-  kind: 'image' | 'audio';
+type IframeWindow = {
+  postMessage: (message: unknown, targetOrigin: string) => void;
 };
 
-const extractMarkers = (content: string): MarkerItem[] => {
-  const markers: MarkerItem[] = [];
-  const matcher = /\[(图片|音频)(\d+)\]/g;
-  let match: RegExpExecArray | null;
+type IframeHandle = {
+  contentWindow?: IframeWindow | null;
+} | null;
 
-  while ((match = matcher.exec(content)) !== null) {
-    markers.push({
-      index: parseInt(match[2] ?? '0', 10),
-      kind: match[1] === '图片' ? 'image' : 'audio',
-    });
-  }
-
-  return markers;
-};
-
-const createNextTextSegments = ({
+const createEditorHtml = ({
   content,
-  fallbackFontSize,
+  document,
+  fontSize,
   textSegments,
+  theme,
 }: {
   content: string;
-  fallbackFontSize: number;
+  document?: RichDocument;
+  fontSize: number;
   textSegments?: TextSegment[];
-}): TextSegment[] => {
-  return replaceRichTextSegmentsState({
+  theme: ThemeColors;
+}) => {
+  const bodyHtml = createH5TextEditorBodyHtml({
     content,
-    fallbackFontSize,
+    document,
     textSegments,
+    fallbackFontSize: fontSize,
+    defaultTextColor: theme.text,
   });
+
+  return {
+    bodyHtml,
+    html: createH5TextEditorHtml({
+      bodyHtml,
+      defaultTextColor: theme.text,
+      fontSize,
+      theme,
+    }),
+  };
 };
 
 export const H5TextDocumentEditor: React.FC<H5TextDocumentEditorProps> = ({
@@ -91,441 +93,258 @@ export const H5TextDocumentEditor: React.FC<H5TextDocumentEditorProps> = ({
   textSegments,
   theme,
 }) => {
-  const [selection, setSelection] = useState({start: 0, end: 0});
-  const lastAppliedFormatCommandIdRef = useRef<number | null>(
-    formatCommand?.id ?? null,
-  );
-  const markers = useMemo(() => extractMarkers(content), [content]);
+  const initialHtml = useMemo(() => {
+    return createEditorHtml({
+      content,
+      document,
+      fontSize,
+      textSegments,
+      theme,
+    }).html;
+  }, []);
+  const [html, setHtml] = useState<string>(initialHtml);
+  const [isFrameReady, setIsFrameReady] = useState(false);
+  const iframeRef = useRef<IframeHandle>(null);
+  const textSegmentsSignature = useMemo(() => {
+    return JSON.stringify(textSegments ?? null);
+  }, [textSegments]);
+  const documentSignature = useMemo(() => {
+    return JSON.stringify(document ?? null);
+  }, [document]);
+  const themeSignature = useMemo(() => {
+    return [
+      theme.surface,
+      theme.text,
+      theme.textDark,
+      theme.border,
+      theme.primary,
+    ].join('|');
+  }, [theme]);
+  const lastSyncedContentRef = useRef(content);
+  const lastSyncedSegmentsRef = useRef(textSegmentsSignature);
+  const lastSyncedDocumentRef = useRef(documentSignature);
+  const lastAppliedFontSizeRef = useRef(fontSize);
+  const lastThemeSignatureRef = useRef(themeSignature);
+  const lastAppliedFormatCommandIdRef = useRef<number | null>(null);
+
+  const postHostCommand = useCallback((script: string) => {
+    iframeRef.current?.contentWindow?.postMessage(
+      {
+        source: H5_TEXT_EDITOR_HOST_MESSAGE_SOURCE,
+        script,
+      },
+      '*',
+    );
+  }, []);
+
+  useEffect(() => {
+    const shouldSkipSync =
+      isFrameReady &&
+      content === lastSyncedContentRef.current &&
+      textSegmentsSignature === lastSyncedSegmentsRef.current &&
+      documentSignature === lastSyncedDocumentRef.current &&
+      fontSize === lastAppliedFontSizeRef.current &&
+      themeSignature === lastThemeSignatureRef.current;
+
+    if (shouldSkipSync) {
+      return;
+    }
+
+    const {bodyHtml, html: nextHtml} = createEditorHtml({
+      content,
+      document,
+      fontSize,
+      textSegments,
+      theme,
+    });
+
+    if (!isFrameReady) {
+      setHtml(nextHtml);
+    } else {
+      postHostCommand(
+        createH5TextEditorSyncScript({
+          bodyHtml,
+          defaultTextColor: theme.text,
+          fontSize,
+          theme,
+        }),
+      );
+    }
+
+    lastSyncedContentRef.current = content;
+    lastSyncedSegmentsRef.current = textSegmentsSignature;
+    lastSyncedDocumentRef.current = documentSignature;
+    lastAppliedFontSizeRef.current = fontSize;
+    lastThemeSignatureRef.current = themeSignature;
+  }, [
+    content,
+    document,
+    documentSignature,
+    fontSize,
+    isFrameReady,
+    postHostCommand,
+    textSegments,
+    textSegmentsSignature,
+    theme,
+    themeSignature,
+  ]);
 
   useEffect(() => {
     if (
       !formatCommand ||
+      !isFrameReady ||
       formatCommand.id === lastAppliedFormatCommandIdRef.current
     ) {
       return;
     }
 
+    postHostCommand(createH5TextEditorFormatScript(formatCommand));
     lastAppliedFormatCommandIdRef.current = formatCommand.id;
+  }, [formatCommand, isFrameReady, postHostCommand]);
 
-    const nextTextSegments = createNextTextSegments({
-      content,
-      fallbackFontSize: fontSize,
-      textSegments,
-    });
-    const nextState =
-      formatCommand.type === 'bold'
-        ? toggleBoldForSelection(nextTextSegments, selection)
-        : toggleItalicForSelection(nextTextSegments, selection);
+  const handleWindowMessage = useCallback(
+    (event: {data?: unknown; source?: unknown}) => {
+      if (event.source !== iframeRef.current?.contentWindow) {
+        return;
+      }
 
-    if (!nextState) {
+      if (!event.data || typeof event.data !== 'object') {
+        return;
+      }
+
+      const bridgeData = event.data as {
+        payload?: unknown;
+        source?: unknown;
+      };
+
+      if (
+        bridgeData.source !== H5_TEXT_EDITOR_BRIDGE_MESSAGE_SOURCE ||
+        typeof bridgeData.payload !== 'string'
+      ) {
+        return;
+      }
+
+      const message = parseH5TextEditorMessage(bridgeData.payload);
+
+      if (message.type === 'selection-change') {
+        onSelectionChange?.(
+          {
+            start: message.start,
+            end: message.end,
+          },
+          message.cursorPosition,
+        );
+        return;
+      }
+
+      if (message.type === 'media-delete') {
+        onDeleteMedia?.({
+          kind: message.kind,
+          index: message.index,
+        });
+        return;
+      }
+
+      if (message.type === 'media-insert-request') {
+        onMediaInsertRequest?.(message);
+        return;
+      }
+
+      if (
+        message.type === 'widget-edit-request' ||
+        message.type === 'widget-delete' ||
+        message.type === 'widget-move' ||
+        message.type === 'widget-reorder-request' ||
+        message.type === 'widget-insert-request'
+      ) {
+        onWidgetEvent?.(message);
+        return;
+      }
+
+      if (message.type !== 'content-change') {
+        return;
+      }
+
+      const nextDocument =
+        applyTextBlockSnapshotsToDocument(document, message.textBlocks ?? []) ??
+        createLiveNoteDocument({
+          content: message.content,
+          document,
+        });
+
+      lastSyncedContentRef.current = message.content;
+      lastSyncedSegmentsRef.current = JSON.stringify(message.textSegments);
+      lastSyncedDocumentRef.current = JSON.stringify(nextDocument);
+      onChangeState?.({
+        content: message.content,
+        document: nextDocument,
+        textSegments: message.textSegments,
+      });
+    },
+    [
+      document,
+      onChangeState,
+      onDeleteMedia,
+      onMediaInsertRequest,
+      onSelectionChange,
+      onWidgetEvent,
+    ],
+  );
+
+  useEffect(() => {
+    const hostWindow = (
+      globalThis as typeof globalThis & {
+        window?: {
+          addEventListener?: (
+            type: string,
+            listener: (event: {data?: unknown; source?: unknown}) => void,
+          ) => void;
+          removeEventListener?: (
+            type: string,
+            listener: (event: {data?: unknown; source?: unknown}) => void,
+          ) => void;
+        };
+      }
+    ).window;
+
+    if (!hostWindow || typeof hostWindow.addEventListener !== 'function') {
       return;
     }
 
-    onChangeState?.(nextState);
-  }, [content, fontSize, formatCommand, onChangeState, selection, textSegments]);
+    hostWindow.addEventListener('message', handleWindowMessage);
+
+    return () => {
+      hostWindow.removeEventListener?.('message', handleWindowMessage);
+    };
+  }, [handleWindowMessage]);
 
   return (
-    <ScrollView
-      contentContainerStyle={styles.contentContainer}
-      style={styles.container}>
-      <View style={styles.toolbarRow}>
-        <TouchableOpacity
-          testID="web-h5-media-pick-image"
-          style={[
-            styles.actionButton,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.border,
-            },
-          ]}
-          onPress={() =>
-            onMediaInsertRequest?.({
-              type: 'media-insert-request',
-              action: 'pick-image',
-            })
-          }>
-          <Text style={[styles.actionButtonText, {color: theme.text}]}>
-            插入图片
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.border,
-            },
-          ]}
-          onPress={() =>
-            onMediaInsertRequest?.({
-              type: 'media-insert-request',
-              action: 'capture-image',
-            })
-          }>
-          <Text style={[styles.actionButtonText, {color: theme.text}]}>
-            拍照
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.actionButton,
-            {
-              backgroundColor: theme.surface,
-              borderColor: theme.border,
-            },
-          ]}
-          onPress={() =>
-            onMediaInsertRequest?.({
-              type: 'media-insert-request',
-              action: 'record-audio',
-            })
-          }>
-          <Text style={[styles.actionButtonText, {color: theme.text}]}>
-            录音
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <TextInput
-        multiline
-        testID="web-h5-editor-input"
-        style={[
-          styles.contentInput,
-          {
-            backgroundColor: theme.surface,
-            borderColor: theme.border,
-            color: theme.text,
-            fontSize,
-          },
-        ]}
-        placeholder="请输入正文"
-        placeholderTextColor={theme.textLight}
-        value={content}
-        onChangeText={nextContent => {
-          onChangeState?.({
-            content: nextContent,
-            textSegments: createNextTextSegments({
-              content: nextContent,
-              fallbackFontSize: fontSize,
-              textSegments,
-            }),
-          });
+    <View style={styles.container}>
+      <iframe
+        onLoad={() => {
+          setIsFrameReady(true);
         }}
-        onSelectionChange={event => {
-          const nextSelection = event.nativeEvent.selection;
-
-          setSelection(nextSelection);
-          onSelectionChange?.(nextSelection, nextSelection.start);
+        ref={node => {
+          iframeRef.current = node as IframeHandle;
         }}
+        sandbox="allow-forms allow-same-origin allow-scripts"
+        srcDoc={html}
+        style={{
+          backgroundColor: theme.surface,
+          border: '0',
+          flex: 1,
+          height: '100%',
+          width: '100%',
+        }}
+        data-testid="web-h5-editor-frame"
+        title="CloudNote H5 Editor"
       />
-
-      {markers.length > 0 ? (
-        <View style={styles.markerList}>
-          {markers.map(marker => (
-            <TouchableOpacity
-              key={`${marker.kind}-${marker.index}`}
-              testID={`web-h5-delete-${marker.kind}-${marker.index}`}
-              style={[
-                styles.markerButton,
-                {
-                  backgroundColor: theme.background,
-                  borderColor: theme.borderLight,
-                },
-              ]}
-              onPress={() =>
-                onDeleteMedia?.({
-                  kind: marker.kind,
-                  index: marker.index,
-                })
-              }>
-              <Text style={[styles.markerButtonText, {color: theme.textDark}]}>
-                {marker.kind === 'image'
-                  ? `删除图片占位 ${marker.index + 1}`
-                  : `删除音频占位 ${marker.index + 1}`}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      ) : null}
-
-      <TouchableOpacity
-        testID="web-h5-widget-insert-root"
-        style={[
-          styles.insertButton,
-          {
-            backgroundColor: theme.background,
-            borderColor: theme.border,
-          },
-        ]}
-        onPress={() =>
-          onWidgetEvent?.({
-            type: 'widget-insert-request',
-            afterBlockId: null,
-          })
-        }>
-        <Text style={[styles.insertButtonText, {color: theme.text}]}>
-          在开头插入组件
-        </Text>
-      </TouchableOpacity>
-
-      {(document?.blocks ?? []).map(block => {
-        if (block.type === 'widget') {
-          return (
-            <View
-              key={block.id}
-              style={[
-                styles.blockCard,
-                {
-                  backgroundColor: theme.background,
-                  borderColor: theme.border,
-                },
-              ]}>
-              <WidgetRenderer theme={theme} widget={block.widget} />
-              <View style={styles.widgetActionRow}>
-                <TouchableOpacity
-                  testID={`web-h5-widget-edit-${block.id}`}
-                  style={[
-                    styles.inlineActionButton,
-                    {
-                      backgroundColor: theme.surface,
-                      borderColor: theme.borderLight,
-                    },
-                  ]}
-                  onPress={() =>
-                    onWidgetEvent?.({
-                      type: 'widget-edit-request',
-                      blockId: block.id,
-                      widgetId: block.widget.id,
-                      widgetType: block.widget.type,
-                    })
-                  }>
-                  <Text
-                    style={[styles.inlineActionButtonText, {color: theme.text}]}>
-                    编辑组件
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.inlineActionButton,
-                    {
-                      backgroundColor: theme.surface,
-                      borderColor: theme.borderLight,
-                    },
-                  ]}
-                  onPress={() =>
-                    onWidgetEvent?.({
-                      type: 'widget-delete',
-                      blockId: block.id,
-                      widgetId: block.widget.id,
-                      widgetType: block.widget.type,
-                    })
-                  }>
-                  <Text
-                    style={[styles.inlineActionButtonText, {color: theme.text}]}>
-                    删除组件
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.inlineActionButton,
-                    {
-                      backgroundColor: theme.surface,
-                      borderColor: theme.borderLight,
-                    },
-                  ]}
-                  onPress={() =>
-                    onWidgetEvent?.({
-                      type: 'widget-move',
-                      blockId: block.id,
-                      widgetId: block.widget.id,
-                      widgetType: block.widget.type,
-                      direction: 'up',
-                    })
-                  }>
-                  <Text
-                    style={[styles.inlineActionButtonText, {color: theme.text}]}>
-                    上移
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.inlineActionButton,
-                    {
-                      backgroundColor: theme.surface,
-                      borderColor: theme.borderLight,
-                    },
-                  ]}
-                  onPress={() =>
-                    onWidgetEvent?.({
-                      type: 'widget-move',
-                      blockId: block.id,
-                      widgetId: block.widget.id,
-                      widgetType: block.widget.type,
-                      direction: 'down',
-                    })
-                  }>
-                  <Text
-                    style={[styles.inlineActionButtonText, {color: theme.text}]}>
-                    下移
-                  </Text>
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity
-                testID={`web-h5-widget-insert-after-${block.id}`}
-                style={[
-                  styles.insertButton,
-                  {
-                    backgroundColor: theme.surface,
-                    borderColor: theme.borderLight,
-                  },
-                ]}
-                onPress={() =>
-                  onWidgetEvent?.({
-                    type: 'widget-insert-request',
-                    afterBlockId: block.id,
-                  })
-                }>
-                <Text
-                  style={[styles.insertButtonText, {color: theme.textLight}]}>
-                  在此后插入组件
-                </Text>
-              </TouchableOpacity>
-            </View>
-          );
-        }
-
-        return (
-          <View
-            key={block.id}
-            style={[
-              styles.blockCard,
-              {
-                backgroundColor: theme.background,
-                borderColor: theme.border,
-              },
-            ]}>
-            {block.type === 'list' ? (
-              <View style={styles.listBlock}>
-                {block.items.map((item, itemIndex) => (
-                  <Text
-                    key={`${block.id}-${itemIndex}`}
-                    style={[styles.blockText, {color: theme.textDark}]}>
-                    {block.ordered ? `${itemIndex + 1}. ${item}` : `• ${item}`}
-                  </Text>
-                ))}
-              </View>
-            ) : (
-              <Text style={[styles.blockText, {color: theme.textDark}]}>
-                {block.text}
-              </Text>
-            )}
-            <TouchableOpacity
-              testID={`web-h5-widget-insert-after-${block.id}`}
-              style={[
-                styles.insertButton,
-                {
-                  backgroundColor: theme.surface,
-                  borderColor: theme.borderLight,
-                },
-              ]}
-              onPress={() =>
-                onWidgetEvent?.({
-                  type: 'widget-insert-request',
-                  afterBlockId: block.id,
-                })
-              }>
-              <Text style={[styles.insertButtonText, {color: theme.textLight}]}>
-                在此后插入组件
-              </Text>
-            </TouchableOpacity>
-          </View>
-        );
-      })}
-    </ScrollView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  actionButton: {
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  actionButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  blockCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    gap: 12,
-    padding: 12,
-  },
-  blockText: {
-    fontSize: 15,
-    lineHeight: 22,
-  },
   container: {
     flex: 1,
-  },
-  contentContainer: {
-    gap: 12,
-    padding: 12,
-  },
-  contentInput: {
-    borderRadius: 16,
-    borderWidth: 1,
-    minHeight: 220,
-    padding: 16,
-    textAlignVertical: 'top',
-  },
-  inlineActionButton: {
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-  },
-  inlineActionButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  listBlock: {
-    gap: 6,
-  },
-  insertButton: {
-    alignItems: 'center',
-    borderRadius: 12,
-    borderStyle: 'dashed',
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  insertButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  markerButton: {
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  markerButtonText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  markerList: {
-    gap: 8,
-  },
-  toolbarRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  widgetActionRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
   },
 });

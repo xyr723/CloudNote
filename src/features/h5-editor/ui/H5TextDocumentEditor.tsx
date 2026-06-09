@@ -5,7 +5,10 @@ import {
   type WebViewMessageEvent,
 } from 'react-native-webview';
 import type {RichDocument} from '../../../entities/document/types';
-import {extractWidgetBlocks} from '../../../entities/note/document';
+import {
+  applyTextBlockSnapshotsToDocument,
+  createLiveNoteDocument,
+} from '../../../entities/note/document';
 import type {TextSegment} from '../../../entities/note/types';
 import type {ThemeColors} from '../../../shared/theme/colors';
 import {
@@ -61,7 +64,7 @@ export const H5TextDocumentEditor: React.FC<H5TextDocumentEditorProps> = ({
     return JSON.stringify(textSegments ?? null);
   }, [textSegments]);
   const documentSignature = useMemo(() => {
-    return JSON.stringify(extractWidgetBlocks(document));
+    return JSON.stringify(document ?? null);
   }, [document]);
   const lastSyncedSegmentsRef = useRef<string>(textSegmentsSignature);
   const lastSyncedDocumentRef = useRef<string>(documentSignature);
@@ -197,10 +200,19 @@ export const H5TextDocumentEditor: React.FC<H5TextDocumentEditorProps> = ({
       return;
     }
 
+    const nextDocument =
+      applyTextBlockSnapshotsToDocument(document, message.textBlocks ?? []) ??
+      createLiveNoteDocument({
+        content: message.content,
+        document,
+      });
+
     lastSyncedContentRef.current = message.content;
     lastSyncedSegmentsRef.current = JSON.stringify(message.textSegments);
+    lastSyncedDocumentRef.current = JSON.stringify(nextDocument);
     onChangeState?.({
       content: message.content,
+      document: nextDocument,
       textSegments: message.textSegments,
     });
   };
